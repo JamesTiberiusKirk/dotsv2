@@ -23,7 +23,7 @@ precmd() {
         # Use 'git --git-dir=$HOME/.cfg/ --work-tree=$HOME' for all git commands
         local modified_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME status --porcelain | grep '^ M\|AM' | wc -l)
         local staged_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME diff --cached --name-status | grep 'A\|^M' | wc -l)
-        local unpushed_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME log --branches --not --remotes --count 2>/dev/null | grep "commit" | wc -l)
+        local unpushed_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME log --not --remotes --count 2>/dev/null | grep "commit" | wc -l)
 
     # Check if there are any changes
         if [[ $modified_count -gt 0 || $staged_count -gt 0 || $unpushed_count -gt 0 ]]; then
