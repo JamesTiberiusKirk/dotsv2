@@ -130,5 +130,38 @@ bindkey "^[[A" up-line-or-beginning-search # Up
 bindkey "^[[B" down-line-or-beginning-search # Down
 ####################
 
-
 source ~/.profile
+
+function _cfg_completion {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :->command' \
+        '*::arg:->args'
+
+    case $state in
+        command)
+            _describe -t commands "git command" _git_commands
+            ;;
+        args)
+            case $line[1] in
+                add)
+                    _arguments '*:file:_files'
+                    ;;
+                *)
+                    _git
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+compdef _cfg_completion cfg 
+compdef _cfg_completion cfga
+
+autoload -Uz compinit && compinit
+
+
+
+
