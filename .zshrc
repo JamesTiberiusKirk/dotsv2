@@ -13,19 +13,17 @@ setopt PROMPT_SUBST
 
 precmd() {
     local exit_code=$?
-
     # Construct the prompt
-    PROMPT='%F{cyan}[%F{magenta}%n@%m%f '
-
+    PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
 
     if git --git-dir=$HOME/.cfg/ --work-tree=$HOME rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         # Explicitly set the branch to 'master' for a bare repo
         local current_branch="master"
 
         # Use 'git --git-dir=$HOME/.cfg/ --work-tree=$HOME' for all git commands
-        local modified_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME status --porcelain | grep 'AM' | wc -l)
-        local staged_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME diff --cached --name-status | grep 'A' | wc -l)
-        local unpushed_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME log --branches --not --remotes --count 2>/dev/null)
+        local modified_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME status --porcelain | grep '^ M\|AM' | wc -l)
+        local staged_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME diff --cached --name-status | grep 'A\|^M' | wc -l)
+        local unpushed_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME log --branches --not --remotes --count 2>/dev/null | grep "commit" | wc -l)
 
     # Check if there are any changes
         if [[ $modified_count -gt 0 || $staged_count -gt 0 || $unpushed_count -gt 0 ]]; then
@@ -42,7 +40,7 @@ precmd() {
             if [[ $unpushed_count -gt 0 ]]; then
                 PROMPT+="%F{magenta}↑$unpushed_count%f"
             fi
-            PROMPT+="%F{cyan}}% "
+            PROMPT+="%F{cyan}}%f "
         fi
     fi
 
