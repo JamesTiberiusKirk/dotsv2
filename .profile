@@ -121,6 +121,37 @@ function nvims() {
 if [[ $(uname) = "Darwin" ]]; then
 fi
 if [[ $(uname) = "Linux" ]]; then
+	yay() {
+	    # Store the original command arguments
+	    local args=("$@")
+	    
+	    # Run the original yay command
+	    command yay "$@"
+	    local exit_status=$?
+
+	    if [ $exit_status -eq 0 ]; then
+		local packages_file="$HOME/.config/installed_packages/common.txt"
+
+		if [[ "$*" == *"-S"* ]]; then
+		    # Installation: Add packages
+		    echo "Adding package(s) to $packages_file"
+		    for pkg in $(echo "$@" | grep -oP '(?<=-S\s)\S+'); do
+			echo "$pkg" >> "$packages_file"
+		    done
+		elif [[ "$*" == *"-R"* ]]; then
+		    # Removal: Remove packages
+		    echo "Removing package(s) from $packages_file"
+		    for pkg in $(echo "$@" | grep -oP '(?<=-R\s)\S+'); do
+			sed -i "/^$pkg$/d" "$packages_file"
+		    done
+		fi
+
+		# Remove duplicates and sort the file
+		sort -u "$packages_file" -o "$packages_file"
+	    fi
+
+	    return $exit_status
+	}
 fi
 
 

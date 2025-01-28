@@ -1,0 +1,16 @@
+brave-nightly-bin
+dmenu
+docker
+docker-compose
+fzf
+gtk-engine-murrine
+hyprshot
+imv
+lazygit
+man-db
+networkmanager
+network-manager-applet
+shellcheck
+telegram-desktop
+tree
+ttf-arimo-nerd
