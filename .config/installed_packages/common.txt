@@ -1,4 +1,5 @@
 brave-nightly-bin
+discord
 dmenu
 docker
 docker-compose
