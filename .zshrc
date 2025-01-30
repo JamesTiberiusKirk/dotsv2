@@ -1,10 +1,6 @@
+
 # Load vcs_info
 autoload -Uz vcs_info
-
-# Pre-command hook to gather vcs_info
-precmd() {
-    vcs_info
-}
 
 # Configure vcs_info to show branch name
 zstyle ':vcs_info:git:*' formats '%b'
@@ -13,79 +9,54 @@ setopt PROMPT_SUBST
 
 precmd() {
     local exit_code=$?
+    vcs_info
     # Construct the prompt
     PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
 
+    # Check for dotfiles bare repository
     if git --git-dir=$HOME/.cfg/ --work-tree=$HOME rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-        # Explicitly set the branch to 'master' for a bare repo
-        local current_branch="master"
-
-        # Use 'git --git-dir=$HOME/.cfg/ --work-tree=$HOME' for all git commands
         local modified_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME status --porcelain | grep '^ M\|AM' | wc -l)
         local staged_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME diff --cached --name-status | grep 'A\|^M' | wc -l)
         local unpushed_count=$(git --git-dir=$HOME/.cfg/ --work-tree=$HOME log --not --remotes --count 2>/dev/null | grep "commit" | wc -l)
 
-    # Check if there are any changes
+        # Check if there are any changes in dotfiles
         if [[ $modified_count -gt 0 || $staged_count -gt 0 || $unpushed_count -gt 0 ]]; then
             PROMPT+="%F{cyan}.{%f"
             
-            if [[ $modified_count -gt 0 ]]; then
-                PROMPT+="%F{yellow}!$modified_count%f"
-            fi
-
-            if [[ $staged_count -gt 0 ]]; then
-                PROMPT+="%F{green}+$staged_count%f"
-            fi
-
-            if [[ $unpushed_count -gt 0 ]]; then
-                PROMPT+="%F{magenta}↑$unpushed_count%f"
-            fi
+            [[ $modified_count -gt 0 ]] && PROMPT+="%F{yellow}!$modified_count%f"
+            [[ $staged_count -gt 0 ]] && PROMPT+="%F{green}+$staged_count%f"
+            [[ $unpushed_count -gt 0 ]] && PROMPT+="%F{magenta}↑$unpushed_count%f"
+            
             PROMPT+="%F{cyan}}%f "
         fi
     fi
 
-    PROMPT+='%F{blue}%~%f %F{red}${vcs_info_msg_0_}%f'
+    PROMPT+='%F{blue}%~%f '
 
-    if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-        vcs_info
+    # Check for regular Git repository (not the dotfiles bare repo)
+    if [[ -z "$GIT_DIR" ]] && git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        local branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+        PROMPT+="%F{red}$branch%f"
 
-        # local modified_count=$(git status --porcelain | grep '^[ M]' | wc -l)
         local modified_count=$(git ls-files --modified | wc -l)
         local staged_count=$(git diff --cached --name-status | grep '^M' | wc -l)
-        local untracked_count=$(git status --porcelain | grep '??'  | wc -l)
-	local unpushed_count=$(git log @{u}..HEAD --oneline | wc -l)
+        local untracked_count=$(git ls-files --others --exclude-standard | wc -l)
+        local unpushed_count=$(git log @{u}..HEAD --oneline 2>/dev/null | wc -l)
 
         PROMPT+=" "
     
         # Display counts if there are any changes
-        if [[ $modified_count -gt 0 ]]; then
-            PROMPT+="%F{yellow}!$modified_count%f"
-        fi
-
-        if [[ $staged_count -gt 0 ]]; then
-            PROMPT+="%F{green}+$staged_count%f"
-        fi
-
-        if [[ $untracked_count -gt 0 ]]; then
-            PROMPT+="%F{red}?$untracked_count%f"
-        fi
-
-        if [[ $unpushed_count -gt 0 ]]; then
-            PROMPT+="%F{magenta}↑$unpushed_count%f"
-        fi
+        [[ $modified_count -gt 0 ]] && PROMPT+="%F{yellow}!$modified_count%f"
+        [[ $staged_count -gt 0 ]] && PROMPT+="%F{green}+$staged_count%f"
+        [[ $untracked_count -gt 0 ]] && PROMPT+="%F{red}?$untracked_count%f"
+        [[ $unpushed_count -gt 0 ]] && PROMPT+="%F{magenta}↑$unpushed_count%f"
     fi
 
-
-
-    
-    # PROMPT+='$(if [[ -n $GLEX_SESSION ]]; then echo "%F{yellow}glex%f "; fi)'
     PROMPT+="%F{cyan}]%f"$'\n'
     
     # 0:    I just dont wanna see if its successful
     # 130:  That happens when I start trying a command then CTRL+C
-    if [ $exit_code -ne 0 ] && [ $exit_code -ne 130 ]; then
-        PROMPT+='%F{red}[%?]%f'
-    fi
+    [[ $exit_code -ne 0 && $exit_code -ne 130 ]] && PROMPT+='%F{red}[%?]%f'
     
     PROMPT+='%F{white}$ '
 }
@@ -93,7 +64,6 @@ precmd() {
 PROMPT='$(precmd)'
 
 ####################
-
 
 # The following lines were added by compinstall
 zstyle ':completion:*' list-colors ''

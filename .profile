@@ -132,7 +132,7 @@ if [[ $(uname) = "Linux" ]]; then
 	    if [ $exit_status -eq 0 ]; then
 		local packages_file="$HOME/.config/installed_packages/common.txt"
 
-		if [[ "$*" == *"-S"* ]]; then
+		if [[ "$*" == *"-S "* ]]; then
 		    # Installation: Add packages
 		    echo "Adding package(s) to $packages_file"
 		    for pkg in $(echo "$@" | grep -oP '(?<=-S\s)\S+'); do
