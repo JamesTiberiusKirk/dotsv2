@@ -4,6 +4,7 @@ dmenu
 docker
 docker-compose
 fzf
+go
 gtk-engine-murrine
 hyprshot
 imv
@@ -11,8 +12,11 @@ lazygit
 man-db
 networkmanager
 network-manager-applet
+noto-fonts
+otf-font-awesome
 shellcheck
 telegram-desktop
 tree
 ttf-arimo-nerd
+ttf-nerd-fonts-symbols
 vertex-themes
