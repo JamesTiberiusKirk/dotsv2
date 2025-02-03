@@ -10,6 +10,8 @@ return {
     init = function()
       vim.cmd([[
             let test#strategy = "neoterm"
+            let test#go#runner = 'gotest'
+            let test#go#gotest#options = '-v -race'
         ]])
     end,
     keys = {
@@ -23,7 +25,7 @@ return {
       --   end,
       --   desc = "Test nearest function",
       -- },
-      { "<leader>T", "<cmd>TestFile -v <cr>", desc = "Test entire file" },
+      { "<leader>T", "<cmd>TestFile<cr>", desc = "Test entire file" },
       -- {
       --   "<leader>T",
       --   function()

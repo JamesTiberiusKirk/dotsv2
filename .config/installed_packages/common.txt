@@ -1,4 +1,5 @@
 brave-nightly-bin
+ddccontrol
 discord
 dmenu
 docker
@@ -7,6 +8,7 @@ fzf
 go
 gtk-engine-murrine
 hyprshot
+i2c-dev
 imv
 lazygit
 man-db

@@ -3,6 +3,7 @@ return {
     "fatih/vim-go",
     lazy = false,
     init = function()
+      -- On every new install need to run GoInstallBinaries
       vim.cmd("let g:go_gocode_autobuild=0")
       vim.cmd("let g:go_fmt_command = 'goimports'")
       vim.cmd("au BufRead,BufNewFile *.html set filetype=gohtmltmpl")

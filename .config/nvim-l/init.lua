@@ -610,7 +610,9 @@ vim.filetype.add({ extension = { templ = "templ" } })
 
 local servers = {
   -- clangd = {},
-  gopls = {},
+  gopls = {
+    usePlaceholders = true,
+  },
   -- pyright = {},
   -- rust_analyzer = {},
   -- tsserver = {},
