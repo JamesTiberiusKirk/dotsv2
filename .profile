@@ -39,6 +39,7 @@ alias cfgp='git --git-dir=$HOME/.cfg/ --work-tree=$HOME push'
 alias cfgs='git --git-dir=$HOME/.cfg/ --work-tree=$HOME status'
 
 # Git aliases alias g="git" alias gaa="git add --all" alias ga="git add " alias gc="git commit -m"
+alias ga="git add "
 alias gaa="git add --all"
 alias gp="git push --no-verify"
 alias gpl="git pull"
