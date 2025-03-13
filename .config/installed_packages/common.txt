@@ -8,6 +8,7 @@ docker-compose
 extra/postgresql-libs
 fzf
 go
+graphviz
 gtk-engine-murrine
 httpie
 hyprshot
@@ -30,4 +31,6 @@ tree
 ttf-arimo-nerd
 ttf-nerd-fonts-symbols
 vertex-themes
+vi
+vscode
 zathura

@@ -4,6 +4,8 @@ return {
     lazy = false,
     init = function()
       -- On every new install need to run GoInstallBinaries
+      --g:go_build_tags
+      vim.cmd("let g:go_build_tags='-tags=integration'")
       vim.cmd("let g:go_gocode_autobuild=0")
       vim.cmd("let g:go_fmt_command = 'goimports'")
       vim.cmd("au BufRead,BufNewFile *.html set filetype=gohtmltmpl")

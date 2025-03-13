@@ -1,5 +1,5 @@
 export XDG_CURRENT_DESKTOP=Hyperland
-export EDITOR="vi"
+export EDITOR="nvim"
 export TERM=alacritty
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
@@ -102,7 +102,7 @@ gpnu() {
 }
 
 # swapping vi for nvim
-alias vi="nvim"
+alias vi="nvim-l"
 alias nvim-l="NVIM_APPNAME=nvim-l nvim"
 
 function nvims() {

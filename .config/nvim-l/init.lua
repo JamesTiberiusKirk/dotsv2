@@ -57,6 +57,18 @@ require('lazy').setup({
     },
     config = function()
       local lspconfig = require("lspconfig")
+
+      lspconfig.gopls.setup{
+        settings = {
+          gopls = {
+            buildFlags = {"-tags=integration"},
+            env = {
+              GOFLAGS = "-tags=integration",
+            },
+          },
+        },
+      }
+
       lspconfig.ts_ls.setup({
         handlers = {
           ["textDocument/publishDiagnostics"] = function(
@@ -93,7 +105,9 @@ require('lazy').setup({
               config
             )
           end,
+
         },
+
       })
     end,
   },
@@ -611,6 +625,7 @@ vim.filetype.add({ extension = { templ = "templ" } })
 local servers = {
   -- clangd = {},
   gopls = {
+    buildFlags = { "-tags=integration" },
     usePlaceholders = true,
   },
   -- pyright = {},
