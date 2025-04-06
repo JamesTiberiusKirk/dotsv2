@@ -10,7 +10,9 @@ fzf
 go
 graphviz
 gtk-engine-murrine
+helm
 httpie
+hugo
 hyprshot
 i2c-dev
 imv
@@ -19,13 +21,17 @@ man-db
 minikube
 networkmanager
 network-manager-applet
+nodejs
 noto-fonts
+npm
 otf-font-awesome
+pasystray-wayland
 pavucontrol
 pgcli
 psql
 raylib
 shellcheck
+steam
 telegram-desktop
 tree
 ttf-arimo-nerd

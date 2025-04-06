@@ -634,7 +634,7 @@ local servers = {
   -- html = { filetypes = { 'html', 'twig', 'hbs', 'templ' }},
   -- htmx = { filetypes = {'html', 'templ' }},
   -- templ = { filetypes = { 'templ' }},
-  tsserver = {},
+  -- tsserver = {},
   -- tailwindcss = {
   --   filetypes = { "templ", "astro", "javascript", "typescript", "react", "js", "ts", "tsx", "jsx" },
   --   tailwindcss = {
