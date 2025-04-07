@@ -29,6 +29,7 @@ pasystray-wayland
 pavucontrol
 pgcli
 psql
+qt5ct
 raylib
 shellcheck
 steam
