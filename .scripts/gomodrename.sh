@@ -22,3 +22,4 @@ go mod edit -module "${NEW}"
 
 # Update import statements
 find . -type f -name '*.go' -exec perl -pi -e 's/$ENV{CUR}/$ENV{NEW}/g' {} \;
+find . -type f -name '*.templ' -exec perl -pi -e 's/$ENV{CUR}/$ENV{NEW}/g' {} \;

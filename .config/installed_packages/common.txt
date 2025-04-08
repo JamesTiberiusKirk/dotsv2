@@ -1,4 +1,5 @@
 brave-nightly-bin
+cargo
 ddccontrol
 discord
 dmenu
