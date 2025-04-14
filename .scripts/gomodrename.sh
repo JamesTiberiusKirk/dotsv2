@@ -20,6 +20,7 @@ export NEW="${CUR%/*}/${1}"
 # Update go.mod
 go mod edit -module "${NEW}"
 
-# Update import statements
-find . -type f -name '*.go' -exec perl -pi -e 's/$ENV{CUR}/$ENV{NEW}/g' {} \;
-find . -type f -name '*.templ' -exec perl -pi -e 's/$ENV{CUR}/$ENV{NEW}/g' {} \;
+# Update import statements in Go files and template files
+find . -type f \( -name '*.go' -o -name '*.templ' \) -exec perl -pi -e 's/$ENV{CUR}/$ENV{NEW}/g' {} \;
+
+go mod tidy 
