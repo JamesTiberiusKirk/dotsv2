@@ -101,6 +101,37 @@ gpnu() {
 	git push --no-verify  --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
 }
 
+
+dump_folder_contents() {
+	local folder="."
+	local ignore_pattern=""
+
+	# Parse arguments
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--ignore)
+				ignore_pattern="$2"
+				shift 2
+				;;
+			*)
+				folder="$1"
+				shift
+				;;
+		esac
+	done
+
+	echo "Dumping all files inside $folder/ with contents..."
+	find "$folder" -type f | while read -r file; do
+	if [[ -n "$ignore_pattern" && "$file" =~ $ignore_pattern ]]; then
+		continue
+	fi
+	echo -e "\nFile: $file"
+	echo "-----------------------------------------------"
+	cat "$file"
+	echo -e "\n"
+done
+}
+
 # swapping vi for nvim
 alias vi="nvim-l"
 alias nvim-l="NVIM_APPNAME=nvim-l nvim"
@@ -122,6 +153,7 @@ function nvims() {
 if [[ $(uname) = "Darwin" ]]; then
 fi
 if [[ $(uname) = "Linux" ]]; then
+	export XDG_DATA_DIRS=/usr/share:/usr/local/share
 	yay() {
 	    # Store the original command arguments
 	    local args=("$@")
