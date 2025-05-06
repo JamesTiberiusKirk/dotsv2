@@ -122,14 +122,14 @@ dump_folder_contents() {
 
 	echo "Dumping all files inside $folder/ with contents..."
 	find "$folder" -type f | while read -r file; do
-	if [[ -n "$ignore_pattern" && "$file" =~ $ignore_pattern ]]; then
-		continue
-	fi
-	echo -e "\nFile: $file"
-	echo "-----------------------------------------------"
-	cat "$file"
-	echo -e "\n"
-done
+		if [[ -n "$ignore_pattern" && "$file" =~ $ignore_pattern ]]; then
+			continue
+		fi
+		echo -e "\nFile: $file"
+		echo "-----------------------------------------------"
+		cat "$file"
+		echo -e "\n"
+	done
 }
 
 # swapping vi for nvim

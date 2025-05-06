@@ -20,6 +20,7 @@ helm
 hicolor-icon-theme
 httpie
 hugo
+hyprshade
 hyprshot
 i2c-dev
 imagemagick
