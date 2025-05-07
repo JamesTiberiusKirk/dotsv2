@@ -121,10 +121,20 @@ dump_folder_contents() {
 	done
 
 	echo "Dumping all files inside $folder/ with contents..."
-	find "$folder" -type f | while read -r file; do
+
+	# Find all files in the folder, ignoring permission errors
+	find "$folder" -type f 2>/dev/null | while read -r file; do
+		# If an ignore pattern is specified, skip matching files
 		if [[ -n "$ignore_pattern" && "$file" =~ $ignore_pattern ]]; then
 			continue
 		fi
+
+		# Skip non-text files
+		if ! file --mime-type "$file" | grep -q 'text'; then
+			continue
+		fi
+		
+		# Print the file contents
 		echo -e "\nFile: $file"
 		echo "-----------------------------------------------"
 		cat "$file"
