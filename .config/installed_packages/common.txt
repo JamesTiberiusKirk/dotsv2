@@ -1,3 +1,4 @@
+bbswitch-dkms
 brave-nightly-bin
 btop
 cargo
