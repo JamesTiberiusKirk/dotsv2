@@ -1,7 +1,7 @@
 {
     "layer": "top",
     "modules-left": ["custom/date", "hyprland/workspaces"],
-    "modules-center": ["custom/indicator","hyprland/window"],
+    "modules-center": ["hyprland/window"],
     "modules-right": ["custom/docker", "network", "pulseaudio", "battery", "clock", "tray"],
     "hyprland/workspaces": {
         "format": "{icon}",
@@ -50,11 +50,6 @@
         "exec": "~/.scripts/waybar/docker_status.sh",
         "interval": 1,
         "return-type": "json"
-    },
-    "custom/indicator": {
-        "format": "{}",
-        "exec": "~/.scripts/waybar/activewindow.sh",
-        "interval": 10
     }
 }
 
