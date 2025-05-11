@@ -1,8 +1,8 @@
 {
     "layer": "top",
-    "modules-left": ["clock", "hyprland/workspaces"],
-    "modules-center": ["hyprland/window"],
-    "modules-right": ["custom/docker","cpu", "memory", "network", "pulseaudio", "battery", "tray"],
+    "modules-left": ["custom/date", "hyprland/workspaces"],
+    "modules-center": ["custom/indicator","hyprland/window"],
+    "modules-right": ["custom/docker", "network", "pulseaudio", "battery", "clock", "tray"],
     "hyprland/workspaces": {
         "format": "{icon}",
         "format-icons": {
@@ -13,8 +13,14 @@
             "0": "0 󰍦"
         }
     },
+    "custom/date": {
+        "exec": "date '+%A, %d %B %Y'",
+        "interval": 60,
+        "format": "{}"
+    },
+
     "clock": {
-        "format": "{:%A, %B %d - %I:%M %p}"
+        "format": "{:%I:%M %p}"
     },
     "cpu": {
         "format": "{usage}% "
@@ -44,6 +50,11 @@
         "exec": "~/.scripts/waybar/docker_status.sh",
         "interval": 1,
         "return-type": "json"
+    },
+    "custom/indicator": {
+        "format": "{}",
+        "exec": "~/.scripts/waybar/activewindow.sh",
+        "interval": 10
     }
 }
 

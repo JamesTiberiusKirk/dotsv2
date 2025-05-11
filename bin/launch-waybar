@@ -4,14 +4,8 @@ CONFIG_FILES="$HOME/.config/waybar/config.jsonc $HOME/.config/waybar/style.css"
 
 trap "killall waybar" EXIT
 
-monitors=$(hyprctl monitors -j | jq -r '.[].name')
-
 while true; do
-    for mon in $monitors; do
-        WAYBAR_OUTPUT=$mon waybar &
-    done
     waybar &
     inotifywait -e create,modify $CONFIG_FILES
     killall waybar
 done
-

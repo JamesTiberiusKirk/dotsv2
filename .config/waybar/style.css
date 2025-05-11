@@ -26,6 +26,7 @@ window#waybar {
 }
 
 #clock,
+#custom-date,
 #cpu,
 #memory,
 #network,
@@ -47,7 +48,7 @@ window#waybar {
 }
 
 /* hyprland/window (title) */
-#window{
+#window, #custom-indicator{
     color: #ffffff;
 }
 
@@ -75,6 +76,6 @@ window#waybar {
     background-color: #cba6f7; /* lavender */
 }
 
-#clock {
+#clock, #custom-date {
     background-color: #94e2d5; /* teal */
 }

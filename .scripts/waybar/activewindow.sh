@@ -1,30 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
-monitor="${WAYBAR_OUTPUT:-$1}"   # read from env or arg
-primary_monitor="HDMI-A-1"
+# Get monitor from WAYBAR_OUTPUT env
+monitor="${WAYBAR_OUTPUT}"
 
-# Get focused monitor
-focused_monitor=$(hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .name')
-
-# Get active window for a given monitor
-get_active_window() {
-    local mon=$1
-    hyprctl clients -j | jq -r --arg mon "$mon" \
-        '.[] | select(.monitor == $mon and .mapped == true and .class != null) | select(.title != null) | select(.floating == false or .fullscreen == true) | .title' \
-        | head -n1
-}
-
-if [ "$focused_monitor" == "$monitor" ]; then
-    title=$(get_active_window "$monitor")
+# Example: Display different icons or messages per monitor
+if [ "$monitor" == "HDMI-A-1" ]; then
+    echo "󰍹 Main"
+elif [ "$monitor" == "DP-1" ]; then
+    echo "󰍺 Secondary"
 else
-    title=$(get_active_window "$primary_monitor")
+    echo "󰍻 $monitor"
 fi
-
-# Fallback if no window found
-if [ -z "$title" ]; then
-    title="No window"
-fi
-
-# Output for Waybar
-echo "$title"
-
