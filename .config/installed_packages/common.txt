@@ -1,4 +1,6 @@
 bbswitch-dkms
+bind
+blueman
 brave-nightly-bin
 btop
 cargo
@@ -30,6 +32,8 @@ inkscape
 lazygit
 man-db
 minikube
+mpv
+mullvad-vpn-bin
 netcat
 networkmanager
 network-manager-applet
@@ -37,6 +41,7 @@ nodejs
 noto-fonts
 npm
 otf-font-awesome
+owncloud-client
 p7zip
 p7zip-full
 pasystray-wayland
@@ -47,6 +52,7 @@ qt5ct
 raylib
 reflector
 ristretto
+rsync
 shellcheck
 steam
 strace

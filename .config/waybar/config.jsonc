@@ -20,7 +20,8 @@
     },
 
     "clock": {
-        "format": "{:%I:%M %p}"
+        "format": "{:%I:%M %p}",
+        "interval": 60,
     },
     "cpu": {
         "format": "{usage}% "

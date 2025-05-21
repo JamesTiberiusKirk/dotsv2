@@ -165,35 +165,52 @@ fi
 if [[ $(uname) = "Linux" ]]; then
 	export XDG_DATA_DIRS=/usr/share:/usr/local/share
 	yay() {
-	    # Store the original command arguments
-	    local args=("$@")
-	    
-	    # Run the original yay command
-	    command yay "$@"
-	    local exit_status=$?
-
-	    if [ $exit_status -eq 0 ]; then
+		local args=("$@")
 		local packages_file="$HOME/.config/installed_packages/common.txt"
+		local added=()
+		local removed=()
 
-		if [[ "$*" == *"-S "* ]]; then
-		    # Installation: Add packages
-		    echo "Adding package(s) to $packages_file"
-		    for pkg in $(echo "$@" | grep -oP '(?<=-S\s)\S+'); do
-			echo "$pkg" >> "$packages_file"
-		    done
-		elif [[ "$*" == *"-R"* ]]; then
-		    # Removal: Remove packages
-		    echo "Removing package(s) from $packages_file"
-		    for pkg in $(echo "$@" | grep -oP '(?<=-R\s)\S+'); do
-			sed -i "/^$pkg$/d" "$packages_file"
-		    done
+		# Run the actual yay command
+		command yay "${args[@]}"
+		local exit_status=$?
+
+		if [ $exit_status -eq 0 ]; then
+			if [[ " ${args[*]} " == *" -S "* ]]; then
+				echo "Checking which packages were successfully installed..."
+				for arg in "${args[@]}"; do
+					[[ "$arg" == -* ]] && continue
+					if pacman -Qq "$arg" &>/dev/null; then
+						echo "$arg" >> "$packages_file"
+						added+=("$arg")
+					fi
+				done
+			elif [[ " ${args[*]} " == *" -R "* ]]; then
+				echo "Removing specified packages from tracking list..."
+				for arg in "${args[@]}"; do
+					[[ "$arg" == -* ]] && continue
+					sed -i "/^$arg$/d" "$packages_file"
+					removed+=("$arg")
+				done
+			fi
+
+			# Sort and deduplicate the file
+			sort -u "$packages_file" -o "$packages_file"
+
+			# Log results
+			if [ ${#added[@]} -gt 0 ]; then
+				echo "Added package(s) to $packages_file: ${added[*]}"
+			elif [[ " ${args[*]} " == *" -S "* ]]; then
+				echo "No new packages were added to $packages_file."
+			fi
+
+			if [ ${#removed[@]} -gt 0 ]; then
+				echo "Removed package(s) from $packages_file: ${removed[*]}"
+			fi
+		else
+			echo "yay exited with status $exit_status; no changes made to $packages_file."
 		fi
 
-		# Remove duplicates and sort the file
-		sort -u "$packages_file" -o "$packages_file"
-	    fi
-
-	    return $exit_status
+		return $exit_status
 	}
 fi
 
