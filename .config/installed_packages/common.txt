@@ -16,6 +16,7 @@ extra/postgresql-libs
 fuse2
 fzf
 go
+graphicsmagick
 graphviz
 grim
 gtk-engine-murrine
