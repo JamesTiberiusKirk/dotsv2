@@ -4,14 +4,7 @@
     "modules-center": ["hyprland/window"],
     "modules-right": ["custom/docker", "network", "pulseaudio", "battery", "clock", "tray"],
     "hyprland/workspaces": {
-        "format": "{icon}",
-        "format-icons": {
-            "1": "1 ",
-            "2": "2 ",
-            "3": "3 ",
-            "9": "9 󰐊",
-            "0": "0 󰍦"
-        }
+      "format": "{name}"
     },
     "custom/date": {
         "exec": "date '+%A, %d %B %Y'",
@@ -21,7 +14,7 @@
 
     "clock": {
         "format": "{:%I:%M %p}",
-        "interval": 60,
+        "interval": 60
     },
     "cpu": {
         "format": "{usage}% "
