@@ -11,6 +11,7 @@ discord = "\uf1ff"
 Alacritty = ""
 nautilus = ""
 steam = "\uf1b6"
+caja = ""
 
 [class_active]
 
