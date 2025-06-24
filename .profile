@@ -103,43 +103,46 @@ gpnu() {
 
 
 dump_folder_contents() {
-	local folder="."
-	local ignore_pattern=""
+    local folder="."
+    local ignore_patterns=()
 
-	# Parse arguments
-	while [[ $# -gt 0 ]]; do
-		case "$1" in
-			--ignore)
-				ignore_pattern="$2"
-				shift 2
-				;;
-			*)
-				folder="$1"
-				shift
-				;;
-		esac
-	done
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --ignore)
+                ignore_patterns+=("$2")
+                shift 2
+                ;;
+            *)
+                folder="$1"
+                shift
+                ;;
+        esac
+    done
 
-	echo "Dumping all files inside $folder/ with contents..."
+    echo "Dumping all files inside $folder/ with contents..."
 
-	# Find all files in the folder, ignoring permission errors
-	find "$folder" -type f 2>/dev/null | while read -r file; do
-		# If an ignore pattern is specified, skip matching files
-		if [[ -n "$ignore_pattern" && "$file" =~ $ignore_pattern ]]; then
-			continue
-		fi
+    # Build prune expression for find
+    local find_expr=()
+    for pattern in "${ignore_patterns[@]}"; do
+        find_expr+=( -path "*/$pattern*" -prune -o )
+    done
 
-		# Skip non-text files
-		if ! file --mime-type "$file" | grep -q 'text'; then
-			continue
-		fi
-		
-		# Print the file contents
-		echo -e "\nFile: $file"
-		echo "-----------------------------------------------"
-		cat "$file"
-		echo -e "\n"
-	done
+    # Always end with -type f -print
+    find_expr+=( -type f -print )
+
+    # shellcheck disable=SC2068
+    find "$folder" ${find_expr[@]} 2>/dev/null | while read -r file; do
+        # Skip non-text files
+        if ! file --mime-type "$file" | grep -q 'text'; then
+            continue
+        fi
+
+        echo -e "\nFile: $file"
+        echo "-----------------------------------------------"
+        cat "$file"
+        echo -e "\n"
+    done
 }
 
 # swapping vi for nvim

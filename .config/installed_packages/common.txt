@@ -13,6 +13,7 @@ docker
 docker-buildx
 docker-compose
 extra/postgresql-libs
+fblog
 fuse2
 fzf
 go
