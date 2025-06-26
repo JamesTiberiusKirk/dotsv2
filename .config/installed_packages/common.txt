@@ -65,6 +65,7 @@ steam
 strace
 telegram-desktop
 tesseract
+transmission-gtk
 tree
 ttf-arimo-nerd
 ttf-nerd-fonts-symbols
