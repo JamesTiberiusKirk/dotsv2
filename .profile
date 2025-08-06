@@ -11,6 +11,8 @@ export PATH=$PATH:$GOPATH/bin
 export PATH=$PATH:$GOROOT/bin
 
 alias ws="workspacer -W=ws"
+alias notes="workspacer from-preset notes"
+alias dots="workspacer from-preset dots"
 
 alias cls='clear'
 alias ls='ls --color=auto'
