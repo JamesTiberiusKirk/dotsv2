@@ -12,7 +12,7 @@ export PATH=$PATH:$GOROOT/bin
 
 alias ws="workspacer -W=ws"
 alias notes="workspacer from-preset notes"
-alias dots="workspacer from-preset dots"
+alias dots="workspacer "
 
 alias cls='clear'
 alias ls='ls --color=auto'
@@ -96,13 +96,11 @@ gnb() {
 	git branch $1
 	git checkout $1
 }
+#################################################################
 
-# For pushing upstream to a fresh branch
-gpnu() {
-	echo "Pushing to new branch upstream"
-	git push --no-verify  --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
-}
+source ~/.scripts/imports/gotest.profile
 
+#################################################################
 
 dump_folder_contents() {
     local folder="."

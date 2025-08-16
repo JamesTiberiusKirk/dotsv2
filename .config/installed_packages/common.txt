@@ -66,6 +66,7 @@ strace
 syncthing-gtk
 telegram-desktop
 tesseract
+tig
 transmission-gtk
 tree
 ttf-arimo-nerd
