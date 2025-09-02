@@ -34,6 +34,8 @@ vim.o.timeoutlen = 300
 vim.o.termguicolors = true
 vim.wo.relativenumber = true
 
+vim.o.wrap = true
+
 
 
 -- Usefull for debugging the lsp

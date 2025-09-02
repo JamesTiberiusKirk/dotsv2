@@ -8,10 +8,12 @@ chirp
 chirp-bin
 ddccontrol
 discord
+displaylink
 dmenu
 docker
 docker-buildx
 docker-compose
+evdi
 extra/postgresql-libs
 fblog
 fuse2
@@ -45,6 +47,7 @@ network-manager-applet
 nodejs
 noto-fonts
 npm
+openai-codex
 otf-font-awesome
 owncloud-client
 p7zip

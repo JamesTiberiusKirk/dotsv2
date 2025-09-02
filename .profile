@@ -56,6 +56,8 @@ alias gcs="git commit --no-verify -S -s -m"
 alias gvi="git ls-files --modified | xargs nvim"
 alias lg="lazygit"
 
+bindkey '^[[Z' reverse-menu-complete
+
 # Squash all in the current branch
 gqb() {
 	commit_msg=$1
@@ -106,7 +108,6 @@ dump_folder_contents() {
     local folder="."
     local ignore_patterns=()
 
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --ignore)
@@ -122,22 +123,18 @@ dump_folder_contents() {
 
     echo "Dumping all files inside $folder/ with contents..."
 
-    # Build prune expression for find
+    # Build prune expression
     local find_expr=()
     for pattern in "${ignore_patterns[@]}"; do
-        find_expr+=( -path "*/$pattern*" -prune -o )
+        find_expr+=( -name "$pattern" -prune -o )
     done
-
-    # Always end with -type f -print
     find_expr+=( -type f -print )
 
     # shellcheck disable=SC2068
     find "$folder" ${find_expr[@]} 2>/dev/null | while read -r file; do
-        # Skip non-text files
         if ! file --mime-type "$file" | grep -q 'text'; then
             continue
         fi
-
         echo -e "\nFile: $file"
         echo "-----------------------------------------------"
         cat "$file"
