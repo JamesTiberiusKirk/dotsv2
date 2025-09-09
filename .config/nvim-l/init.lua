@@ -56,59 +56,11 @@ require('lazy').setup({
       'folke/neodev.nvim',
     },
     config = function()
-      local lspconfig = require("lspconfig")
-
-      lspconfig.gopls.setup{
-        settings = {
-          gopls = {
-            buildFlags = {"-tags=integration"},
-            env = {
-              GOFLAGS = "-tags=integration",
-            },
-          },
-        },
-      }
-
-      lspconfig.ts_ls.setup({
-        handlers = {
-          ["textDocument/publishDiagnostics"] = function(
-            _,
-            result,
-            ctx,
-            config
-          )
-            if result.diagnostics == nil then
-              return
-            end
-
-            -- ignore some tsserver diagnostics
-            local idx = 1
-            while idx <= #result.diagnostics do
-              local entry = result.diagnostics[idx]
-
-              local formatter = require('format-ts-errors')[entry.code]
-              entry.message = formatter and formatter(entry.message) or entry.message
-
-              -- codes: https://github.com/microsoft/TypeScript/blob/main/src/compiler/diagnosticMessages.json
-              if entry.code == 80001 then
-                -- { message = "File is a CommonJS module; it may be converted to an ES module.", }
-                table.remove(result.diagnostics, idx)
-              else
-                idx = idx + 1
-              end
-            end
-
-            vim.lsp.diagnostic.on_publish_diagnostics(
-              _,
-              result,
-              ctx,
-              config
-            )
-          end,
-
-        },
-
-      })
+      -- NOTE: Previously we configured gopls and ts here directly via lspconfig.
+      -- Keeping for reference, but commented out to avoid duplicate clients.
+      -- local lspconfig = require("lspconfig")
+      -- lspconfig.gopls.setup{ settings = { gopls = { buildFlags = {"-tags=integration"}, env = { GOFLAGS = "-tags=integration" }, }, }, }
+      -- lspconfig.ts_ls.setup({ handlers = { ["textDocument/publishDiagnostics"] = function(_, result, ctx, config) ... end } })
     end,
   },
   {
@@ -381,6 +333,9 @@ require('telescope').setup {
 -- Enable telescope fzf native, if installed
 pcall(require('telescope').load_extension, 'fzf')
 
+-- Apply global Telescope theme wrapper and toggle
+require('custom.config.telescope')
+
 -- Telescope live_grep in git root
 -- Function to find the git root directory based on the current buffer's path
 local function find_git_root()
@@ -418,14 +373,15 @@ end
 vim.api.nvim_create_user_command('LiveGrepGitRoot', live_grep_git_root, {})
 
 -- See `:help telescope.builtin`
-vim.keymap.set('n', '<leader>?', require('telescope.builtin').oldfiles, { desc = '[?] Find recently opened files' })
-vim.keymap.set('n', '<leader><space>', require('telescope.builtin').buffers, { desc = '[ ] Find existing buffers' })
+vim.keymap.set('n', '<leader>?', function()
+  require('telescope.builtin').oldfiles()
+end, { desc = '[?] Find recently opened files' })
+vim.keymap.set('n', '<leader><space>', function()
+  require('telescope.builtin').buffers()
+end, { desc = '[ ] Find existing buffers' })
 vim.keymap.set('n', '<leader>/', function()
-  -- You can pass additional configuration to telescope to change theme, layout, etc.
-  require('telescope.builtin').current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
-    winblend = 10,
-    previewer = false,
-  })
+  -- Global theme is applied; just tweak opts if desired
+  require('telescope.builtin').current_buffer_fuzzy_find({ winblend = 10, previewer = false })
 end, { desc = '[/] Fuzzily search in current buffer' })
 
 -- local function telescope_live_grep_open_files()
@@ -539,6 +495,19 @@ end, 0)
 -- [[ Configure LSP ]]
 --  This function gets run when an LSP connects to a particular buffer.
 local on_attach = function(_, bufnr)
+  -- Auto show function signature while typing calls
+  local sig_grp = vim.api.nvim_create_augroup('LspSignature', { clear = false })
+  vim.api.nvim_create_autocmd('InsertCharPre', {
+    group = sig_grp,
+    buffer = bufnr,
+    callback = function()
+      local ch = vim.v.char
+      if ch == '(' or ch == ',' then
+        pcall(vim.lsp.buf.signature_help)
+      end
+    end,
+  })
+
   -- NOTE: Remember that lua is a real programming language, and as such it is possible
   -- to define small helper and utility functions so you don't have to repeat yourself
   -- many times.
@@ -622,19 +591,31 @@ require('mason-lspconfig').setup()
 
 vim.filetype.add({ extension = { templ = "templ" } })
 
+-- Keep LSP popups non-focusable so cursor stays in code
+vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(
+  vim.lsp.handlers.hover,
+  { border = "rounded", focusable = false }
+)
+vim.lsp.handlers["textDocument/signatureHelp"] = vim.lsp.with(
+  vim.lsp.handlers.signature_help,
+  { border = "rounded", focusable = false }
+)
+
 local servers = {
   -- clangd = {},
   gopls = {
-    buildFlags = { "-tags=integration" },
-    usePlaceholders = true,
+    gopls = {
+      buildFlags = { "-tags=integration" },
+      env = { GOFLAGS = "-tags=integration" },
+      usePlaceholders = true,
+    },
   },
+  ts_ls = {},
   -- pyright = {},
   -- rust_analyzer = {},
-  -- tsserver = {},
   -- html = { filetypes = { 'html', 'twig', 'hbs', 'templ' }},
   -- htmx = { filetypes = {'html', 'templ' }},
   -- templ = { filetypes = { 'templ' }},
-  -- tsserver = {},
   -- tailwindcss = {
   --   filetypes = { "templ", "astro", "javascript", "typescript", "react", "js", "ts", "tsx", "jsx" },
   --   tailwindcss = {
@@ -673,15 +654,33 @@ mason_lspconfig.setup {
 
 mason_lspconfig.setup_handlers {
   function(server_name)
-    require('lspconfig')[server_name].setup {
+    local opts = {
       capabilities = capabilities,
       on_attach = on_attach,
       settings = servers[server_name],
       filetypes = (servers[server_name] or {}).filetypes,
-      flags = {
-        debounce_text_changes = 150,
-      },
+      flags = { debounce_text_changes = 150 },
     }
+    if server_name == 'ts_ls' then
+      opts.handlers = {
+        ["textDocument/publishDiagnostics"] = function(_, result, ctx, config)
+          if result.diagnostics == nil then return end
+          local idx = 1
+          while idx <= #result.diagnostics do
+            local entry = result.diagnostics[idx]
+            local formatter = require('format-ts-errors')[entry.code]
+            entry.message = formatter and formatter(entry.message) or entry.message
+            if entry.code == 80001 then
+              table.remove(result.diagnostics, idx)
+            else
+              idx = idx + 1
+            end
+          end
+          vim.lsp.diagnostic.on_publish_diagnostics(_, result, ctx, config)
+        end,
+      }
+    end
+    require('lspconfig')[server_name].setup(opts)
   end,
 }
 
@@ -763,10 +762,23 @@ cmp.setup.cmdline(':', {
   }),
 })
 
+-- Helper: detect non-normal buffers (prompts, sidebars, popups)
+local function is_prompt_like()
+  local bt = vim.bo.buftype
+  local ft = vim.bo.filetype
+  if bt ~= '' and bt ~= 'acwrite' then
+    return true
+  end
+  return ft == 'TelescopePrompt' or ft == 'neo-tree' or ft == 'neo-tree-popup'
+end
+
 cmp.setup {
   enabled = function()
-    return vim.g.cmptoggle
+    return vim.g.cmptoggle and not is_prompt_like()
   end,
+  window = {
+    documentation = cmp.config.window.bordered(),
+  },
   snippet = {
     expand = function(args)
       luasnip.lsp_expand(args.body)
@@ -786,6 +798,9 @@ cmp.setup {
       select = true,
     },
     ['<Tab>'] = cmp.mapping(function(fallback)
+      if is_prompt_like() then
+        return fallback()
+      end
       if cmp.visible() then
         cmp.select_next_item()
       elseif luasnip.expand_or_locally_jumpable() then
@@ -795,6 +810,9 @@ cmp.setup {
       end
     end, { 'i', 's' }),
     ['<S-Tab>'] = cmp.mapping(function(fallback)
+      if is_prompt_like() then
+        return fallback()
+      end
       if cmp.visible() then
         cmp.select_prev_item()
       elseif luasnip.locally_jumpable(-1) then
@@ -805,11 +823,10 @@ cmp.setup {
     end, { 'i', 's' }),
   },
   sources = {
-    -- { name = "copilot", group_index = 2 },
     { name = 'nvim_lsp' },
-    { name = 'luasnip' },
-    { name = 'buffer' },
-    { name = 'path' },
+    -- { name = 'luasnip' },
+    -- { name = 'buffer' },
+    -- { name = 'path' },
   },
 }
 
