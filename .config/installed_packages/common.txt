@@ -8,7 +8,6 @@ chirp
 chirp-bin
 ddccontrol
 discord
-displaylink
 dmenu
 docker
 docker-buildx
