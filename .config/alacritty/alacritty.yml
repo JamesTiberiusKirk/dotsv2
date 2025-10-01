@@ -1,0 +1,40 @@
+# High-contrast, elflord-like theme for Alacritty
+env:
+  TERM: xterm-256color
+
+window:
+  opacity: 1.0
+
+# Make bold use bright colors for extra punch
+draw_bold_text_with_bright_colors: true
+
+colors:
+  primary:
+    background: '0x000000'
+    foreground: '0xE6E6E6'
+  cursor:
+    text: '0x000000'
+    cursor: '0x00FF5F'   # vivid green, elflord-ish accent
+  selection:
+    text: '0xFFFFFF'
+    background: '0x2A2A2A'
+
+  normal:
+    black:   '0x000000'
+    red:     '0xCC0000'  # statements/errors
+    green:   '0x00CC66'  # types/identifiers
+    yellow:  '0xD7AF00'  # keywords
+    blue:    '0x005FDD'  # functions
+    magenta: '0xAF00AF'  # preproc/constants
+    cyan:    '0x00AFAF'  # strings/specials
+    white:   '0xE6E6E6'
+
+  bright:
+    black:   '0x4D4D4D'
+    red:     '0xFF3333'
+    green:   '0x33FF99'
+    yellow:  '0xFFD700'
+    blue:    '0x3399FF'
+    magenta: '0xFF33FF'
+    cyan:    '0x33FFFF'
+    white:   '0xFFFFFF'

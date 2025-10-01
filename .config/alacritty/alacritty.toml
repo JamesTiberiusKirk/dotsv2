@@ -1,0 +1,43 @@
+# High-contrast, elflord-like theme for Alacritty (TOML)
+
+[env]
+TERM = "xterm-256color"
+
+[window]
+opacity = 1.0
+
+[colors]
+# Make bold use bright colors for extra punch
+draw_bold_text_with_bright_colors = true
+
+[colors.primary]
+background = "#000000"
+foreground = "#E6E6E6"
+
+[colors.cursor]
+text = "#000000"
+cursor = "#00FF5F"   # vivid green, elflord-ish accent
+
+[colors.selection]
+text = "#FFFFFF"
+background = "#2A2A2A"
+
+[colors.normal]
+black   = "#000000"
+red     = "#CC0000"  # statements/errors
+green   = "#00CC66"  # types/identifiers
+yellow  = "#D7AF00"  # keywords
+blue    = "#005FDD"  # functions
+magenta = "#AF00AF"  # preproc/constants
+cyan    = "#00AFAF"  # strings/specials
+white   = "#E6E6E6"
+
+[colors.bright]
+black   = "#4D4D4D"
+red     = "#FF3333"
+green   = "#33FF99"
+yellow  = "#FFD700"
+blue    = "#3399FF"
+magenta = "#FF33FF"
+cyan    = "#33FFFF"
+white   = "#FFFFFF"
