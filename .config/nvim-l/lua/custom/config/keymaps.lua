@@ -55,3 +55,10 @@ vim.keymap.set("n", "}", "<cmd>tabnext<cr>", { noremap = true, silent = true, de
 
 
 
+-- Window resize mode (i3-style): enter with <leader>wr
+vim.keymap.set(
+  'n',
+  '<leader>wr',
+  function() require('custom.resize_mode').toggle({ amount = 3 }) end,
+  { noremap = true, silent = true, desc = 'Toggle resize mode' }
+)
