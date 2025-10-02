@@ -64,7 +64,12 @@ local autoread_grp = vim.api.nvim_create_augroup('AutoReadExternal', { clear = t
 vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold' }, {
   group = autoread_grp,
   pattern = '*',
-  command = 'checktime',
+  callback = function()
+    if vim.fn.getcmdwintype() == '' then
+      vim.cmd.checktime()
+    end
+  end,
+  desc = 'Reload files changed on disk',
 })
 
 -- Notify when a file was reloaded due to external change
@@ -75,4 +80,3 @@ vim.api.nvim_create_autocmd('FileChangedShellPost', {
     vim.notify('File reloaded from disk: ' .. name, vim.log.levels.INFO)
   end,
 })
-
