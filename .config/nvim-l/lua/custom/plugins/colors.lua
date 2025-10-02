@@ -19,7 +19,29 @@ return {
           -- vim.cmd("colorscheme peachpuff")
         end,
       })
+
+      -- Make spell highlights underline-only (no red/fg), and persist across colorscheme changes
+      local function set_spell_underline()
+        local groups = { "SpellBad", "SpellCap", "SpellLocal", "SpellRare" }
+        for _, g in ipairs(groups) do
+          vim.api.nvim_set_hl(0, g, {
+            underline = true,
+            undercurl = false,
+            fg = "NONE",
+            sp = "NONE",
+          })
+        end
+      end
+      local aug = vim.api.nvim_create_augroup("CustomSpellUnderline", { clear = true })
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        group = aug,
+        callback = set_spell_underline,
+      })
+
       auto_dark_mode.init()
+
+      -- Apply once at startup as well
+      set_spell_underline()
     end,
   },
   { "ellisonleao/gruvbox.nvim" },

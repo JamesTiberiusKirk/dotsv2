@@ -54,7 +54,9 @@ p7zip-full
 pasystray-wayland
 pavucontrol
 pgcli
+pgformatter-git
 psql
+python-sqlparse
 qt5ct
 qt6ct
 qt6ct-kde
