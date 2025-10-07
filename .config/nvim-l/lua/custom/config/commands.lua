@@ -284,3 +284,28 @@ augroup QflKeys
   autocmd FileType qf xnoremap <buffer> d <cmd>lua remove_lines()<CR>
 augroup END
 ]]
+
+-- Resize mode commands
+vim.api.nvim_create_user_command('ResizeMode', function(opts)
+  local resize = require('custom.resize_mode')
+  local action = (opts.fargs[1] or 'toggle'):lower()
+  local amount = tonumber(opts.fargs[2])
+  if action == 'start' then
+    resize.start({ amount = amount })
+  elseif action == 'stop' then
+    resize.stop()
+  else
+    resize.toggle({ amount = amount })
+  end
+end, {
+  nargs = '*',
+  complete = function()
+    return { 'start', 'stop', 'toggle' }
+  end,
+  desc = 'i3-style window resize mode (start|stop|toggle [amount])',
+})
+
+vim.api.nvim_create_user_command('ResizeModeToggle', function(opts)
+  local amount = tonumber(opts.fargs[1])
+  require('custom.resize_mode').toggle({ amount = amount })
+end, { nargs = '?', desc = 'Toggle i3-style window resize mode' })

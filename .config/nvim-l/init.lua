@@ -569,6 +569,7 @@ ws.add{
     { "<leader>s_", hidden = true },
     { "<leader>t", group = "[T]oggle" },
     { "<leader>t_", hidden = true },
+    { "<leader>u", group = "[U]I" },
     { "<leader>w", group = "[W]orkspace" },
     { "<leader>w_", hidden = true },
 

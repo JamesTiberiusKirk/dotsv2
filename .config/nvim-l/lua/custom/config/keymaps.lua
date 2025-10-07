@@ -55,10 +55,10 @@ vim.keymap.set("n", "}", "<cmd>tabnext<cr>", { noremap = true, silent = true, de
 
 
 
--- Window resize mode (i3-style): enter with <leader>wr
+-- Resize mode is now exposed via :ResizeMode command; bind it as you like
 vim.keymap.set(
   'n',
-  '<leader>wr',
-  function() require('custom.resize_mode').toggle({ amount = 3 }) end,
-  { noremap = true, silent = true, desc = 'Toggle resize mode' }
+  '<leader>uR',
+  function() vim.cmd('ResizeMode toggle 3') end,
+  { noremap = true, silent = true, desc = 'Resize mode' }
 )
