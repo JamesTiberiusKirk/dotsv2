@@ -1,9 +1,11 @@
+act
 bbswitch-dkms
 bind
 blueman
 brave-nightly-bin
 btop
 cargo
+ccache
 chirp
 chirp-bin
 ddccontrol
@@ -57,6 +59,7 @@ pgcli
 pgformatter-git
 psql
 python-sqlparse
+python-west
 qt5ct
 qt6ct
 qt6ct-kde
@@ -79,3 +82,4 @@ vertex-themes
 vi
 vscode
 zathura
+zephyr-sdk
