@@ -54,6 +54,7 @@ pasystray &
 blueman-applet &
 dunst &
 owncloud &
+flameshot &
 
 # Screen locker (optional - locks screen on suspend/sleep)
 xss-lock -- i3lock -c 000000 &
