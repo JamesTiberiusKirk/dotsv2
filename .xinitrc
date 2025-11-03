@@ -6,11 +6,13 @@
 # Merge X resources (if you create ~/.Xresources later)
 [ -f ~/.Xresources ] && xrdb -merge ~/.Xresources
 
-# Set keyboard layout to US International
-setxkbmap -layout us -variant intl
+# Set keyboard layout to US International (no dead keys)
+setxkbmap -layout us -variant intl -option compose:ralt
 
 # Set keyboard repeat rate (adjust to preference)
-xset r rate 300 50
+# First number: delay before repeat starts (ms)
+# Second number: repeat rate (repeats per second)
+xset r rate 300 25
 
 # Touchpad settings
 # Find touchpad device ID and configure it
