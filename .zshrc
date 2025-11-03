@@ -132,6 +132,13 @@ compdef _cfg_completion cfga
 
 autoload -Uz compinit && compinit
 
+# Edit command line in vim with Ctrl+F Ctrl+F
+autoload -U edit-command-line
+zle -N edit-command-line
+bindkey '^F^F' edit-command-line
+
+# Make sure it uses your preferred editor
+export VISUAL="${EDITOR}"
 
 
 

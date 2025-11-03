@@ -4,6 +4,7 @@ export TERM=alacritty
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
+export PATH="$PATH:/home/darthvader/.local/bin"
 
 export GO111MODULE=on
 export GOPATH="$HOME/go"
@@ -12,7 +13,7 @@ export PATH=$PATH:$GOROOT/bin
 
 alias ws="workspacer -W=ws"
 alias notes="workspacer from-preset notes"
-alias dots="workspacer "
+alias dots="workspacer  from-preset dots"
 
 alias cls='clear'
 alias ls='ls --color=auto'
@@ -55,6 +56,7 @@ alias gcs="git commit --no-verify -S -s -m"
 # Open all modified git fil -ses in vim
 alias gvi="git ls-files --modified | xargs nvim"
 alias lg="lazygit"
+alias gpnu='git push --set-upstream origin $(git symbolic-ref --short HEAD)'
 
 bindkey '^[[Z' reverse-menu-complete
 
@@ -101,6 +103,7 @@ gnb() {
 #################################################################
 
 source ~/.scripts/imports/gotest.profile
+source ~/.scripts/imports/arduino_cmpletion.sh
 
 #################################################################
 

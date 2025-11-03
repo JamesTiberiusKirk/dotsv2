@@ -1,0 +1,12 @@
+! X resources configuration
+! DPI and scaling settings
+
+! Set DPI to 84 (smaller interface)
+Xft.dpi: 84
+
+! Font rendering settings
+Xft.antialias: 1
+Xft.hinting: 1
+Xft.hintstyle: hintslight
+Xft.rgba: rgb
+Xft.lcdfilter: lcddefault

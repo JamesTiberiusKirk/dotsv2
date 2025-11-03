@@ -1,0 +1,206 @@
+# i3 config file (v4)
+# Migrated from Hyprland config
+
+# Set mod key (Mod4 = Super/Windows key)
+set $mod Mod4
+
+# Font for window titles and bar
+font pango:monospace 8
+
+# Use Mouse+$mod to drag floating windows
+floating_modifier $mod
+
+# Terminal
+set $terminal alacritty
+set $fileManager caja
+set $menu dmenu_run -i
+
+###############
+### VISUALS ###
+###############
+
+# No gaps
+gaps inner 0
+gaps outer 0
+
+# Window borders (matching your Hyprland border_size = 2)
+default_border pixel 2
+default_floating_border pixel 2
+
+# Border colors (matching your Hyprland purple gradient theme)
+# class                 border  backgr. text    indicator child_border
+client.focused          #a000ff #a000ff #ffffff #a000ff   #a000ff
+client.focused_inactive #480073 #480073 #ffffff #480073   #480073
+client.unfocused        #595959 #595959 #888888 #595959   #595959
+client.urgent           #ff0000 #ff0000 #ffffff #ff0000   #ff0000
+
+###################
+### KEYBINDINGS ###
+###################
+
+# Terminal
+bindsym $mod+Return exec $terminal
+
+# Kill focused window
+bindsym $mod+Shift+q kill
+
+# Exit i3 (matching SUPER+SHIFT+M from Hyprland)
+bindsym $mod+Shift+m exec "i3-nagbar -t warning -m 'Exit i3?' -B 'Yes' 'i3-msg exit'"
+
+# File manager
+bindsym $mod+e exec $fileManager
+
+# Toggle floating
+bindsym $mod+v floating toggle
+
+# Fullscreen
+bindsym $mod+f fullscreen toggle
+
+# Application launcher
+bindsym $mod+r exec $menu
+
+# Change focus (vim keys)
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+
+# Move focused window (vim keys)
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+
+# Split in horizontal orientation
+bindsym $mod+b split h
+
+# Split in vertical orientation
+bindsym $mod+Shift+v split v
+
+# Change container layout (stacked, tabbed, toggle split)
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+t layout toggle split
+
+# Toggle tiling / floating
+bindsym $mod+Shift+space floating toggle
+
+# Change focus between tiling / floating windows
+bindsym $mod+space focus mode_toggle
+
+# Focus the parent container
+bindsym $mod+a focus parent
+
+# Switch workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+bindsym $mod+0 workspace number 10
+
+# Move focused container to workspace (silent move like Hyprland)
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+bindsym $mod+Shift+0 move container to workspace number 10
+
+# Move workspace to different monitors
+bindsym $mod+Shift+period move workspace to output right
+bindsym $mod+Shift+comma move workspace to output left
+
+# Screenshots (using X11 scripts)
+bindsym $mod+Shift+s exec ~/.scripts/x11_screenshot.sh
+bindsym $mod+Shift+a exec ~/.scripts/x11_extracttext.sh
+
+# Suspend
+bindsym $mod+Control+q exec systemctl suspend
+
+# Cycle windows (using dmenu for window switching)
+bindsym $mod+Tab exec "i3-msg [class=\\".*\\"] focus"
+
+# Resize mode (alternative to SUPER+ALT+h/j/k/l)
+mode "resize" {
+        # Vim keys for resizing
+        bindsym h resize shrink width 10 px or 10 ppt
+        bindsym j resize grow height 10 px or 10 ppt
+        bindsym k resize shrink height 10 px or 10 ppt
+        bindsym l resize grow width 10 px or 10 ppt
+
+        # Arrow keys
+        bindsym Left resize shrink width 10 px or 10 ppt
+        bindsym Down resize grow height 10 px or 10 ppt
+        bindsym Up resize shrink height 10 px or 10 ppt
+        bindsym Right resize grow width 10 px or 10 ppt
+
+        # Back to normal: Enter or Escape
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+}
+
+bindsym $mod+Shift+r mode "resize"
+
+# Media keys (matching your Hyprland config)
+bindsym XF86AudioRaiseVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+bindsym XF86AudioLowerVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindsym XF86AudioMute exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym XF86AudioMicMute exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+bindsym XF86MonBrightnessUp exec brightnessctl s 10%+
+bindsym XF86MonBrightnessDown exec brightnessctl s 10%-
+
+# Media player controls
+bindsym XF86AudioNext exec playerctl next
+bindsym XF86AudioPause exec playerctl play-pause
+bindsym XF86AudioPlay exec playerctl play-pause
+bindsym XF86AudioPrev exec playerctl previous
+
+###################
+### WINDOW RULES ###
+###################
+
+# Firefox Picture-in-Picture (matching your Hyprland rule)
+for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky enable, resize set 800 450
+
+# Suppress maximize requests (matching Hyprland suppressevent)
+# This prevents apps from taking over fullscreen without your consent
+
+###############
+### STARTUP ###
+###############
+
+# Reload configuration
+bindsym $mod+Shift+c reload
+
+# Restart i3 inplace
+bindsym $mod+Control+r restart
+
+###############
+### BAR ###
+###############
+
+bar {
+        status_command i3status
+        position top
+
+        colors {
+                background #000000
+                statusline #ffffff
+                separator  #666666
+
+                # Type             border  bg      text
+                focused_workspace  #a000ff #a000ff #ffffff
+                active_workspace   #480073 #480073 #ffffff
+                inactive_workspace #333333 #222222 #888888
+                urgent_workspace   #ff0000 #ff0000 #ffffff
+        }
+}

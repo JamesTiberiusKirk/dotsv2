@@ -495,18 +495,6 @@ end, 0)
 -- [[ Configure LSP ]]
 --  This function gets run when an LSP connects to a particular buffer.
 local on_attach = function(_, bufnr)
-  -- Auto show function signature while typing calls
-  local sig_grp = vim.api.nvim_create_augroup('LspSignature', { clear = false })
-  vim.api.nvim_create_autocmd('InsertCharPre', {
-    group = sig_grp,
-    buffer = bufnr,
-    callback = function()
-      local ch = vim.v.char
-      if ch == '(' or ch == ',' then
-        pcall(vim.lsp.buf.signature_help)
-      end
-    end,
-  })
 
   -- NOTE: Remember that lua is a real programming language, and as such it is possible
   -- to define small helper and utility functions so you don't have to repeat yourself
