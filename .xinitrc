@@ -49,6 +49,10 @@ picom &
 gsettings set org.gnome.desktop.interface gtk-theme "Materia-dark-compact"
 gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
 
+# Start gnome-keyring-daemon for credential storage
+eval $(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh)
+export SSH_AUTH_SOCK
+
 # Start system tray apps (from your Hyprland autostart)
 pasystray &
 blueman-applet &
@@ -57,7 +61,8 @@ owncloud &
 flameshot &
 
 # Screen locker (optional - locks screen on suspend/sleep)
-xss-lock -- i3lock -c 000000 &
+# Pause notifications before locking, resume after
+xss-lock -- sh -c 'dunstctl set-paused true; i3lock -c 000000; dunstctl set-paused false' &
 
 # Hide mouse cursor after inactivity (optional)
 unclutter --timeout 3 &

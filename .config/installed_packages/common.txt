@@ -17,6 +17,7 @@ cmake
 ddccontrol
 dfu-util
 discord
+displaylink
 dmenu
 docker
 docker-buildx
@@ -56,6 +57,7 @@ kservice5
 kvantum-git
 kvantum-qt5
 lazygit
+linux-lts-headers
 litecli
 lxappearance
 maim
@@ -99,6 +101,7 @@ sqlitebrowser
 steam
 strace
 syncthing-gtk
+tailscale
 telegram-desktop
 termdbms-git
 tesseract

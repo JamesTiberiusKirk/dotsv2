@@ -126,6 +126,9 @@ bindsym $mod+Shift+a exec ~/.scripts/x11_extracttext.sh
 # Suspend
 bindsym $mod+Control+q exec systemctl suspend
 
+# Lock screen (pause notifications, lock, resume notifications on unlock)
+bindsym $mod+Shift+x exec "dunstctl set-paused true && i3lock -c 000000; dunstctl set-paused false"
+
 # Cycle windows (using dmenu for window switching)
 bindsym $mod+Tab exec "i3-msg [class=\\".*\\"] focus"
 
