@@ -36,6 +36,8 @@ cfga() {
 	git --git-dir=$HOME/.cfg/ --work-tree=$HOME add "$@"
 }
 
+alias copy='xclip -selection clipboard'
+
 alias cfgau='git --git-dir=$HOME/.cfg/ --work-tree=$HOME add -u'
 alias cfgc='git --git-dir=$HOME/.cfg/ --work-tree=$HOME commit -m'
 alias cfgp='git --git-dir=$HOME/.cfg/ --work-tree=$HOME push'

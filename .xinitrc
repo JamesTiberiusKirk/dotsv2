@@ -1,13 +1,38 @@
 #!/bin/sh
 
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=i3
+export DESKTOP_SESSION=i3
+
 # Source your profile
 [ -f ~/.profile ] && . ~/.profile
 
 # Merge X resources (if you create ~/.Xresources later)
 [ -f ~/.Xresources ] && xrdb -merge ~/.Xresources
 
-# Set keyboard layout to US International (no dead keys)
-setxkbmap -layout us -variant intl -option compose:ralt
+# Ensure a DBus session exists so keyring/secret services can register
+if command -v dbus-launch >/dev/null 2>&1 && [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    eval "$(dbus-launch --sh-syntax --exit-with-session)"
+    export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+fi
+
+wait_for_secret_service() {
+    if ! command -v dbus-send >/dev/null 2>&1; then
+        return
+    fi
+
+    attempts=0
+    while [ $attempts -lt 50 ]; do
+        if dbus-send --session --dest=org.freedesktop.DBus \
+            --type=method_call --print-reply \
+            /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner \
+            string:org.freedesktop.secrets 2>/dev/null | grep -q "boolean true"; then
+            break
+        fi
+        attempts=$((attempts + 1))
+        sleep 0.1
+    done
+}
 
 # Set keyboard repeat rate (adjust to preference)
 # First number: delay before repeat starts (ms)
@@ -50,8 +75,11 @@ gsettings set org.gnome.desktop.interface gtk-theme "Materia-dark-compact"
 gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
 
 # Start gnome-keyring-daemon for credential storage
-eval $(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh)
-export SSH_AUTH_SOCK
+if command -v gnome-keyring-daemon >/dev/null 2>&1; then
+    eval "$(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh)"
+    export SSH_AUTH_SOCK
+    wait_for_secret_service
+fi
 
 # Start system tray apps (from your Hyprland autostart)
 pasystray &
