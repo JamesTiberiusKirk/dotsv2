@@ -59,6 +59,9 @@ bindsym $mod+f fullscreen toggle
 # Application launcher
 bindsym $mod+r exec $menu
 
+# Show keybindings help
+bindsym $mod+slash exec --no-startup-id "i3-doc-gen 2>/dev/null; cat ~/.config/i3/bindings.txt | dmenu -i -l 20 -p 'i3 bindings'"
+
 # Change focus (vim keys)
 bindsym $mod+h focus left
 bindsym $mod+j focus down

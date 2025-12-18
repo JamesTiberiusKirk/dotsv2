@@ -60,6 +60,7 @@ kvantum-qt5
 lazygit
 linux-lts-headers
 litecli
+logiops
 lxappearance
 maim
 man-db
@@ -99,6 +100,7 @@ reflector
 ristretto
 rsync
 shellcheck
+solaar
 sqlitebrowser
 steam
 strace

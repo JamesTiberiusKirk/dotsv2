@@ -1,0 +1,89 @@
+{
+	"default_workspace": "ws",
+	"workspaces": {
+		"notes": {
+			"name": "Notes",
+			"prefix": "notes",
+			"path": "~/Documents/notes/",
+			"session_preset": "notes"
+		},
+		"ws": {
+			"name": "Projects",
+			"prefix": "ws",
+			"path": "~/Projects/",
+			"org_github": "JamesTiberiusKirk",
+			"session_preset": "default",
+			"active_projects_first": true,
+			"enable_git_info": true,
+			"enable_remote_repos": true,
+			"github_backend": "api",
+			"enable_cache": true,
+			"enable_usage_tracking": true,
+			"recent_access_window": 50
+		}
+	},
+	"session_presets": {
+		"default": {
+			"screens": [
+				{
+					"panes": [
+						{
+							"command": "nvim-l"
+						},
+						{}
+					],
+					"name": "nvim",
+					"layout": "main-vertical"
+				}
+			]
+		},
+		"dots": {
+			"screens": [
+				{
+					"panes": [
+						{
+							"command": "$EDITOR ~/.profile"
+						}
+					],
+					"name": "~/",
+					"layout": "main-vertical",
+					"path": "~/.config/nvim-l"
+				},
+				{
+					"panes": [
+						{
+							"command": "$EDITOR ~/.tmux.conf ~/.tmux-linux.conf"
+						}
+					],
+					"name": "tmux",
+					"layout": "main-vertical"
+				},
+				{
+					"panes": [
+						{
+							"command": "$EDITOR"
+						}
+					],
+					"name": "hyprland",
+					"layout": "main-vertical",
+					"path": "~/.config/hypr/"
+				}
+			],
+			"path": "~/"
+		},
+		"notes": {
+			"screens": [
+				{
+					"panes": [
+						{
+							"command": "nvim-l"
+						}
+					],
+					"name": "nvim",
+					"layout": "main-vertical"
+				}
+			],
+			"path": "~/Documents/notes/"
+		}
+	}
+}

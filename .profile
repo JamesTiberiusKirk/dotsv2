@@ -11,9 +11,14 @@ export GOPATH="$HOME/go"
 export PATH=$PATH:$GOPATH/bin
 export PATH=$PATH:$GOROOT/bin
 
+fpath=(~/.zsh/completion $fpath)
+
 alias ws="workspacer -W=ws"
+compdef ws=workspacer
 alias notes="workspacer from-preset notes"
+compdef notes=workspacer
 alias dots="workspacer  from-preset dots"
+compdef dots=workspacer
 
 alias cls='clear'
 alias ls='ls --color=auto'
@@ -59,6 +64,9 @@ alias gcs="git commit --no-verify -S -s -m"
 alias gvi="git ls-files --modified | xargs nvim"
 alias lg="lazygit"
 alias gpnu='git push --set-upstream origin $(git symbolic-ref --short HEAD)'
+alias gcm='git checkout $(git remote show origin | sed -n "/HEAD branch/s/.*: //p")'
+# git remote show origin | sed -n '/HEAD branch/s/.*: //p'
+
 
 bindkey '^[[Z' reverse-menu-complete
 
