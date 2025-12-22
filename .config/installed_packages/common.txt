@@ -98,6 +98,7 @@ qt6ct-kde
 raylib
 reflector
 ristretto
+r-quick-share-bin
 rsync
 shellcheck
 solaar

@@ -87,6 +87,7 @@ blueman-applet &
 dunst &
 owncloud &
 flameshot &
+~/bin/rquickshare &
 
 # Screen locker (optional - locks screen on suspend/sleep)
 # Pause notifications before locking, resume after

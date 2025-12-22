@@ -11,13 +11,16 @@ export GOPATH="$HOME/go"
 export PATH=$PATH:$GOPATH/bin
 export PATH=$PATH:$GOROOT/bin
 
+
 fpath=(~/.zsh/completion $fpath)
 
 alias ws="workspacer -W=ws"
-compdef ws=workspacer
 alias notes="workspacer from-preset notes"
-compdef notes=workspacer
 alias dots="workspacer  from-preset dots"
+
+autoload -Uz compinit && compinit
+compdef ws=workspacer
+compdef notes=workspacer
 compdef dots=workspacer
 
 alias cls='clear'
