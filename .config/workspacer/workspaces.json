@@ -42,21 +42,9 @@
 				{
 					"panes": [
 						{
-							"command": "$EDITOR ~/.profile"
+							"command": "$EDITOR ~/.profile ~/.zshrc ~/.tmux.conf"
 						}
-					],
-					"name": "~/",
-					"layout": "main-vertical",
-					"path": "~/.config/nvim-l"
-				},
-				{
-					"panes": [
-						{
-							"command": "$EDITOR ~/.tmux.conf ~/.tmux-linux.conf"
-						}
-					],
-					"name": "tmux",
-					"layout": "main-vertical"
+					]
 				},
 				{
 					"panes": [
@@ -64,9 +52,9 @@
 							"command": "$EDITOR"
 						}
 					],
-					"name": "hyprland",
-					"layout": "main-vertical",
-					"path": "~/.config/hypr/"
+					"name": "config",
+					"path":"~/.config/",
+					"layout": "main-vertical"
 				}
 			],
 			"path": "~/"

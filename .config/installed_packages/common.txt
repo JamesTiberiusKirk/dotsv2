@@ -67,6 +67,7 @@ man-db
 materia-gtk-theme
 minikube
 mpv
+mullvad-vpn-bin
 netcat
 networkmanager
 network-manager-applet
@@ -80,6 +81,8 @@ otf-font-awesome
 owncloud-client
 p7zip
 p7zip-full
+pandoc
+pandoc-bin
 pasystray-wayland
 pavucontrol
 pgcli
@@ -116,6 +119,7 @@ transmission-gtk
 tree
 ttf-arimo-nerd
 ttf-nerd-fonts-symbols
+typst
 unclutter
 vertex-themes
 vi
