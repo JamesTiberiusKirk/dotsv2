@@ -1,5 +1,5 @@
 export XDG_CURRENT_DESKTOP=Hyperland
-export EDITOR="nvim"
+export EDITOR="nvim-l"
 export TERM=alacritty
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
