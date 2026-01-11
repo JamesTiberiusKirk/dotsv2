@@ -184,6 +184,9 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 ### STARTUP ###
 ###############
 
+# PipeWire/PulseAudio tray icon for on-click input/output switching
+exec --no-startup-id pasystray
+
 # Reload configuration
 bindsym $mod+Shift+c reload
 
@@ -195,11 +198,12 @@ bindsym $mod+Control+r restart
 ###############
 
 bar {
-        status_command i3status
-        position top
+	status_command i3status
+	position top
+	tray_output primary
 
-        colors {
-                background #000000
+	colors {
+		background #000000
                 statusline #ffffff
                 separator  #666666
 

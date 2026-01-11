@@ -76,7 +76,6 @@ ninja
 nodejs
 noto-fonts
 npm
-openai-codex-bin
 otf-font-awesome
 owncloud-client
 p7zip
@@ -121,6 +120,7 @@ ttf-arimo-nerd
 ttf-nerd-fonts-symbols
 typst
 unclutter
+vencord-bin
 vertex-themes
 vi
 vscode
