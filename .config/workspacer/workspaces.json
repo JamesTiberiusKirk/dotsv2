@@ -42,18 +42,28 @@
 				{
 					"panes": [
 						{
-							"command": "$EDITOR ~/.profile ~/.zshrc ~/.tmux.conf"
+							"command": "nvim ~/.profile ~/.zshrc ~/.tmux.conf"
 						}
 					]
 				},
 				{
 					"panes": [
 						{
-							"command": "$EDITOR"
+							"command": "nvim"
 						}
 					],
 					"name": "config",
 					"path":"~/.config/",
+					"layout": "main-vertical"
+				},
+				{
+					"panes": [
+						{
+							"command": "nvim"
+						}
+					],
+					"name": "nvim",
+					"path":"~/.config/nvim-l",
 					"layout": "main-vertical"
 				}
 			],

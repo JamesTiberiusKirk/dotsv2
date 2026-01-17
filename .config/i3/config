@@ -124,6 +124,7 @@ bindsym $mod+Shift+comma move workspace to output left
 
 # Screenshots (using X11 scripts)
 bindsym $mod+Shift+s exec flameshot gui
+bindsym $mod+Control+s exec flameshot gui --pin
 bindsym $mod+Shift+a exec ~/.scripts/x11_extracttext.sh
 
 # Suspend
@@ -175,6 +176,9 @@ bindsym XF86AudioPrev exec playerctl previous
 ###################
 
 # Firefox Picture-in-Picture (matching your Hyprland rule)
+
+# Flameshot pinned captures
+for_window [class="flameshot"] floating enable, sticky enable
 for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky enable, resize set 800 450
 
 # Suppress maximize requests (matching Hyprland suppressevent)

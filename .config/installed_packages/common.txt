@@ -4,6 +4,7 @@ arduino-cli
 arm-none-eabi-gcc
 arm-none-eabi-newlib
 autorandr
+bat
 bbswitch-dkms
 bind
 blueman
@@ -66,6 +67,8 @@ maim
 man-db
 materia-gtk-theme
 minikube
+mkdocs
+mkdocs-material
 mpv
 mullvad-vpn-bin
 netcat
@@ -91,6 +94,7 @@ playwright
 psql
 python
 python-pip
+python-pymdown-extensions
 python-sqlparse
 python-virtualenv
 python-west
@@ -107,6 +111,7 @@ solaar
 sqlitebrowser
 steam
 strace
+stripe
 syncthing-gtk
 tailscale
 telegram-desktop
@@ -119,6 +124,7 @@ tree
 ttf-arimo-nerd
 ttf-nerd-fonts-symbols
 typst
+ueberzugpp
 unclutter
 vencord-bin
 vertex-themes
