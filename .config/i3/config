@@ -167,6 +167,7 @@ bindsym XF86AudioMute exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 bindsym XF86AudioMicMute exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 bindsym XF86MonBrightnessUp exec brightnessctl s 10%+
 bindsym XF86MonBrightnessDown exec brightnessctl s 10%-
+bindsym $mod+Shift+n exec --no-startup-id /home/darthvader/.local/bin/redshift-toggle
 
 # Media player controls
 bindsym XF86AudioNext exec playerctl next

@@ -9,7 +9,7 @@ general {
 order += "wireless _first_"
 order += "ethernet _first_"
 order += "battery all"
-order += "backlight nvidia_0"
+order += "read_file BRIGHTNESS"
 order += "disk /"
 order += "load"
 order += "memory"
@@ -36,8 +36,9 @@ battery all {
         low_threshold = 10
 }
 
-backlight nvidia_0 {
-        format = "☀ %percentage"
+read_file BRIGHTNESS {
+        format = "☀ %content"
+        path = "/sys/class/backlight/nvidia_0/brightness"
 }
 
 disk "/" {
