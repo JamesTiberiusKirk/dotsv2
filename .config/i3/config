@@ -41,6 +41,9 @@ client.urgent           #ff0000 #ff0000 #ffffff #ff0000   #ff0000
 # Terminal
 bindsym $mod+Return exec $terminal
 
+# Reload i3 config
+bindsym $mod+Shift+c reload
+
 # Kill focused window
 bindsym $mod+Shift+q kill
 
@@ -131,7 +134,7 @@ bindsym $mod+Shift+a exec ~/.scripts/x11_extracttext.sh
 bindsym $mod+Control+q exec systemctl suspend
 
 # Lock screen (pause notifications, lock, resume notifications on unlock)
-bindsym $mod+Shift+x exec "dunstctl set-paused true && i3lock -c 000000; dunstctl set-paused false"
+# bindsym $mod+Shift+x exec "dunstctl set-paused true && i3lock -c 000000; dunstctl set-paused false"
 
 # Cycle windows (using dmenu for window switching)
 bindsym $mod+Tab exec "i3-msg [class=\\".*\\"] focus"
@@ -190,9 +193,6 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
-
-# Reload configuration
-bindsym $mod+Shift+c reload
 
 # Restart i3 inplace
 bindsym $mod+Control+r restart

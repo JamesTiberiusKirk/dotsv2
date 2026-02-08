@@ -10,6 +10,7 @@ bind
 blueman
 brave-nightly-bin
 btop
+bun
 cargo
 ccache
 chirp
@@ -58,6 +59,7 @@ inkscape
 kservice5
 kvantum-git
 kvantum-qt5
+lazydocker
 lazygit
 linux-lts-headers
 litecli
@@ -117,6 +119,7 @@ tailscale
 telegram-desktop
 termdbms-git
 tesseract
+texlive-binextra
 tig
 tinygo
 transmission-gtk
@@ -130,6 +133,7 @@ vencord-bin
 vertex-themes
 vi
 vscode
+wkhtmltopdf-bin
 xclip
 xdotool
 xorg-server

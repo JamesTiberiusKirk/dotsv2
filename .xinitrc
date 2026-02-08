@@ -91,7 +91,7 @@ flameshot &
 
 # Screen locker (optional - locks screen on suspend/sleep)
 # Pause notifications before locking, resume after
-xss-lock -- sh -c 'dunstctl set-paused true; i3lock -c 000000; dunstctl set-paused false' &
+# xss-lock -- sh -c 'dunstctl set-paused true; i3lock -c 000000; dunstctl set-paused false' &
 
 # Hide mouse cursor after inactivity (optional)
 unclutter --timeout 3 &
