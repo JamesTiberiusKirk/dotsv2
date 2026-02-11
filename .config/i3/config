@@ -165,8 +165,8 @@ bindsym XF86AudioRaiseVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
 bindsym XF86AudioLowerVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
 bindsym XF86AudioMute exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 bindsym XF86AudioMicMute exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
-bindsym XF86MonBrightnessUp exec brightnessctl s 10%+
-bindsym XF86MonBrightnessDown exec brightnessctl s 10%-
+bindsym XF86MonBrightnessUp exec --no-startup-id /home/darthvader/.local/bin/brightness-step up
+bindsym XF86MonBrightnessDown exec --no-startup-id /home/darthvader/.local/bin/brightness-step down
 bindsym $mod+Shift+n exec --no-startup-id /home/darthvader/.local/bin/redshift-toggle
 
 # Media player controls
@@ -194,6 +194,7 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
+exec_always --no-startup-id /home/darthvader/.config/i3status/ping-latency.sh
 
 # Restart i3 inplace
 bindsym $mod+Control+r restart
@@ -203,7 +204,7 @@ bindsym $mod+Control+r restart
 ###############
 
 bar {
-	status_command i3status
+	status_command /home/darthvader/.local/bin/i3status-wrapper
 	position top
 	tray_output primary
 
