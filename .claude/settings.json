@@ -1,0 +1,31 @@
+{
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true
+  },
+  "alwaysThinkingEnabled": true,
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave is done'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave has a question for you'"
+          }
+        ]
+      }
+    ]
+  }
+}
