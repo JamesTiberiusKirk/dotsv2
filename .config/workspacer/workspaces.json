@@ -26,6 +26,7 @@
 			"prefix": "ff",
 			"path": "~/FyrmForge/",
 			"org_github": "FyrmForge",
+			"is_org": true,
 			"session_preset": "default",
 			"active_projects_first": true,
 			"enable_git_info": true,
