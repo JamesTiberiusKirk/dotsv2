@@ -20,6 +20,20 @@
 			"enable_cache": true,
 			"enable_usage_tracking": true,
 			"recent_access_window": 50
+		},
+		"ff": {
+			"name": "FyrmForge",
+			"prefix": "ff",
+			"path": "~/FyrmForge/",
+			"org_github": "FyrmForge",
+			"session_preset": "default",
+			"active_projects_first": true,
+			"enable_git_info": true,
+			"enable_remote_repos": true,
+			"github_backend": "api",
+			"enable_cache": true,
+			"enable_usage_tracking": true,
+			"recent_access_window": 50
 		}
 	},
 	"session_presets": {
@@ -28,7 +42,7 @@
 				{
 					"panes": [
 						{
-							"command": "nvim-l"
+							"command": "nvim"
 						},
 						{}
 					],
@@ -63,7 +77,7 @@
 						}
 					],
 					"name": "nvim",
-					"path":"~/.config/nvim-l",
+					"path":"~/.config/nvim",
 					"layout": "main-vertical"
 				}
 			],
@@ -74,7 +88,7 @@
 				{
 					"panes": [
 						{
-							"command": "nvim-l"
+							"command": "nvim"
 						}
 					],
 					"name": "nvim",

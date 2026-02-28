@@ -136,6 +136,10 @@ bindsym $mod+Control+q exec systemctl suspend
 # Lock screen (pause notifications, lock, resume notifications on unlock)
 # bindsym $mod+Shift+x exec "dunstctl set-paused true && i3lock -c 000000; dunstctl set-paused false"
 
+# Dismiss notifications
+bindsym $mod+d exec dunstctl close
+bindsym $mod+Shift+d exec dunstctl close-all
+
 # Cycle windows (using dmenu for window switching)
 bindsym $mod+Tab exec "i3-msg [class=\\".*\\"] focus"
 
@@ -195,6 +199,7 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
 exec_always --no-startup-id /home/darthvader/.config/i3status/ping-latency.sh
+exec_always --no-startup-id /home/darthvader/.config/i3status/update-count.sh
 
 # Restart i3 inplace
 bindsym $mod+Control+r restart

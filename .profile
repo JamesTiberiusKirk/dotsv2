@@ -11,10 +11,19 @@ export GOPATH="$HOME/go"
 export PATH=$PATH:$GOPATH/bin
 export PATH=$PATH:$GOROOT/bin
 
+export JAVA_HOME=/usr/lib/jvm/default
+export PATH=$PATH:$JAVA_HOME/bin
+export ANDROID_HOME=/opt/android-sdk
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+export PATH="$PATH:$HOME/.pub-cache/bin"
+export ANDROID_SDK_ROOT=/opt/android-sdk
+export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$HOME/.pub-cache/bin:$PATH"
 
 fpath=(~/.zsh/completion $fpath)
 
 alias ws="workspacer -W=ws"
+alias ff="workspacer -W=ff"
 alias notes="workspacer from-preset notes"
 alias dots="workspacer  from-preset dots"
 
@@ -159,22 +168,7 @@ dump_folder_contents() {
 }
 
 # swapping vi for nvim
-alias vi="nvim-l"
-alias nvim-l="NVIM_APPNAME=nvim-l nvim"
-
-function nvims() {
-	items=("default" "nvim-l")
-	config=$(printf "%s\n" "${items[@]}" | fzf --prompt=" neovim config  " --height=~50% --layout=reverse --border --exit-0)
-	if [[ -z $config ]]; then
-		echo "nothing selected"
-		return 0
-	elif [[ $config == "default" ]]; then
-		config=""
-	fi
-	NVIM_APPNAME=$config nvim $@
-}
-
-# bindkey -s ^a "nvims\n"
+alias vi="nvim"
 
 if [[ $(uname) = "Darwin" ]]; then
 fi

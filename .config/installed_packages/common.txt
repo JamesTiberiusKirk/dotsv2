@@ -1,4 +1,8 @@
 act
+android-sdk
+android-sdk-build-tools
+android-sdk-cmdline-tools-latest
+android-sdk-platform-tools
 arandr
 arduino-cli
 arm-none-eabi-gcc
@@ -54,8 +58,10 @@ i3lock
 i3status
 i3-wm
 imagemagick
+impala
 imv
 inkscape
+jdk21-openjdk
 kservice5
 kvantum-git
 kvantum-qt5
@@ -68,6 +74,7 @@ lxappearance
 maim
 man-db
 materia-gtk-theme
+maven
 minikube
 mkdocs
 mkdocs-material
