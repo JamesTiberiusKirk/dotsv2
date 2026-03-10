@@ -144,3 +144,11 @@ export VISUAL="${EDITOR}"
 
 
 
+
+# Codex desktop notifications wrapper.
+if [[ -x "$HOME/.codex/codex-with-notify.sh" ]]; then
+  codex() {
+    "$HOME/.codex/codex-with-notify.sh" "$@"
+  }
+  alias codexn="$HOME/.codex/codex-with-notify.sh"
+fi

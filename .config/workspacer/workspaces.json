@@ -35,6 +35,21 @@
 			"enable_cache": true,
 			"enable_usage_tracking": true,
 			"recent_access_window": 50
+		},
+		"at": {
+			"name": "Atom",
+			"prefix": "at",
+			"path": "~/atom/",
+			"org_github": "AtomSites",
+			"is_org": true,
+			"session_preset": "default",
+			"active_projects_first": true,
+			"enable_git_info": true,
+			"enable_remote_repos": true,
+			"github_backend": "api",
+			"enable_cache": true,
+			"enable_usage_tracking": true,
+			"recent_access_window": 50
 		}
 	},
 	"session_presets": {

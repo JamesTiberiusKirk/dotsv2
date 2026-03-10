@@ -12,6 +12,7 @@ bat
 bbswitch-dkms
 bind
 blueman
+blue-recorder
 brave-nightly-bin
 btop
 bun
@@ -38,6 +39,7 @@ feh
 flameshot
 fuse2
 fzf
+gimp
 git
 go
 gperf

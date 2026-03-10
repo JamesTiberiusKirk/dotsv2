@@ -225,3 +225,6 @@ bar {
                 urgent_workspace   #ff0000 #ff0000 #ffffff
         }
 }
+
+for_window [instance="^blue-recorder$"] floating enable
+for_window [title="^Select Area$"] floating enable

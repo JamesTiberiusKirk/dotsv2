@@ -23,6 +23,7 @@ export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$HOME/.
 fpath=(~/.zsh/completion $fpath)
 
 alias ws="workspacer -W=ws"
+alias at="workspacer -W=at"
 alias ff="workspacer -W=ff"
 alias notes="workspacer from-preset notes"
 alias dots="workspacer  from-preset dots"
