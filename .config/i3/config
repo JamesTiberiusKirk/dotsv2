@@ -140,8 +140,8 @@ bindsym $mod+Control+q exec systemctl suspend
 bindsym $mod+d exec dunstctl close
 bindsym $mod+Shift+d exec dunstctl close-all
 
-# Cycle windows (using dmenu for window switching)
-bindsym $mod+Tab exec "i3-msg [class=\\".*\\"] focus"
+# Swap workspaces between monitors
+bindsym $mod+Tab exec --no-startup-id ~/.scripts/swap-workspaces.sh
 
 # Resize mode (alternative to SUPER+ALT+h/j/k/l)
 mode "resize" {
