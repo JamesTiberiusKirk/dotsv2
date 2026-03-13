@@ -69,6 +69,7 @@ kvantum-git
 kvantum-qt5
 lazydocker
 lazygit
+libreoffice
 linux-lts-headers
 litecli
 logiops
