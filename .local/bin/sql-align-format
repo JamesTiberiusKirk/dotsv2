@@ -55,6 +55,9 @@ def align_create_tables(sql):
         if re.match(r"\s*CREATE\s+TABLE", lines[i], re.IGNORECASE):
             block, i = collect_block(lines, i)
             result.extend(format_block(block))
+        elif re.match(r"\s*CREATE\s+(UNIQUE\s+)?INDEX\s+", lines[i], re.IGNORECASE):
+            group, i = collect_index_group(lines, i)
+            result.extend(format_index_group(group))
         else:
             result.append(uppercase_keywords_in_line(lines[i]) if lines[i].strip() else lines[i])
             i += 1
@@ -63,6 +66,53 @@ def align_create_tables(sql):
     if sql.endswith("\n"):
         out += "\n"
     return out
+
+
+def collect_index_group(lines, start):
+    group = []
+    i = start
+    while i < len(lines):
+        if re.match(r"\s*CREATE\s+(UNIQUE\s+)?INDEX\s+", lines[i], re.IGNORECASE):
+            group.append(lines[i])
+            i += 1
+        else:
+            break
+    return group, i
+
+
+def format_index_group(group):
+    if len(group) < 2:
+        return [uppercase_keywords_in_line(line) for line in group]
+
+    parsed = []
+    for line in group:
+        m = re.match(
+            r"(\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+)(\S+)(\s+ON\s+)(\S+)(\s*.*)",
+            line,
+            re.IGNORECASE,
+        )
+        if m:
+            parsed.append((m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)))
+        else:
+            parsed.append(None)
+
+    max_name = max(len(p[1]) for p in parsed if p)
+
+    result = []
+    for i, p in enumerate(parsed):
+        if p:
+            prefix, name, on, table, rest = p
+            aligned = (
+                uppercase_keywords_in_line(prefix)
+                + f"{name:<{max_name}}"
+                + uppercase_keywords_in_line(on)
+                + table
+                + rest
+            )
+            result.append(aligned)
+        else:
+            result.append(uppercase_keywords_in_line(group[i]))
+    return result
 
 
 def collect_block(lines, start):
