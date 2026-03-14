@@ -101,11 +101,10 @@ def format_index_group(group):
     result = []
     for i, p in enumerate(parsed):
         if p:
-            prefix, name, on, table, rest = p
+            prefix, name, _on, table, rest = p
             aligned = (
                 uppercase_keywords_in_line(prefix)
-                + f"{name:<{max_name}}"
-                + uppercase_keywords_in_line(on)
+                + f"{name:<{max_name}}  ON "
                 + table
                 + rest
             )
