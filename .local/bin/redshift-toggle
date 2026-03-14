@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEMP_K=${1:-4000}
+STATE="${XDG_RUNTIME_DIR:-/tmp}/nightlight.state"
+
+is_running() {
+  pgrep -x redshift >/dev/null 2>&1
+}
+
+turn_off() {
+  redshift -x >/dev/null 2>&1 || true
+  pkill -x redshift >/dev/null 2>&1 || true
+  rm -f "$STATE"
+}
+
+turn_on() {
+  if ! command -v redshift >/dev/null 2>&1; then
+    echo "redshift is not installed" >&2
+    exit 1
+  fi
+  nohup redshift -O "$TEMP_K" >/dev/null 2>&1 &
+  touch "$STATE"
+  exit 0
+}
+
+if [[ -f "$STATE" ]] || is_running; then
+  turn_off
+else
+  turn_on
+fi

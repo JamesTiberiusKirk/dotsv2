@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""SQL formatter that aligns columns in CREATE TABLE statements."""
+import sys
+import re
+
+SQL_KEYWORDS = {
+    "CREATE", "TABLE", "ALTER", "DROP", "INSERT", "INTO", "SELECT", "FROM",
+    "WHERE", "AND", "OR", "NOT", "NULL", "PRIMARY", "KEY", "FOREIGN",
+    "REFERENCES", "UNIQUE", "DEFAULT", "CHECK", "INDEX", "ON", "CASCADE",
+    "SET", "UPDATE", "DELETE", "VALUES", "JOIN", "LEFT", "RIGHT", "INNER",
+    "OUTER", "CROSS", "ORDER", "BY", "GROUP", "HAVING", "LIMIT", "OFFSET",
+    "UNION", "ALL", "DISTINCT", "AS", "IN", "EXISTS", "BETWEEN", "LIKE",
+    "IS", "TRUE", "FALSE", "BEGIN", "COMMIT", "ROLLBACK", "TRANSACTION",
+    "GRANT", "REVOKE", "IF", "ELSE", "THEN", "END", "CASE", "WHEN",
+    "CONSTRAINT", "EXCLUDE", "COLLATE", "GENERATED", "ALWAYS", "STORED",
+    "WITH", "WITHOUT", "ZONE", "VARYING", "PRECISION", "NO", "ACTION",
+    "RESTRICT", "DEFERRABLE", "INITIALLY", "DEFERRED", "IMMEDIATE",
+}
+
+
+def main():
+    sql = sys.stdin.read()
+    sys.stdout.write(align_create_tables(sql))
+
+
+def uppercase_keyword(word):
+    """Uppercase a word if it's a SQL keyword, preserving parens/quotes."""
+    clean = word.strip("(),;")
+    if clean.upper() in SQL_KEYWORDS:
+        prefix = word[: len(word) - len(word.lstrip("(),;"))]
+        suffix = word[len(word.rstrip("(),;")) :]
+        return prefix + clean.upper() + suffix
+    return word
+
+
+def uppercase_keywords_in_line(line):
+    """Uppercase SQL keywords in a line, skipping string literals."""
+    parts = re.split(r"('(?:[^'\\]|\\.)*')", line)
+    result = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            result.append(part)
+        else:
+            tokens = part.split(" ")
+            result.append(" ".join(uppercase_keyword(t) for t in tokens))
+    return "".join(result)
+
+
+def align_create_tables(sql):
+    lines = sql.splitlines()
+    result = []
+    i = 0
+
+    while i < len(lines):
+        if re.match(r"\s*CREATE\s+TABLE", lines[i], re.IGNORECASE):
+            block, i = collect_block(lines, i)
+            result.extend(format_block(block))
+        else:
+            result.append(uppercase_keywords_in_line(lines[i]) if lines[i].strip() else lines[i])
+            i += 1
+
+    out = "\n".join(result)
+    if sql.endswith("\n"):
+        out += "\n"
+    return out
+
+
+def collect_block(lines, start):
+    block = []
+    i = start
+    depth = 0
+
+    while i < len(lines):
+        line = lines[i]
+        block.append(line)
+        depth += line.count("(") - line.count(")")
+        i += 1
+        if depth <= 0 and len(block) > 1:
+            break
+
+    return block, i
+
+
+def format_block(block):
+    if len(block) < 3:
+        return [uppercase_keywords_in_line(l) for l in block]
+
+    header = block[0].rstrip()
+    col_lines = block[1:-1]
+
+    col_defs = []
+    for line in col_lines:
+        stripped = line.strip().rstrip(",")
+        if stripped:
+            col_defs.append(stripped)
+
+    if not col_defs:
+        return [uppercase_keywords_in_line(l) for l in block]
+
+    parsed = [split_def(d) for d in col_defs]
+
+    max_name = 0
+    max_type = 0
+    for name, type_str, _ in parsed:
+        if name is not None:
+            max_name = max(max_name, len(name))
+            if type_str:
+                max_type = max(max_type, len(type_str))
+
+    result = [uppercase_keywords_in_line(header)]
+    for idx, (name, type_str, constraints) in enumerate(parsed):
+        comma = "," if idx < len(parsed) - 1 else ""
+        if name is None:
+            result.append("    " + constraints + comma)
+        elif constraints:
+            result.append(
+                f"    {name:<{max_name}}  {type_str:<{max_type}}  {constraints}{comma}"
+            )
+        elif type_str:
+            result.append(f"    {name:<{max_name}}  {type_str}{comma}")
+        else:
+            result.append(f"    {name}{comma}")
+
+    result.append(");")
+    return result
+
+
+def split_def(col_def):
+    upper = col_def.strip().upper()
+
+    for kw in (
+        "PRIMARY KEY",
+        "UNIQUE",
+        "CHECK",
+        "FOREIGN KEY",
+        "CONSTRAINT",
+        "EXCLUDE",
+    ):
+        if upper.startswith(kw):
+            return (None, None, uppercase_keywords_in_line(col_def.strip()))
+
+    tokens = tokenize(col_def.strip())
+    if len(tokens) < 2:
+        return (col_def.strip(), "", "")
+
+    name = tokens[0]
+    type_str = tokens[1]
+    idx = 2
+
+    constraint_starts = {
+        "NOT",
+        "NULL",
+        "DEFAULT",
+        "PRIMARY",
+        "UNIQUE",
+        "CHECK",
+        "REFERENCES",
+        "GENERATED",
+        "CONSTRAINT",
+        "COLLATE",
+    }
+
+    while idx < len(tokens) and tokens[idx].upper() not in constraint_starts:
+        type_upper = type_str.upper().split()[0]
+        tok_upper = tokens[idx].upper()
+        if type_upper in {"DOUBLE", "CHARACTER", "BIT", "NATIONAL"} or tok_upper in {
+            "VARYING",
+            "PRECISION",
+        }:
+            type_str += " " + tokens[idx]
+            idx += 1
+        elif type_upper in {"TIMESTAMP", "TIME"} and tok_upper in {
+            "WITH",
+            "WITHOUT",
+        }:
+            type_str += " " + tokens[idx]
+            idx += 1
+        elif tok_upper in {"TIME", "ZONE"}:
+            type_str += " " + tokens[idx]
+            idx += 1
+        else:
+            break
+
+    constraints = " ".join(uppercase_keyword(t) for t in tokens[idx:])
+    return (name, type_str.upper(), constraints)
+
+
+def tokenize(s):
+    tokens = []
+    current = ""
+    depth = 0
+    in_quote = False
+    quote_char = None
+
+    for char in s:
+        if in_quote:
+            current += char
+            if char == quote_char:
+                in_quote = False
+        elif char in ("'", '"'):
+            current += char
+            in_quote = True
+            quote_char = char
+        elif char == "(":
+            depth += 1
+            current += char
+        elif char == ")":
+            depth -= 1
+            current += char
+        elif char.isspace() and depth == 0:
+            if current:
+                tokens.append(current)
+                current = ""
+        else:
+            current += char
+
+    if current:
+        tokens.append(current)
+
+    return tokens
+
+
+if __name__ == "__main__":
+    main()

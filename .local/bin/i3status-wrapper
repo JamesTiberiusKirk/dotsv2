@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+import json
+import subprocess
+import sys
+
+
+def mem_stats_kb():
+    info = {}
+    with open("/proc/meminfo", "r", encoding="utf-8") as f:
+        for line in f:
+            if ":" not in line:
+                continue
+            key, rest = line.split(":", 1)
+            parts = rest.strip().split()
+            if not parts:
+                continue
+            try:
+                info[key] = int(parts[0])
+            except ValueError:
+                continue
+
+    total = info.get("MemTotal", 0)
+    available = info.get("MemAvailable", info.get("MemFree", 0))
+    buffers = info.get("Buffers", 0)
+    cached = info.get("Cached", 0)
+    sreclaim = info.get("SReclaimable", 0)
+    shmem = info.get("Shmem", 0)
+    cache = max(0, buffers + cached + sreclaim - shmem)
+    used = max(0, total - available)
+    return used, cache, total
+
+
+def fmt_kb(kb):
+    gib = kb / 1024 / 1024
+    if gib >= 10:
+        return f"{gib:.0f}G"
+    return f"{gib:.1f}G"
+
+
+UPDATES_FILE = "/tmp/i3status_updates"
+
+
+def docker_block():
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+    except FileNotFoundError:
+        return {"full_text": "🐳 n/a", "name": "docker", "color": "#ff0000"}
+    except subprocess.TimeoutExpired:
+        return {"full_text": "🐳 timeout", "name": "docker", "color": "#ff0000"}
+
+    if result.returncode != 0:
+        return {"full_text": "🐳 off", "name": "docker", "color": "#ff0000"}
+
+    count = len([line for line in result.stdout.splitlines() if line.strip()])
+    return {
+        "full_text": f"🐳 {count}",
+        "name": "docker",
+        "color": "#00ff00",
+    }
+
+
+def updates_block():
+    try:
+        with open(UPDATES_FILE, "r", encoding="utf-8") as file_handle:
+            value = file_handle.read().strip()
+    except FileNotFoundError:
+        return {"full_text": "📦 n/a", "name": "updates", "color": "#ff0000"}
+
+    if not value:
+        return {"full_text": "📦 n/a", "name": "updates", "color": "#ff0000"}
+
+    if value.isdigit():
+        count = int(value)
+        color = "#00ff00" if count == 0 else "#ffff00"
+        return {"full_text": f"📦 {count}", "name": "updates", "color": color}
+
+    return {"full_text": f"📦 {value}", "name": "updates", "color": "#ff0000"}
+
+
+def make_block():
+    used, cache, total = mem_stats_kb()
+    return {
+        "full_text": f"🧠 {fmt_kb(used)} / {fmt_kb(cache)} / {fmt_kb(total)}",
+        "name": "mem_uct",
+    }
+
+
+def insert_after_name(blocks, block, names):
+    for index, item in enumerate(blocks):
+        if item.get("name") in names:
+            blocks.insert(index + 1, block)
+            return
+    blocks.append(block)
+
+
+def main():
+    proc = subprocess.Popen(
+        ["i3status"], stdout=subprocess.PIPE, text=True, bufsize=1
+    )
+    assert proc.stdout is not None
+
+    for line in proc.stdout:
+        line = line.rstrip("\n")
+        if line.startswith('{"version"') or line == "[":
+            print(line, flush=True)
+            continue
+
+        prefix = ""
+        if line.startswith(","):
+            prefix = ","
+            line = line[1:]
+
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            print(prefix + line, flush=True)
+            continue
+
+        mem_block = make_block()
+        docker_status = docker_block()
+        updates_status = updates_block()
+        if isinstance(data, list):
+            insert_after_name(data, docker_status, {"ethernet"})
+            insert_after_name(data, updates_status, {"docker"})
+            if len(data) >= 1:
+                data.insert(len(data) - 1, mem_block)
+            else:
+                data.append(mem_block)
+
+        print(prefix + json.dumps(data, ensure_ascii=False), flush=True)
+
+
+if __name__ == "__main__":
+    main()

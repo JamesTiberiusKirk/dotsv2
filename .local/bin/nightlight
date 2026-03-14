@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEMP_K=${1:-3500}
+
+if pgrep -x gammastep >/dev/null 2>&1; then
+  gammastep -x >/dev/null 2>&1 || true
+  pkill -x gammastep >/dev/null 2>&1 || true
+  exit 0
+fi
+
+nohup gammastep -O "$TEMP_K" >/dev/null 2>&1 &

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  up)
+    brightnessctl s 10%+
+    ;;
+  down)
+    brightnessctl s 10%-
+    ;;
+  *)
+    echo "Usage: brightness-step {up|down}" >&2
+    exit 2
+    ;;
+esac
+
+pkill -USR1 i3status >/dev/null 2>&1 || true
