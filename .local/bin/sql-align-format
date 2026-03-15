@@ -160,7 +160,8 @@ def format_block(block):
     for idx, (name, type_str, constraints) in enumerate(parsed):
         comma = "," if idx < len(parsed) - 1 else ""
         if name is None:
-            result.append("    " + constraints + comma)
+            constraint_col = 4 + max_name + 2 + max_type + 2
+            result.append(" " * constraint_col + constraints + comma)
         elif constraints:
             result.append(
                 f"    {name:<{max_name}}  {type_str:<{max_type}}  {constraints}{comma}"

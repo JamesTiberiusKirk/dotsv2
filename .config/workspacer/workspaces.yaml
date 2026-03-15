@@ -1,0 +1,83 @@
+default_workspace: ws
+session_presets:
+    default:
+        screens:
+            - layout: main-vertical
+              name: nvim
+              panes:
+                - command: nvim
+                - {}
+    dots:
+        path: ~/
+        screens:
+            - panes:
+                - command: nvim ~/.profile ~/.zshrc ~/.tmux.conf
+            - layout: main-vertical
+              name: config
+              panes:
+                - command: nvim
+              path: ~/.config/
+            - layout: main-vertical
+              name: nvim
+              panes:
+                - command: nvim
+              path: ~/.config/nvim
+            - layout: main-vertical
+              name: workspacer
+              panes:
+                - command: nvim
+              path: ~/.config/workspacer
+    notes:
+        path: ~/Documents/notes/
+        screens:
+            - layout: main-vertical
+              name: nvim
+              panes:
+                - command: nvim
+workspaces:
+    at:
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        is_org: true
+        name: Atom
+        org_github: AtomSites
+        path: ~/atom/
+        prefix: at
+        recent_access_window: 50
+        session_preset: default
+    ff:
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        is_org: true
+        name: FyrmForge
+        org_github: FyrmForge
+        path: ~/FyrmForge/
+        prefix: ff
+        recent_access_window: 50
+        session_preset: default
+    notes:
+        name: Notes
+        path: ~/Documents/notes/
+        prefix: notes
+        session_preset: notes
+    ws:
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        name: Projects
+        org_github: JamesTiberiusKirk
+        path: ~/Projects/
+        prefix: ws
+        recent_access_window: 50
+        session_preset: default
