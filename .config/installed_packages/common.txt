@@ -64,6 +64,7 @@ impala
 imv
 inkscape
 jdk21-openjdk
+krita
 kservice5
 kvantum-git
 kvantum-qt5

@@ -426,6 +426,7 @@ vim.defer_fn(function()
       'html',
       'css',
       'java',
+      'sql',
     },
 
     -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
@@ -498,6 +499,57 @@ vim.defer_fn(function()
 end, 0)
 
 -- [[ Configure LSP ]]
+
+-- Go-to-definition that redirects _templ.go targets to the original .templ source
+local function goto_definition_or_templ()
+  local word = vim.fn.expand('<cword>')
+  local client = vim.lsp.get_clients({ bufnr = 0 })[1]
+  local encoding = client and client.offset_encoding or 'utf-8'
+  local params = vim.lsp.util.make_position_params(0, encoding)
+
+  vim.lsp.buf_request(0, 'textDocument/definition', params, function(err, result, ctx)
+    if err or not result or (vim.islist(result) and #result == 0) then
+      if not err then
+        vim.notify('No definition found', vim.log.levels.INFO)
+      end
+      return
+    end
+
+    local results = vim.islist(result) and result or { result }
+    local target = results[1]
+    local uri = target.uri or target.targetUri
+
+    if uri then
+      local path = vim.uri_to_fname(uri)
+      if path:match('_templ%.go$') then
+        local templ_path = path:gsub('_templ%.go$', '.templ')
+        if vim.fn.filereadable(templ_path) == 1 then
+          vim.schedule(function()
+            vim.cmd("normal! m'")
+            vim.cmd('edit ' .. vim.fn.fnameescape(templ_path))
+            for _, pat in ipairs({
+              [[\<templ\s\+]] .. word .. [[\>]],
+              [[\<func\s\+]] .. word .. [[\>]],
+              [[\<css\s\+]] .. word .. [[\>]],
+              [[\<script\s\+]] .. word .. [[\>]],
+            }) do
+              if vim.fn.search(pat, 'w') > 0 then
+                return
+              end
+            end
+          end)
+          return
+        end
+      end
+    end
+
+    -- Default: jump normally
+    local client = vim.lsp.get_client_by_id(ctx.client_id)
+    local encoding = client and client.offset_encoding or 'utf-8'
+    vim.lsp.util.jump_to_location(target, encoding)
+  end)
+end
+
 --  This function gets run when an LSP connects to a particular buffer.
 local on_attach = function(_, bufnr)
 
@@ -525,7 +577,7 @@ local on_attach = function(_, bufnr)
   -- nmap('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
   -- nmap('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
   --
-  nmap('gd', vim.lsp.buf.definition, '[G]oto [D]efinition')
+  nmap('gd', goto_definition_or_templ, '[G]oto [D]efinition')
 
   -- See `:help K` for why this keymap
   nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
