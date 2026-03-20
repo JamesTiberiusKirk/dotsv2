@@ -1,24 +1,24 @@
 return {
   {
     "f-person/auto-dark-mode.nvim",
-    init = function()
-      local auto_dark_mode = require("auto-dark-mode")
-      auto_dark_mode.setup({
-        update_interval = 1000,
-        set_dark_mode = function()
-          vim.api.nvim_set_option("background", "dark")
-          -- vim.cmd("colorscheme tokyonight-storm")
-          -- vim.cmd("colorscheme onedark")
-          vim.cmd("colorscheme elflord")
-          -- vim.cmd("colorscheme evening")
-        end,
-        set_light_mode = function()
-          vim.api.nvim_set_option("background", "light")
-          -- vim.cmd("colorscheme NeoSolarized")
-          vim.cmd("colorscheme gruvbox")
-          -- vim.cmd("colorscheme peachpuff")
-        end,
-      })
+    lazy = false,
+    priority = 1000,
+    opts = {
+      update_interval = 1000,
+      set_dark_mode = function()
+        vim.api.nvim_set_option("background", "dark")
+        vim.cmd("colorscheme elflord")
+      end,
+      set_light_mode = function()
+        vim.api.nvim_set_option("background", "light")
+        vim.cmd("colorscheme gruvbox")
+      end,
+    },
+    config = function(_, opts)
+      require("auto-dark-mode").setup(opts)
+
+      -- Apply colorscheme immediately at startup (auto-dark-mode defers its first check)
+      opts.set_dark_mode()
 
       -- Make spell highlights underline-only (no red/fg), and persist across colorscheme changes
       local function set_spell_underline()
@@ -32,15 +32,10 @@ return {
           })
         end
       end
-      local aug = vim.api.nvim_create_augroup("CustomSpellUnderline", { clear = true })
       vim.api.nvim_create_autocmd("ColorScheme", {
-        group = aug,
+        group = vim.api.nvim_create_augroup("CustomSpellUnderline", { clear = true }),
         callback = set_spell_underline,
       })
-
-      auto_dark_mode.init()
-
-      -- Apply once at startup as well
       set_spell_underline()
     end,
   },

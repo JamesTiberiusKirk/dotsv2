@@ -136,6 +136,7 @@ tig
 tinygo
 transmission-gtk
 tree
+tree-sitter-cli
 ttf-arimo-nerd
 ttf-nerd-fonts-symbols
 typst

@@ -404,99 +404,64 @@ end, { desc = '[/] Fuzzily search in current buffer' })
 --
 -- [[ Configure Treesitter ]]
 -- See `:help nvim-treesitter`
--- Defer Treesitter setup after first render to improve startup time of 'nvim {filename}'
-vim.defer_fn(function()
-  require('nvim-treesitter.configs').setup {
-    -- Add languages to be installed here that you want installed for treesitter
-    ensure_installed = {
-      'c',
-      'cpp',
-      'dart',
-      'go',
-      'lua',
-      'python',
-      'rust',
-      'tsx',
-      'javascript',
-      'typescript',
-      'vimdoc',
-      'vim',
-      'bash',
-      'templ',
-      'html',
-      'css',
-      'java',
-      'sql',
-    },
+require('nvim-treesitter').install {
+  'c', 'cpp', 'dart', 'go', 'lua', 'python', 'rust', 'tsx',
+  'javascript', 'typescript', 'vimdoc', 'vim', 'bash', 'templ',
+  'html', 'css', 'java', 'sql',
+}
 
-    -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
-    auto_install = false,
+-- Enable treesitter highlighting for all installed parsers
+vim.api.nvim_create_autocmd('FileType', {
+  callback = function(args)
+    pcall(vim.treesitter.start, args.buf)
+  end,
+})
 
-    highlight = {
-      enable = true,
-      additional_vim_regex_highlighting = false,
-    },
-    modules = {},
-    ignore_install = {},
-    sync_install = true,
+-- Textobjects
+require('nvim-treesitter-textobjects').setup {
+  select = {
+    lookahead = true,
+  },
+  move = {
+    set_jumps = true,
+  },
+}
 
-    indent = { enable = true },
-    incremental_selection = {
-      enable = true,
-      keymaps = {
-        init_selection = '<c-space>',
-        node_incremental = '<c-space>',
-        scope_incremental = '<c-s>',
-        node_decremental = '<M-space>',
-      },
-    },
-    textobjects = {
-      select = {
-        enable = true,
-        lookahead = true, -- Automatically jump forward to textobj, similar to targets.vim
-        keymaps = {
-          -- You can use the capture groups defined in textobjects.scm
-          ['aa'] = '@parameter.outer',
-          ['ia'] = '@parameter.inner',
-          ['af'] = '@function.outer',
-          ['if'] = '@function.inner',
-          ['ac'] = '@class.outer',
-          ['ic'] = '@class.inner',
-        },
-      },
-      move = {
-        enable = true,
-        set_jumps = true, -- whether to set jumps in the jumplist
-        goto_next_start = {
-          [']m'] = '@function.outer',
-          [']]'] = '@class.outer',
-        },
-        goto_next_end = {
-          [']M'] = '@function.outer',
-          [']['] = '@class.outer',
-        },
-        goto_previous_start = {
-          ['[m'] = '@function.outer',
-          ['[['] = '@class.outer',
-        },
-        goto_previous_end = {
-          ['[M'] = '@function.outer',
-          ['[]'] = '@class.outer',
-        },
-      },
-      swap = {
-        enable = true,
-        swap_next = {
-          ['<leader>a'] = '@parameter.inner',
-        },
-        swap_previous = {
-          ['<leader>A'] = '@parameter.inner',
-        },
-      },
+-- Textobject select keymaps
+local select_keymap = {
+  ['aa'] = '@parameter.outer',
+  ['ia'] = '@parameter.inner',
+  ['af'] = '@function.outer',
+  ['if'] = '@function.inner',
+  ['ac'] = '@class.outer',
+  ['ic'] = '@class.inner',
+}
+for key, query in pairs(select_keymap) do
+  vim.keymap.set({ 'x', 'o' }, key, function()
+    require('nvim-treesitter-textobjects.select').select_textobject(query, 'textobjects')
+  end)
+end
 
-    },
-  }
-end, 0)
+-- Textobject move keymaps
+local move = require('nvim-treesitter-textobjects.move')
+local move_keymaps = {
+  { ']m', move.goto_next_start, '@function.outer' },
+  { ']]', move.goto_next_start, '@class.outer' },
+  { ']M', move.goto_next_end, '@function.outer' },
+  { '][', move.goto_next_end, '@class.outer' },
+  { '[m', move.goto_previous_start, '@function.outer' },
+  { '[[', move.goto_previous_start, '@class.outer' },
+  { '[M', move.goto_previous_end, '@function.outer' },
+  { '[]', move.goto_previous_end, '@class.outer' },
+}
+for _, map in ipairs(move_keymaps) do
+  vim.keymap.set({ 'n', 'x', 'o' }, map[1], function() map[2](map[3], 'textobjects') end)
+end
+
+-- Textobject swap keymaps
+local swap = require('nvim-treesitter-textobjects.swap')
+vim.keymap.set('n', '<leader>a', function() swap.swap_next('@parameter.inner') end)
+vim.keymap.set('n', '<leader>A', function() swap.swap_previous('@parameter.inner') end)
 
 -- [[ Configure LSP ]]
 
@@ -632,8 +597,6 @@ ws.add{
 --     ["<leader>h"] = { "Git [H]unk" },
 -- }, { mode = 'v' })
 
--- mason-lspconfig requires that these setup functions are called in this order
--- before setting up the servers.
 require('mason').setup()
 require('mason-lspconfig').setup()
 
@@ -696,116 +659,93 @@ local capabilities = vim.lsp.protocol.make_client_capabilities()
 capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
 
 -- Ensure the servers above are installed
-local mason_lspconfig = require 'mason-lspconfig'
-
-local mason_ensure_installed = vim.tbl_filter(function(server_name)
-  return server_name ~= 'dartls'
-end, vim.tbl_keys(servers))
-
-mason_lspconfig.setup {
-  ensure_installed = mason_ensure_installed,
+require('mason-lspconfig').setup {
+  ensure_installed = vim.tbl_filter(function(server_name)
+    return server_name ~= 'dartls'
+  end, vim.tbl_keys(servers)),
 }
 
-local function apply_dartls_config(opts, root_dir)
-  local flutter = require('custom.config.flutter')
-  opts.init_options = {
+-- Global LSP defaults
+vim.lsp.config('*', {
+  capabilities = capabilities,
+  on_attach = on_attach,
+  flags = { debounce_text_changes = 150 },
+})
+
+-- Configure each server from the servers table
+for server_name, server_settings in pairs(servers) do
+  local cfg = {
+    settings = server_settings,
+    filetypes = server_settings.filetypes,
+  }
+  if server_name == 'ts_ls' then
+    cfg.handlers = {
+      ["textDocument/publishDiagnostics"] = function(_, result, ctx, config)
+        if result.diagnostics == nil then return end
+        local idx = 1
+        while idx <= #result.diagnostics do
+          local entry = result.diagnostics[idx]
+          local formatter = require('format-ts-errors')[entry.code]
+          entry.message = formatter and formatter(entry.message) or entry.message
+          if entry.code == 80001 then
+            table.remove(result.diagnostics, idx)
+          else
+            idx = idx + 1
+          end
+        end
+        vim.lsp.diagnostic.on_publish_diagnostics(_, result, ctx, config)
+      end,
+    }
+  end
+  vim.lsp.config(server_name, cfg)
+end
+
+-- Dart LSP with Flutter-specific config
+local flutter = require('custom.config.flutter')
+vim.lsp.config('dartls', {
+  settings = vim.tbl_deep_extend('force', servers.dartls or {}, {
+    dart = {
+      completeFunctionCalls = true,
+      showTodos = true,
+    },
+  }),
+  init_options = {
     closingLabels = true,
     flutterOutline = true,
     onlyAnalyzeProjectsWithOpenFiles = false,
     outline = true,
     suggestFromUnimportedLibraries = true,
-  }
-  opts.settings = vim.tbl_deep_extend('force', opts.settings or {}, {
-    dart = {
-      completeFunctionCalls = true,
-      showTodos = true,
-    },
-  })
-  opts.cmd = flutter.resolve_dartls_cmd(root_dir or vim.fn.getcwd()) or opts.cmd
-  opts.cmd_env = flutter.dartls_env(root_dir or vim.fn.getcwd(), opts.cmd_env)
-  opts.on_new_config = function(new_config, new_root_dir)
+  },
+  cmd = flutter.resolve_dartls_cmd(vim.fn.getcwd()),
+  cmd_env = flutter.dartls_env(vim.fn.getcwd()),
+  on_new_config = function(new_config, new_root_dir)
     local cmd = flutter.resolve_dartls_cmd(new_root_dir)
     if cmd then
       new_config.cmd = cmd
     end
     new_config.cmd_env = flutter.dartls_env(new_root_dir, new_config.cmd_env)
-  end
-  return opts
-end
-
-mason_lspconfig.setup_handlers {
-  function(server_name)
-    local opts = {
-      capabilities = capabilities,
-      on_attach = on_attach,
-      settings = servers[server_name],
-      filetypes = (servers[server_name] or {}).filetypes,
-      flags = { debounce_text_changes = 150 },
-    }
-    if server_name == 'dartls' then
-      opts = apply_dartls_config(opts)
-    end
-    if server_name == 'ts_ls' then
-      opts.handlers = {
-        ["textDocument/publishDiagnostics"] = function(_, result, ctx, config)
-          if result.diagnostics == nil then return end
-          local idx = 1
-          while idx <= #result.diagnostics do
-            local entry = result.diagnostics[idx]
-            local formatter = require('format-ts-errors')[entry.code]
-            entry.message = formatter and formatter(entry.message) or entry.message
-            if entry.code == 80001 then
-              table.remove(result.diagnostics, idx)
-            else
-              idx = idx + 1
-            end
-          end
-          vim.lsp.diagnostic.on_publish_diagnostics(_, result, ctx, config)
-        end,
-      }
-    end
-    require('lspconfig')[server_name].setup(opts)
   end,
-}
+})
 
-local lspconfig = require('lspconfig')
-local lspconfig_configs = require('lspconfig.configs')
-
--- Fallback: dartls has no Mason package mapping, so configure it directly.
-if not (lspconfig_configs.dartls and lspconfig_configs.dartls.manager) then
-  local dartls_opts = {
-    capabilities = capabilities,
-    on_attach = on_attach,
-    settings = servers.dartls,
-    filetypes = (servers.dartls or {}).filetypes,
-    flags = { debounce_text_changes = 150 },
-  }
-  lspconfig.dartls.setup(apply_dartls_config(dartls_opts))
-end
-
-lspconfig.tailwindcss.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
+-- Additional servers
+vim.lsp.config('tailwindcss', {
   filetypes = { "templ", "astro", "javascript", "typescript", "react" },
   init_options = { userLanguages = { templ = "html" } },
 })
 
-lspconfig.templ.setup{
-  on_attach = on_attach,
-  capabilities = capabilities,
-}
+vim.lsp.config('templ', {})
 
-lspconfig.html.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
+vim.lsp.config('html', {
   filetypes = { "html", "templ" },
 })
 
-lspconfig.htmx.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
+vim.lsp.config('htmx', {
   filetypes = { "html", "templ" },
 })
+
+-- Enable all configured servers
+vim.lsp.enable(vim.tbl_keys(servers))
+vim.lsp.enable({ 'tailwindcss', 'templ', 'html', 'htmx' })
 
 -- Templ stuff
 local templ_format = function()
