@@ -1,0 +1,74 @@
+#compdef workspacer
+
+_workspacer() {
+    local -a commands
+    commands=(
+        'c:Clone a project from github org or user'
+        'o:Open list chooser for the currently open workspace sessions'
+        'get-tmux-workspace-filter:Get tmux template for filtering sessions for the current workspace (i.e. for chose-tree). 
+		If no workspace present, return without any filter.
+		Example config:
+		bind-key s run-shell "tmux choose-tree -Zs -f \"$(workspacer -W=current get-tmux-workspace-filter)\""'
+        'stats:Show workspace usage statistics'
+        'completion:Generate shell completion scripts'
+        'a:Get github actions status for tmux'
+        'cache:Cache management commands. Usage: cache [clear|status]'
+        'CA:Close all sessions in workspace'
+        'n:New project in the workspace project folder.'
+        'config:Config management commands. Usage: config [new|files]'
+        'l:List open sessions in a workspace'
+        's:Search in github org or user'
+        'from-preset:Open up a preset as a project. I.E. a preset for editing dot files which might be defined in session presets section'
+    )
+
+    _arguments -C \
+        '(-W --workspace)'{-W,--workspace}'[Specify workspace]:workspace:' \
+        '(-D --debug)'{-D,--debug}'[Debug mode]' \
+        '(-h --help)'{-h,--help}'[Show help]' \
+        '1: :->cmds' \
+        '*::arg:->args'
+
+    case "$state" in
+        cmds)
+            _describe 'command' commands
+            ;;
+        args)
+            case $words[1] in
+                stats)
+                    ;;
+                completion)
+                    ;;
+                a)
+                    ;;
+                cache)
+                    ;;
+                CA)
+                    ;;
+                n)
+                    ;;
+                config)
+                    local -a subcommands
+                    subcommands=(
+                        'new:Create new default configuration file'
+                        'list:Show actually loaded config and environment file paths'
+                    )
+                    _describe 'subcommand' subcommands
+                    ;;
+                l)
+                    ;;
+                s)
+                    ;;
+                from-preset)
+                    ;;
+                c)
+                    ;;
+                o)
+                    ;;
+                get-tmux-workspace-filter)
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_workspacer
