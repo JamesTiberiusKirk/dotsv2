@@ -1,4 +1,5 @@
 act
+alacritty
 android-sdk
 android-sdk-build-tools
 android-sdk-cmdline-tools-latest
@@ -29,13 +30,14 @@ displaylink
 dmenu
 docker
 docker-buildx
-docker-compose
 dtc
+dunst
 evdi
 evtest
 extra/postgresql-libs
 fblog
 feh
+firefox
 flameshot
 fuse2
 fzf
@@ -53,6 +55,7 @@ hicolor-icon-theme
 httpie
 hugo
 hyprland-autoname-workspaces
+hyprpaper
 hyprshade
 hyprshot
 i2c-dev
@@ -66,7 +69,6 @@ inkscape
 jdk21-openjdk
 krita
 kservice5
-kvantum-git
 kvantum-qt5
 lazydocker
 lazygit
@@ -96,7 +98,6 @@ otf-font-awesome
 owncloud-client
 p7zip
 p7zip-full
-pandoc
 pandoc-bin
 pasystray-wayland
 pavucontrol
@@ -134,6 +135,7 @@ tesseract
 texlive-binextra
 tig
 tinygo
+tmux
 transmission-gtk
 tree
 tree-sitter-cli
@@ -146,7 +148,9 @@ vencord-bin
 vertex-themes
 vi
 vscode
+waybar
 wkhtmltopdf-bin
+wofi
 xclip
 xdotool
 xorg-server
