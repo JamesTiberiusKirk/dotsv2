@@ -17,6 +17,7 @@ blue-recorder
 brave-nightly-bin
 btop
 bun
+caja
 cargo
 ccache
 chirp
@@ -30,6 +31,8 @@ displaylink
 dmenu
 docker
 docker-buildx
+docker-compose
+docker-runit
 dtc
 dunst
 evdi
@@ -43,6 +46,7 @@ fuse2
 fzf
 gimp
 git
+github-cli
 go
 gperf
 graphicsmagick
@@ -93,6 +97,7 @@ ngrok
 ninja
 nodejs
 noto-fonts
+noto-fonts-emoji
 npm
 otf-font-awesome
 owncloud-client

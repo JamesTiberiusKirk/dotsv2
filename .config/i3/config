@@ -140,8 +140,16 @@ bindsym $mod+Control+q exec systemctl suspend
 bindsym $mod+d exec dunstctl close
 bindsym $mod+Shift+d exec dunstctl close-all
 
-# Swap workspaces between monitors
-bindsym $mod+Tab exec --no-startup-id ~/.scripts/swap-workspaces.sh
+# Swap workspace with adjacent monitor
+mode "swap" {
+        bindsym h exec --no-startup-id ~/.scripts/swap-workspaces.sh left; mode "default"
+        bindsym l exec --no-startup-id ~/.scripts/swap-workspaces.sh right; mode "default"
+        bindsym k exec --no-startup-id ~/.scripts/swap-workspaces.sh up; mode "default"
+        bindsym j exec --no-startup-id ~/.scripts/swap-workspaces.sh down; mode "default"
+        bindsym Escape mode "default"
+        bindsym Return mode "default"
+}
+bindsym $mod+Tab mode "swap"
 
 # Resize mode (alternative to SUPER+ALT+h/j/k/l)
 mode "resize" {
@@ -202,7 +210,7 @@ exec_always --no-startup-id ~/.scripts/ping-latency.sh
 exec_always --no-startup-id ~/.scripts/update-count.sh
 
 # Restart i3 inplace
-bindsym $mod+Control+r restart
+bindsym $mod+Control+Shift+r restart
 
 ###############
 ### BAR ###
