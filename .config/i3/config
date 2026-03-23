@@ -126,8 +126,8 @@ bindsym $mod+Shift+period move workspace to output right
 bindsym $mod+Shift+comma move workspace to output left
 
 # Screenshots (using X11 scripts)
-bindsym $mod+Shift+s exec flameshot gui
-bindsym $mod+Control+s exec flameshot gui --pin
+bindsym $mod+Shift+s exec env FLAMESHOT_NO_PORTAL=1 flameshot gui
+bindsym $mod+Control+s exec env FLAMESHOT_NO_PORTAL=1 flameshot gui --pin
 bindsym $mod+Shift+a exec ~/.scripts/x11_extracttext.sh
 
 # Suspend

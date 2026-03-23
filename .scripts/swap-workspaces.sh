@@ -22,25 +22,22 @@ for OUT in $(echo "$INFO" | jq -r '.[].name'); do
     OX=$(echo "$INFO" | jq -r ".[] | select(.name==\"$OUT\") | (.rect.x + .rect.width/2) | floor")
     OY=$(echo "$INFO" | jq -r ".[] | select(.name==\"$OUT\") | (.rect.y + .rect.height/2) | floor")
 
-    case "$DIRECTION" in
-        left)
-            [ "$OX" -ge "$FOCUSED_X" ] && continue
-            DIST=$((FOCUSED_X - OX))
-            ;;
-        right)
-            [ "$OX" -le "$FOCUSED_X" ] && continue
-            DIST=$((OX - FOCUSED_X))
-            ;;
-        up)
-            [ "$OY" -ge "$FOCUSED_Y" ] && continue
-            DIST=$((FOCUSED_Y - OY))
-            ;;
-        down)
-            [ "$OY" -le "$FOCUSED_Y" ] && continue
-            DIST=$((OY - FOCUSED_Y))
-            ;;
-        *) exit 1 ;;
-    esac
+    DX=$((OX - FOCUSED_X))
+    DY=$((OY - FOCUSED_Y))
+    ABS_DX=${DX#-}
+    ABS_DY=${DY#-}
+
+    # Classify by dominant axis so a monitor that's mainly right
+    # but slightly higher doesn't count as "up"
+    if [ "$ABS_DX" -ge "$ABS_DY" ]; then
+        if [ "$DX" -lt 0 ]; then DIR="left"; else DIR="right"; fi
+        DIST=$ABS_DX
+    else
+        if [ "$DY" -lt 0 ]; then DIR="up"; else DIR="down"; fi
+        DIST=$ABS_DY
+    fi
+
+    [ "$DIR" != "$DIRECTION" ] && continue
 
     if [ "$DIST" -lt "$BEST_DIST" ]; then
         BEST_DIST=$DIST
