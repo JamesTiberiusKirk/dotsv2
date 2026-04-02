@@ -69,6 +69,7 @@ workspaces:
         prefix: notes
         session_preset: notes
     ws:
+        show_archived_repos: false
         active_projects_first: true
         enable_cache: true
         enable_git_info: true

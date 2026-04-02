@@ -14,6 +14,7 @@ bbswitch-dkms
 bind
 blueman
 blue-recorder
+brave-bin
 brave-nightly-bin
 btop
 bun
@@ -22,6 +23,7 @@ cargo
 ccache
 chirp
 chirp-bin
+cloudflared
 cmake
 darktable-git
 ddccontrol
@@ -56,6 +58,7 @@ gruvbox-material-gtk-theme-git
 gtk-engine-murrine
 helm
 hicolor-icon-theme
+htop
 httpie
 hugo
 hyprland-autoname-workspaces
@@ -90,6 +93,7 @@ mkdocs
 mkdocs-material
 mpv
 mullvad-vpn-bin
+mumble
 netcat
 networkmanager
 network-manager-applet
@@ -162,6 +166,7 @@ xdotool
 xorg-server
 xorg-xinit
 xorg-xinput
+xorg-xkill
 xorg-xrandr
 xss-lock
 zathura

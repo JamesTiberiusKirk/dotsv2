@@ -21,11 +21,21 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave needs your permission'"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true
   },
   "alwaysThinkingEnabled": true,

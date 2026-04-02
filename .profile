@@ -1,4 +1,3 @@
-export XDG_CURRENT_DESKTOP=Hyperland
 export EDITOR="nvim"
 export TERM=alacritty
 
