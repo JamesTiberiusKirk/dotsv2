@@ -152,3 +152,6 @@ if [[ -x "$HOME/.codex/codex-with-notify.sh" ]]; then
   }
   alias codexn="$HOME/.codex/codex-with-notify.sh"
 fi
+
+# opencode
+export PATH=/home/darthvader/.opencode/bin:$PATH

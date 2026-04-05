@@ -14,13 +14,16 @@ bbswitch-dkms
 bind
 blueman
 blue-recorder
+brave-bin
 brave-nightly-bin
 btop
 bun
+caja
 cargo
 ccache
 chirp
 chirp-bin
+cloudflared
 cmake
 darktable-git
 ddccontrol
@@ -30,6 +33,8 @@ displaylink
 dmenu
 docker
 docker-buildx
+docker-compose
+docker-runit
 dtc
 dunst
 evdi
@@ -43,6 +48,7 @@ fuse2
 fzf
 gimp
 git
+github-cli
 go
 gperf
 graphicsmagick
@@ -52,6 +58,7 @@ gruvbox-material-gtk-theme-git
 gtk-engine-murrine
 helm
 hicolor-icon-theme
+htop
 httpie
 hugo
 hyprland-autoname-workspaces
@@ -87,6 +94,7 @@ mkdocs
 mkdocs-material
 mpv
 mullvad-vpn-bin
+mumble
 netcat
 networkmanager
 network-manager-applet
@@ -94,7 +102,9 @@ ngrok
 ninja
 nodejs
 noto-fonts
+noto-fonts-emoji
 npm
+nvidia-open-dkms
 otf-font-awesome
 owncloud-client
 p7zip
@@ -157,6 +167,7 @@ xdotool
 xorg-server
 xorg-xinit
 xorg-xinput
+xorg-xkill
 xorg-xrandr
 xss-lock
 zathura

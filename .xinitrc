@@ -54,15 +54,16 @@ xset b off
 
 # Monitor setup - handles both docked and undocked scenarios
 # Check if external monitors are connected
-if xrandr | grep -q "DVI-I-1 connected"; then
-    # Docked: Setup multi-monitor
-    xrandr --output eDP-1 --mode 1920x1080 --pos 0x0 --rotate normal \
-           --output DVI-I-1 --mode 2560x1440 --pos 1920x0 --rotate normal --primary \
-           --output DVI-I-2 --mode 1920x1080 --pos 4480x0 --rotate normal
-else
-    # Undocked: Just laptop screen
-    xrandr --output eDP-1 --auto --primary
-fi
+# if xrandr | grep -q "DVI-I-1 connected"; then
+#     # Docked: Setup multi-monitor
+#     xrandr --output eDP-1 --mode 1920x1080 --pos 0x0 --rotate normal \
+#            --output DVI-I-1 --mode 2560x1440 --pos 1920x0 --rotate normal --primary \
+#            --output DVI-I-2 --mode 1920x1080 --pos 4480x0 --rotate normal
+# else
+#     # Undocked: Just laptop screen
+#     xrandr --output eDP-1 --auto --primary
+# fi
+autorandr desktop-4
 
 # Set wallpaper (same as Hyprland) - zoom to fit/fill screen
 feh --bg-fill ~/Pictures/wallpapers/interior-of-a-barn.jpg &
@@ -80,6 +81,11 @@ if command -v gnome-keyring-daemon >/dev/null 2>&1; then
     export SSH_AUTH_SOCK
     wait_for_secret_service
 fi
+
+# Audio (PipeWire)
+pipewire &
+pipewire-pulse &
+wireplumber &
 
 # Start system tray apps (from your Hyprland autostart)
 pasystray &

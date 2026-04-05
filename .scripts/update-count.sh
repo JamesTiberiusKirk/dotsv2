@@ -11,12 +11,9 @@ while true; do
   if ! command -v yay >/dev/null 2>&1; then
     printf '%s\n' "n/a" > "$output_file"
   else
-    if updates=$(timeout 120 yay -Qu 2>/dev/null); then
-      count=$(printf '%s\n' "$updates" | awk 'NF{c++} END{print c+0}')
-      printf '%s\n' "$count" > "$output_file"
-    else
-      printf '%s\n' "err" > "$output_file"
-    fi
+    updates=$(timeout 120 command yay -Qu 2>/dev/null) || true
+    count=$(printf '%s\n' "$updates" | awk 'NF{c++} END{print c+0}')
+    printf '%s\n' "$count" > "$output_file"
   fi
   sleep "$interval"
 done

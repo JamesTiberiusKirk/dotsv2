@@ -2,6 +2,7 @@
 import json
 import subprocess
 import sys
+import time
 
 
 def read_meminfo():
@@ -51,8 +52,22 @@ def fmt_kb(kb):
 
 UPDATES_FILE = "/tmp/i3status_updates"
 
+_docker_cache = {"result": None, "time": 0}
+DOCKER_CACHE_SECS = 30
+
+
+def _docker_socket_exists():
+    import os
+    return os.path.exists("/var/run/docker.sock")
+
 
 def docker_block():
+    if not _docker_socket_exists():
+        return {"full_text": "🐳 off", "name": "docker", "color": "#ff0000"}
+
+    now = time.monotonic()
+    if _docker_cache["result"] and now - _docker_cache["time"] < DOCKER_CACHE_SECS:
+        return _docker_cache["result"]
     try:
         result = subprocess.run(
             ["docker", "ps", "-q"],
@@ -69,11 +84,14 @@ def docker_block():
         return {"full_text": "🐳 off", "name": "docker", "color": "#ff0000"}
 
     count = len([line for line in result.stdout.splitlines() if line.strip()])
-    return {
+    block = {
         "full_text": f"🐳 {count}",
         "name": "docker",
         "color": "#00ff00",
     }
+    _docker_cache["result"] = block
+    _docker_cache["time"] = now
+    return block
 
 
 def updates_block():
@@ -108,6 +126,31 @@ def make_swap_block():
         "full_text": f"🔁 {fmt_kb(used)} / {fmt_kb(total)}",
         "name": "swap_ut",
     }
+
+
+def should_hide_block(block):
+    """Hide blocks for hardware that doesn't exist on this system."""
+    name = block.get("name", "")
+    text = block.get("full_text", "")
+
+    # No laptop battery — hide "No battery"
+    if name == "battery" and "No battery" in text:
+        return True
+
+    # No backlight hardware — hide error output
+    instance = block.get("instance", "")
+    if name == "read_file" and "brightness" in instance and "No such file" in text:
+        return True
+
+    # WiFi adapter not in use — hide "W: down"
+    if name == "wireless" and "W: down" in text:
+        return True
+
+    # Docker daemon not running — hide "off"
+    if name == "docker" and "off" in text:
+        return True
+
+    return False
 
 
 def insert_after_name(blocks, block, names):
@@ -146,8 +189,11 @@ def main():
         docker_status = docker_block()
         updates_status = updates_block()
         if isinstance(data, list):
-            insert_after_name(data, docker_status, {"ethernet"})
-            insert_after_name(data, updates_status, {"docker"})
+            data = [b for b in data if not should_hide_block(b)]
+            if not should_hide_block(docker_status):
+                insert_after_name(data, docker_status, {"ethernet"})
+            if not should_hide_block(updates_status):
+                insert_after_name(data, updates_status, {"docker"})
             if len(data) >= 1:
                 data.insert(len(data) - 1, mem_block)
                 data.insert(len(data) - 1, swap_block)
