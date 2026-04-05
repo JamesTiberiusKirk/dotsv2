@@ -24,10 +24,13 @@
     ]
   },
   "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true
+    "gopls-lsp@claude-plugins-official": true
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "permissions": {
+    "defaultMode": "default",
+    "ask": ["Bash(git commit *)", "Bash(git push *)"]
+  }
 }
