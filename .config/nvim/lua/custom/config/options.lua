@@ -52,6 +52,8 @@ vim.wo.relativenumber = true
 
 vim.o.wrap = true
 
+vim.o.winborder = "rounded"
+
 
 
 -- Usefull for debugging the lsp

@@ -12,8 +12,9 @@ autorandr
 bat
 bbswitch-dkms
 bind
-blueman
 blue-recorder
+blueman
+bluez-runit
 brave-bin
 brave-nightly-bin
 btop
@@ -66,13 +67,15 @@ hyprpaper
 hyprshade
 hyprshot
 i2c-dev
+i3-wm
 i3lock
 i3status
-i3-wm
 imagemagick
 impala
 imv
 inkscape
+iwd
+iwd-runit
 jdk21-openjdk
 keyd
 krita
@@ -84,6 +87,8 @@ libreoffice
 linux-lts-headers
 litecli
 logiops
+lua51
+luarocks
 lxappearance
 maim
 man-db
@@ -96,8 +101,8 @@ mpv
 mullvad-vpn-bin
 mumble
 netcat
-networkmanager
 network-manager-applet
+networkmanager
 ngrok
 ninja
 nodejs
@@ -116,6 +121,7 @@ pgcli
 pgformatter-git
 picom
 playwright
+powertop
 psql
 python
 python-pip
@@ -126,11 +132,11 @@ python-west
 qt5ct
 qt6ct
 qt6ct-kde
+r-quick-share-bin
 raylib
 redshift
 reflector
 ristretto
-r-quick-share-bin
 rsync
 shellcheck
 solaar
@@ -163,6 +169,7 @@ waybar
 wkhtmltopdf-bin
 wofi
 xclip
+xdg-desktop-portal
 xdotool
 xorg-server
 xorg-xinit
