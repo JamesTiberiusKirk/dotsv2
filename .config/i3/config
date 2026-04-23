@@ -205,6 +205,7 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
+exec --no-startup-id ~/.scripts/touchpad-fix
 exec --no-startup-id ~/.scripts/trackpoint-scroll
 exec_always --no-startup-id ~/.scripts/ping-latency.sh
 exec_always --no-startup-id ~/.scripts/update-count.sh
