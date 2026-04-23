@@ -4,6 +4,7 @@ vim.g.maplocalleader = ' '
 require('custom.config.options')
 require('custom.config.keymaps')
 require('custom.config.commands')
+require('custom.theme_sync')
 require('custom.config.flutter').setup()
 
 -- [[ Install `lazy.nvim` plugin manager ]]
@@ -265,10 +266,17 @@ require('lazy').setup({
   -- "gc" to comment visual regions/lines
   {
     'numToStr/Comment.nvim',
-    opts = {},
+    opts = {
+      pre_hook = function()
+        if vim.bo.filetype == 'env' then
+          return vim.bo.commentstring
+        end
+      end,
+    },
     init = function ()
       local ft = require('Comment.ft')
       ft({'templ'}, ft.get('c'))
+      ft.set('env', '#%s')
     end
   },
 

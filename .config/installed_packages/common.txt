@@ -150,6 +150,7 @@ telegram-desktop
 termdbms-git
 tesseract
 texlive-binextra
+thunar
 tig
 tinygo
 tmux
@@ -171,6 +172,7 @@ wofi
 xclip
 xdg-desktop-portal
 xdotool
+xfce4-settings
 xorg-server
 xorg-xinit
 xorg-xinput

@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+if command -v darkman >/dev/null 2>&1; then
+    if next_mode=$(darkman toggle 2>/dev/null); then
+        case "$next_mode" in
+            dark|light)
+                exec "$HOME/.scripts/theme-apply" "$next_mode"
+                ;;
+        esac
+    fi
+fi
+
+mode_file="$HOME/.theme-mode"
+
+if [ -f "$mode_file" ]; then
+    current_mode=$(cat "$mode_file")
+elif [ "$(readlink -f "$HOME/.config/i3/colors.conf" 2>/dev/null || true)" = "$HOME/.config/i3/colors-light.conf" ]; then
+    current_mode="light"
+else
+    current_mode="dark"
+fi
+
+case "$current_mode" in
+    light) next_mode="dark" ;;
+    *) next_mode="light" ;;
+esac
+
+exec "$HOME/.scripts/theme-apply" "$next_mode"

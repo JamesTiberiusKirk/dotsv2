@@ -12,7 +12,7 @@ floating_modifier $mod
 
 # Terminal
 set $terminal alacritty
-set $fileManager caja
+set $fileManager thunar
 set $menu dmenu_run -i
 
 ###############
@@ -178,7 +178,7 @@ bindsym XF86MonBrightnessDown exec --no-startup-id ~/.scripts/brightness-step do
 bindsym $mod+Shift+n exec --no-startup-id ~/.scripts/redshift-toggle
 
 # Toggle light/dark theme system-wide
-bindsym $mod+Shift+t exec --no-startup-id darkman toggle
+bindsym $mod+Shift+t exec --no-startup-id ~/.scripts/theme-toggle
 
 # Media player controls
 bindsym XF86AudioNext exec playerctl next
@@ -205,9 +205,10 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
+exec --no-startup-id ~/.scripts/trackpoint-scroll
 exec_always --no-startup-id ~/.scripts/ping-latency.sh
 exec_always --no-startup-id ~/.scripts/update-count.sh
-exec_always --no-startup-id darkman run
+exec --no-startup-id darkman run
 
 # Restart i3 inplace
 bindsym $mod+Control+Shift+r restart

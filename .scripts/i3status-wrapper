@@ -63,7 +63,7 @@ def _docker_socket_exists():
 
 def docker_block():
     if not _docker_socket_exists():
-        return {"full_text": "🐳 off", "name": "docker", "color": "#ff0000"}
+        return {"full_text": "🐳 off", "name": "docker", "color": "#cc241d"}
 
     now = time.monotonic()
     if _docker_cache["result"] and now - _docker_cache["time"] < DOCKER_CACHE_SECS:
@@ -76,18 +76,18 @@ def docker_block():
             timeout=1,
         )
     except FileNotFoundError:
-        return {"full_text": "🐳 n/a", "name": "docker", "color": "#ff0000"}
+        return {"full_text": "🐳 n/a", "name": "docker", "color": "#cc241d"}
     except subprocess.TimeoutExpired:
-        return {"full_text": "🐳 timeout", "name": "docker", "color": "#ff0000"}
+        return {"full_text": "🐳 timeout", "name": "docker", "color": "#cc241d"}
 
     if result.returncode != 0:
-        return {"full_text": "🐳 off", "name": "docker", "color": "#ff0000"}
+        return {"full_text": "🐳 off", "name": "docker", "color": "#cc241d"}
 
     count = len([line for line in result.stdout.splitlines() if line.strip()])
     block = {
         "full_text": f"🐳 {count}",
         "name": "docker",
-        "color": "#00ff00",
+        "color": "#79740e",
     }
     _docker_cache["result"] = block
     _docker_cache["time"] = now
@@ -99,17 +99,17 @@ def updates_block():
         with open(UPDATES_FILE, "r", encoding="utf-8") as file_handle:
             value = file_handle.read().strip()
     except FileNotFoundError:
-        return {"full_text": "📦 n/a", "name": "updates", "color": "#ff0000"}
+        return {"full_text": "📦 n/a", "name": "updates", "color": "#cc241d"}
 
     if not value:
-        return {"full_text": "📦 n/a", "name": "updates", "color": "#ff0000"}
+        return {"full_text": "📦 n/a", "name": "updates", "color": "#cc241d"}
 
     if value.isdigit():
         count = int(value)
-        color = "#00ff00" if count == 0 else "#ffff00"
+        color = "#79740e" if count == 0 else "#b57614"
         return {"full_text": f"📦 {count}", "name": "updates", "color": color}
 
-    return {"full_text": f"📦 {value}", "name": "updates", "color": "#ff0000"}
+    return {"full_text": f"📦 {value}", "name": "updates", "color": "#cc241d"}
 
 
 def make_block():

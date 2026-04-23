@@ -3,22 +3,9 @@ return {
     "f-person/auto-dark-mode.nvim",
     lazy = false,
     priority = 1000,
-    opts = {
-      update_interval = 1000,
-      set_dark_mode = function()
-        vim.api.nvim_set_option("background", "dark")
-        vim.cmd("colorscheme elflord")
-      end,
-      set_light_mode = function()
-        vim.api.nvim_set_option("background", "light")
-        vim.cmd("colorscheme gruvbox")
-      end,
-    },
-    config = function(_, opts)
-      require("auto-dark-mode").setup(opts)
-
-      -- Apply colorscheme immediately at startup (auto-dark-mode defers its first check)
-      opts.set_dark_mode()
+    config = function()
+      -- Apply the current desktop mode immediately at startup.
+      vim.cmd("ThemeSync")
 
       -- Make spell highlights underline-only (no red/fg), and persist across colorscheme changes
       local function set_spell_underline()
