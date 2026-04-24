@@ -11,6 +11,42 @@ return {
       vim.cmd("au BufRead,BufNewFile *.html set filetype=gohtmltmpl")
       vim.cmd("au BufRead,BufNewFile *.gohtml set filetype=gohtmltmpl")
       -- vim.cmd("au BufRead,BufNewFile *.gohtml set filetype=html")
+
+      -- Detect .tmpl files: strip .tmpl suffix and resolve the underlying filetype
+      vim.filetype.add({
+        pattern = {
+          [".*%.tmpl"] = {
+            priority = 10,
+            function(path)
+              local stem = path:gsub("%.tmpl$", "")
+              local basename = vim.fn.fnamemodify(stem, ":t")
+              -- Try resolving via the stem's extension
+              local ext = basename:match("%.([^%.]+)$")
+              if ext then
+                local ft = vim.filetype.match({ filename = basename })
+                if ft then return ft end
+              end
+              -- Bare names like Dockerfile.tmpl
+              local ft = vim.filetype.match({ filename = basename })
+              if ft then return ft end
+              -- Fallback: plain text
+              return nil
+            end,
+          },
+        },
+      })
+
+      -- Highlight {{ ... }} template directives in .tmpl files
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "*",
+        callback = function(args)
+          local bufname = vim.api.nvim_buf_get_name(args.buf)
+          if bufname:match("%.tmpl$") then
+            vim.api.nvim_set_hl(0, "GoTmplDirective", { fg = "#C678DD", bold = true })
+            vim.fn.matchadd("GoTmplDirective", "{{.\\{-}}}", 100)
+          end
+        end,
+      })
     end,
     keys = {
       { "gtc", "<cmd>GoCoverage<cr>", desc = "Go Coverage" },

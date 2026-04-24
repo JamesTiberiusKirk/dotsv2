@@ -3,7 +3,7 @@ return {
     "folke/todo-comments.nvim",
     cmd = { "TodoTrouble", "TodoTelescope" },
     event = { "BufReadPost", "BufNewFile" },
-    config = {
+    opts = {
       keywords = {
         FIX = {
           icon = " ", -- icon used for the sign, and in search results

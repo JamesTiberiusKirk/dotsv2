@@ -1,0 +1,8 @@
+#!/bin/sh
+sleep 2
+
+ID="$(xinput list --id-only 'DELL081C:00 044E:121F Mouse' 2>/dev/null)"
+[ -n "$ID" ] || exit 0
+
+xinput set-prop "$ID" "libinput Scroll Method Enabled" 0, 0, 1
+xinput set-prop "$ID" "libinput Button Scrolling Button" 2

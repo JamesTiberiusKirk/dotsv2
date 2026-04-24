@@ -12,7 +12,7 @@ floating_modifier $mod
 
 # Terminal
 set $terminal alacritty
-set $fileManager caja
+set $fileManager thunar
 set $menu dmenu_run -i
 
 ###############
@@ -27,12 +27,8 @@ gaps outer 0
 default_border pixel 2
 default_floating_border pixel 2
 
-# Border colors (matching your Hyprland purple gradient theme)
-# class                 border  backgr. text    indicator child_border
-client.focused          #a000ff #a000ff #ffffff #a000ff   #a000ff
-client.focused_inactive #480073 #480073 #ffffff #480073   #480073
-client.unfocused        #595959 #595959 #888888 #595959   #595959
-client.urgent           #ff0000 #ff0000 #ffffff #ff0000   #ff0000
+# Theme colors + bar — swapped by darkman via symlink on ~/.config/i3/colors.conf
+include ~/.config/i3/colors.conf
 
 ###################
 ### KEYBINDINGS ###
@@ -181,6 +177,9 @@ bindsym XF86MonBrightnessUp exec --no-startup-id ~/.scripts/brightness-step up
 bindsym XF86MonBrightnessDown exec --no-startup-id ~/.scripts/brightness-step down
 bindsym $mod+Shift+n exec --no-startup-id ~/.scripts/redshift-toggle
 
+# Toggle light/dark theme system-wide
+bindsym $mod+Shift+t exec --no-startup-id ~/.scripts/theme-toggle
+
 # Media player controls
 bindsym XF86AudioNext exec playerctl next
 bindsym XF86AudioPause exec playerctl play-pause
@@ -206,33 +205,14 @@ for_window [class="firefox" title="Picture-in-Picture"] floating enable, sticky 
 
 # PipeWire/PulseAudio tray icon for on-click input/output switching
 exec --no-startup-id pasystray
+exec --no-startup-id ~/.scripts/touchpad-fix
+exec --no-startup-id ~/.scripts/trackpoint-scroll
 exec_always --no-startup-id ~/.scripts/ping-latency.sh
 exec_always --no-startup-id ~/.scripts/update-count.sh
+exec --no-startup-id darkman run
 
 # Restart i3 inplace
 bindsym $mod+Control+Shift+r restart
-
-###############
-### BAR ###
-###############
-
-bar {
-	status_command ~/.scripts/i3status-wrapper
-	position top
-	tray_output primary
-
-	colors {
-		background #000000
-                statusline #ffffff
-                separator  #666666
-
-                # Type             border  bg      text
-                focused_workspace  #a000ff #a000ff #ffffff
-                active_workspace   #480073 #480073 #ffffff
-                inactive_workspace #333333 #222222 #888888
-                urgent_workspace   #ff0000 #ff0000 #ffffff
-        }
-}
 
 for_window [instance="^blue-recorder$"] floating enable
 for_window [title="^Select Area$"] floating enable

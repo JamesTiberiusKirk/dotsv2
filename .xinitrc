@@ -39,16 +39,6 @@ wait_for_secret_service() {
 # Second number: repeat rate (repeats per second)
 xset r rate 300 25
 
-# Touchpad settings
-# Find touchpad device ID and configure it
-TOUCHPAD_ID=$(xinput list | grep -i touchpad | grep -o 'id=[0-9]*' | grep -o '[0-9]*' | head -1)
-if [ -n "$TOUCHPAD_ID" ]; then
-    # Enable natural (inverted) scrolling
-    xinput set-prop $TOUCHPAD_ID "libinput Natural Scrolling Enabled" 1
-    # Lower scroll sensitivity (scroll factor - lower = less sensitive)
-    xinput set-prop $TOUCHPAD_ID "libinput Scrolling Pixel Distance" 50
-fi
-
 # Disable bell
 xset b off
 

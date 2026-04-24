@@ -60,7 +60,7 @@ precmd() {
     # 130:  That happens when I start trying a command then CTRL+C
     [[ $exit_code -ne 0 && $exit_code -ne 130 ]] && PROMPT+='%F{red}[%?]%f'
 
-    PROMPT+='%F{white}$ '
+    PROMPT+='%F{black}$ '
 }
 
 ####################
