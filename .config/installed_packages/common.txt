@@ -11,6 +11,7 @@ arm-none-eabi-newlib
 autorandr
 bat
 bbswitch-dkms
+bc
 bind
 blueman
 blue-recorder
@@ -142,7 +143,13 @@ tailscale
 telegram-desktop
 termdbms-git
 tesseract
+texlive-basic
 texlive-binextra
+texlive-fontsextra
+texlive-fontsrecommended
+texlive-latex
+texlive-latexextra
+thunar
 tig
 tinygo
 tmux
@@ -170,5 +177,6 @@ xorg-xkill
 xorg-xrandr
 xss-lock
 zathura
+zathura-pdf-poppler
 zephyr-sdk
 zmk-studio-bin
