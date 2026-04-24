@@ -13,8 +13,8 @@ bat
 bbswitch-dkms
 bc
 bind
-blue-recorder
 blueman
+blue-recorder
 bluez-runit
 brave-bin
 brave-nightly-bin
@@ -68,9 +68,9 @@ hyprpaper
 hyprshade
 hyprshot
 i2c-dev
-i3-wm
 i3lock
 i3status
+i3-wm
 imagemagick
 impala
 imv
@@ -102,8 +102,8 @@ mpv
 mullvad-vpn-bin
 mumble
 netcat
-network-manager-applet
 networkmanager
+network-manager-applet
 ngrok
 ninja
 nodejs
@@ -132,12 +132,11 @@ python-virtualenv
 python-west
 qt5ct
 qt6ct
-qt6ct-kde
-r-quick-share-bin
 raylib
 redshift
 reflector
 ristretto
+r-quick-share-bin
 rsync
 shellcheck
 solaar
