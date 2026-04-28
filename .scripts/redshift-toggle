@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEMP_K=${1:-4000}
+TEMP_K=${1:-3500}
 STATE="${XDG_RUNTIME_DIR:-/tmp}/nightlight.state"
 
 is_running() {

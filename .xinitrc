@@ -61,9 +61,11 @@ feh --bg-fill ~/Pictures/wallpapers/interior-of-a-barn.jpg &
 # Start compositor (picom)
 picom &
 
-# Set GTK dark theme
-gsettings set org.gnome.desktop.interface gtk-theme "Materia-dark-compact"
-gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
+# Apply the last requested theme before the session starts.
+if [ -x "$HOME/.scripts/theme-apply" ]; then
+    mode="$(cat "$HOME/.theme-mode" 2>/dev/null || echo dark)"
+    "$HOME/.scripts/theme-apply" "$mode" >/dev/null 2>&1 || true
+fi
 
 # Start gnome-keyring-daemon for credential storage
 if command -v gnome-keyring-daemon >/dev/null 2>&1; then

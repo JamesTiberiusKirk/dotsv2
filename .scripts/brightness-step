@@ -1,17 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+device="/sys/class/backlight/intel_backlight"
+brightness_file="$device/brightness"
+max_file="$device/max_brightness"
+step_percent=10
+
+if [[ ! -r "$brightness_file" || ! -r "$max_file" ]]; then
+  echo "Backlight device not available: $device" >&2
+  exit 1
+fi
+
+current=$(<"$brightness_file")
+max=$(<"$max_file")
+step=$(( max * step_percent / 100 ))
+
+if (( step < 1 )); then
+  step=1
+fi
+
 case "${1:-}" in
   up)
-    brightnessctl s 10%+
+    next=$(( current + step ))
     ;;
   down)
-    brightnessctl s 10%-
+    next=$(( current - step ))
     ;;
   *)
     echo "Usage: brightness-step {up|down}" >&2
     exit 2
     ;;
 esac
+
+if (( next < 1 )); then
+  next=1
+elif (( next > max )); then
+  next=$max
+fi
+
+printf '%s\n' "$next" >"$brightness_file"
 
 pkill -USR1 i3status >/dev/null 2>&1 || true
