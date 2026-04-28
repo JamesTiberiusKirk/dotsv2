@@ -27,6 +27,7 @@ chirp
 chirp-bin
 cloudflared
 cmake
+darkman
 darktable-git
 ddccontrol
 dfu-util

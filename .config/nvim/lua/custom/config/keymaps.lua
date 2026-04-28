@@ -30,7 +30,12 @@ vim.keymap.set(
 vim.keymap.set(
   "n",
   "<leader>rr",
-  "<cmd>LspRestart<CR>",
+  function()
+    for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+      client:stop()
+    end
+    vim.defer_fn(vim.cmd.edit, 100)
+  end,
   { noremap = true, silent = true, desc = "Restart the lsp" }
 )
 

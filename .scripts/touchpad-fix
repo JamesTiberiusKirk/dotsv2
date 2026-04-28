@@ -1,0 +1,12 @@
+#!/bin/sh
+
+sleep 2
+
+TRACKPAD_NAME="Apple Inc. Magic Trackpad"
+
+for id in $(xinput list --id-only "$TRACKPAD_NAME" 2>/dev/null); do
+    xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Tapping Enabled" || continue
+    xinput set-prop "$id" "libinput Tapping Enabled" 0
+    xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Accel Speed" || continue
+    xinput set-prop "$id" "libinput Accel Speed" 0.5
+done
