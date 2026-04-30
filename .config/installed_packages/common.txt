@@ -31,7 +31,6 @@ darkman
 darktable-git
 ddccontrol
 dfu-util
-discord
 displaylink
 dmenu
 docker
