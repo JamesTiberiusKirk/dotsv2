@@ -1,11 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-CONFIG_FILES="$HOME/.config/waybar/config.jsonc $HOME/.config/waybar/style.css"
+set -u
 
-trap "killall waybar" EXIT
+CONFIG="$HOME/.config/waybar/config.jsonc"
+STYLE="$HOME/.config/waybar/style.css"
+STATE_DIR="$HOME/.local/state/waybar"
+LOG_FILE="$STATE_DIR/waybar.log"
 
-while true; do
-    waybar &
-    inotifywait -e create,modify $CONFIG_FILES
-    killall waybar
-done
+mkdir -p "$STATE_DIR"
+: >"$LOG_FILE"
+
+exec waybar -c "$CONFIG" -s "$STYLE" >>"$LOG_FILE" 2>&1

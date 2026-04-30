@@ -1,63 +1,32 @@
 {
     "layer": "top",
-    "modules-left":  ["custom/date", "hyprland/workspaces"],
-    "modules-center":["hyprland/window"],
-    "modules-right": ["custom/docker", "network", "pulseaudio", "custom/memory", "custom/swap", "battery", "clock", "tray"],
+    "modules-left": ["hyprland/workspaces", "custom/submap"],
+    "modules-center": ["custom/activewindow"],
+    "modules-right": ["tray", "clock"],
 
     "hyprland/workspaces": {
         "format": "{name}"
     },
-    "hyprland/window": {
-        "max-length": 80
+
+    "custom/submap": {
+        "exec": "~/.scripts/waybar/submap.sh",
+        "return-type": "json",
+        "format": "{}"
     },
 
-    "custom/date": {
-        "exec": "date '+%A, %d %B %Y'",
-        "interval": 60,
-        "format": "{}"
+    "custom/activewindow": {
+        "exec": "~/.scripts/waybar/activewindow.sh",
+        "format": "{}",
+        "max-length": 100
+    },
+
+    "tray": {
+        "spacing": 8,
+        "icon-size": 16
     },
 
     "clock": {
-        "format": "{:%I:%M %p}",
+        "format": "{:%a %d %b  %H:%M}",
         "interval": 60
-    },
-
-    "network": {
-        "format-wifi": "{essid} 󰤨",
-        "format-ethernet": "{ipaddr} 󰈀",
-        "format-disconnected": "Disconnected 󰤭"
-    },
-
-    "pulseaudio": {
-        "format": "{volume}% {icon}",
-        "format-muted": "Muted 󰝟",
-        "format-icons": {
-            "default": ["󰕿", "󰖀", "󰕾"]
-        }
-    },
-
-    "battery": {
-        "format": "{capacity}% {icon}",
-        "format-charging": "{capacity}% 󰂄",
-        "format-icons": ["󰁺", "󰁼", "󰁾", "󰂀", "󰂂", "󰁹"]
-    },
-
-    "custom/docker": {
-        "format": "{}",
-        "exec": "~/.scripts/waybar/docker_status.sh",
-        "interval": 1,
-        "return-type": "json"
-    },
-
-    "custom/memory": {
-        "exec": "~/.scripts/waybar/memory.sh",
-        "interval": 5,
-        "format": "{}"
-    },
-
-    "custom/swap": {
-        "exec": "~/.scripts/waybar/swap.sh",
-        "interval": 5,
-        "format": "{}"
     }
 }

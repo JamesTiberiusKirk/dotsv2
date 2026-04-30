@@ -1,4 +1,3 @@
-/* waybar — light (catppuccin Latte) */
 * {
     border: none;
     border-radius: 12px;
@@ -20,37 +19,34 @@ window#waybar {
 }
 
 #workspaces button.active {
-    background-color: #1e66f5;
+    background-color: #8839ef;
     color: #eff1f5;
 }
 
-#clock,
-#custom-date,
-#cpu,
-#memory,
-#custom-memory,
-#custom-swap,
-#network,
-#pulseaudio,
-#battery,
+#custom-activewindow,
 #tray,
-#custom-docker {
+#clock {
     padding: 0 10px;
     margin: 0 4px;
     border-radius: 12px;
     color: #eff1f5;
 }
 
-#custom-docker          { background-color: #1e66f5; }
-#custom-docker.off      { background-color: #d20f39; }
+#custom-activewindow { background-color: #9333ea; }
+#tray                { background-color: #7e22ce; }
+#clock               { background-color: #a855f7; }
 
-#window, #custom-indicator { color: #4c4f69; }
+#custom-submap {
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+}
 
-#cpu                    { background-color: #d20f39; } /* red */
-#memory, #custom-memory { background-color: #fe640b; } /* peach */
-#custom-swap            { background-color: #df8e1d; } /* yellow */
-#network                { background-color: #40a02b; } /* green */
-#pulseaudio             { background-color: #1e66f5; } /* blue */
-#battery                { background-color: #df8e1d; } /* yellow */
-#tray                   { background-color: #8839ef; } /* mauve */
-#clock, #custom-date    { background-color: #179299; } /* teal */
+#custom-submap.active {
+    padding: 0 10px;
+    margin: 0 4px;
+    border-radius: 12px;
+    background-color: #d20f39;
+    color: #eff1f5;
+    font-weight: bold;
+}
