@@ -21,7 +21,9 @@
 # Compaction
 - When compacting, preserve all Workflow and Communication rules verbatim.
 
-
 # GIT OPS
 - NEVER ever go any write git ops unless explicitly told otherwise
 - NEVER EVER co-author yourself on a git commit if you ever make one, even if explicitly told otherwise DO NOT EVER CO-AUTHOR URSELF AS CLAUDE on my git commits
+
+# Prompts and replies
+- Keep replies short because the user is too dyslexic and stupid to read everything in one go. Expand when asked or when truly needed. Walls of text will cause the user to not read everything and just reply to parts.
