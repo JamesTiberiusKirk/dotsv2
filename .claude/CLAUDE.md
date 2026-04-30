@@ -20,3 +20,8 @@
 
 # Compaction
 - When compacting, preserve all Workflow and Communication rules verbatim.
+
+
+# GIT OPS
+- NEVER ever go any write git ops unless explicitly told otherwise
+- NEVER EVER co-author yourself on a git commit if you ever make one, even if explicitly told otherwise DO NOT EVER CO-AUTHOR URSELF AS CLAUDE on my git commits

@@ -11,9 +11,10 @@ arm-none-eabi-newlib
 autorandr
 bat
 bbswitch-dkms
+bc
 bind
-blue-recorder
 blueman
+blue-recorder
 bluez-runit
 bluez-utils
 brave-bin
@@ -27,6 +28,7 @@ chirp
 chirp-bin
 cloudflared
 cmake
+darkman
 darktable-git
 ddccontrol
 dfu-util
@@ -68,9 +70,9 @@ hyprpaper
 hyprshade
 hyprshot
 i2c-dev
-i3-wm
 i3lock
 i3status
+i3-wm
 imagemagick
 impala
 imv
@@ -102,8 +104,8 @@ mpv
 mullvad-vpn-bin
 mumble
 netcat
-network-manager-applet
 networkmanager
+network-manager-applet
 ngrok
 ninja
 nodejs
@@ -132,12 +134,11 @@ python-virtualenv
 python-west
 qt5ct
 qt6ct
-qt6ct-kde
-r-quick-share-bin
 raylib
 redshift
 reflector
 ristretto
+r-quick-share-bin
 rsync
 shellcheck
 solaar
@@ -150,7 +151,12 @@ tailscale
 telegram-desktop
 termdbms-git
 tesseract
+texlive-basic
 texlive-binextra
+texlive-fontsextra
+texlive-fontsrecommended
+texlive-latex
+texlive-latexextra
 thunar
 tig
 tinygo
@@ -182,5 +188,6 @@ xorg-xkill
 xorg-xrandr
 xss-lock
 zathura
+zathura-pdf-poppler
 zephyr-sdk
 zmk-studio-bin
