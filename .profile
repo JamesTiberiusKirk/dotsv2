@@ -1,5 +1,8 @@
 export EDITOR="nvim"
 
+# Hyprland's `source = ~/.config/hypr/hosts/$HOSTNAME.conf` needs this in env.
+export HOSTNAME="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null)}"
+
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 export PATH="$PATH:/home/darthvader/.local/bin"

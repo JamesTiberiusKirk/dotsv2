@@ -20,6 +20,13 @@ touch ~/.config/alacritty/alacritty.toml
 ln -sfn ~/.config/i3/colors-"$MODE".conf ~/.config/i3/colors.conf
 i3-msg -q reload >/dev/null 2>&1 || true
 
+# hyprland — swap colors include + waybar style symlink, reload both.
+# Symlinks always swap (idempotent); reloads no-op when the target isn't running.
+ln -sfn ~/.config/hypr/colors-"$MODE".conf  ~/.config/hypr/colors.conf
+ln -sfn ~/.config/waybar/style-"$MODE".css  ~/.config/waybar/style.css
+hyprctl reload >/dev/null 2>&1 || true
+pkill -SIGUSR2 -x waybar >/dev/null 2>&1 || true
+
 # dunst — swap dunstrc symlink, reload
 ln -sfn ~/.config/dunst/dunstrc-"$MODE" ~/.config/dunst/dunstrc
 dunstctl reload >/dev/null 2>&1 || { pkill -x dunst >/dev/null 2>&1 || true; setsid dunst >/dev/null 2>&1 & }

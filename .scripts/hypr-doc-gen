@@ -1,0 +1,46 @@
+#!/bin/bash
+# Hyprland binding documentation generator. Parses bind*= lines from base.conf
+# (and the active host overlay), formats them, writes ~/.config/hypr/bindings.txt.
+set -u
+
+CONFIG_DIR="${1:-$HOME/.config/hypr}"
+OUTPUT="${2:-$CONFIG_DIR/bindings.txt}"
+
+base="$CONFIG_DIR/base.conf"
+host_file="$CONFIG_DIR/hosts/$(cat /etc/hostname 2>/dev/null).conf"
+
+files=()
+[ -f "$base" ]      && files+=("$base")
+[ -f "$host_file" ] && files+=("$host_file")
+
+[ ${#files[@]} -eq 0 ] && { echo "no Hyprland config found in $CONFIG_DIR" >&2; exit 1; }
+
+awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+
+    /^[[:space:]]*bind[a-z]*[[:space:]]*=/ {
+        line = $0
+        sub(/^[[:space:]]*bind[a-z]*[[:space:]]*=[[:space:]]*/, "", line)
+        gsub(/\$mainMod/, "Super", line)
+        gsub(/\$mod/,     "Super", line)
+
+        n = split(line, parts, ",")
+        if (n < 2) next
+
+        mods = trim(parts[1])
+        key  = trim(parts[2])
+        disp = (n >= 3) ? trim(parts[3]) : ""
+
+        args = ""
+        for (i = 4; i <= n; i++) {
+            args = args (i == 4 ? "" : ",") parts[i]
+        }
+        args = trim(args)
+
+        combo  = (mods == "" ? key : mods " + " key)
+        action = (args == "" ? disp : disp " " args)
+        printf "%-40s %s\n", combo, action
+    }
+' "${files[@]}" | sort -u > "$OUTPUT"
+
+echo "wrote $OUTPUT"

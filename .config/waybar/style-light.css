@@ -1,0 +1,56 @@
+/* waybar — light (catppuccin Latte) */
+* {
+    border: none;
+    border-radius: 12px;
+    font-family: "JetBrainsMono Nerd Font", "FiraCode Nerd Font", sans-serif;
+    font-size: 13px;
+    min-height: 22px;
+}
+
+window#waybar {
+    background-color: rgba(0, 0, 0, 0);
+    color: #4c4f69;
+}
+
+#workspaces button {
+    padding-left: 6px;
+    padding-right: 12px;
+    margin: 0 5px;
+    border-radius: 12px;
+}
+
+#workspaces button.active {
+    background-color: #1e66f5;
+    color: #eff1f5;
+}
+
+#clock,
+#custom-date,
+#cpu,
+#memory,
+#custom-memory,
+#custom-swap,
+#network,
+#pulseaudio,
+#battery,
+#tray,
+#custom-docker {
+    padding: 0 10px;
+    margin: 0 4px;
+    border-radius: 12px;
+    color: #eff1f5;
+}
+
+#custom-docker          { background-color: #1e66f5; }
+#custom-docker.off      { background-color: #d20f39; }
+
+#window, #custom-indicator { color: #4c4f69; }
+
+#cpu                    { background-color: #d20f39; } /* red */
+#memory, #custom-memory { background-color: #fe640b; } /* peach */
+#custom-swap            { background-color: #df8e1d; } /* yellow */
+#network                { background-color: #40a02b; } /* green */
+#pulseaudio             { background-color: #1e66f5; } /* blue */
+#battery                { background-color: #df8e1d; } /* yellow */
+#tray                   { background-color: #8839ef; } /* mauve */
+#clock, #custom-date    { background-color: #179299; } /* teal */

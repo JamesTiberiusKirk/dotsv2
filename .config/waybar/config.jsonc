@@ -1,11 +1,16 @@
 {
     "layer": "top",
-    "modules-left": ["custom/date", "hyprland/workspaces"],
-    "modules-center": ["hyprland/window"],
-    "modules-right": ["custom/docker", "network", "pulseaudio", "battery", "clock", "tray"],
+    "modules-left":  ["custom/date", "hyprland/workspaces"],
+    "modules-center":["hyprland/window"],
+    "modules-right": ["custom/docker", "network", "pulseaudio", "custom/memory", "custom/swap", "battery", "clock", "tray"],
+
     "hyprland/workspaces": {
-      "format": "{name}"
+        "format": "{name}"
     },
+    "hyprland/window": {
+        "max-length": 80
+    },
+
     "custom/date": {
         "exec": "date '+%A, %d %B %Y'",
         "interval": 60,
@@ -16,17 +21,13 @@
         "format": "{:%I:%M %p}",
         "interval": 60
     },
-    "cpu": {
-        "format": "{usage}% "
-    },
-    "memory": {
-        "format": "{used}MB 󰍛"
-    },
+
     "network": {
         "format-wifi": "{essid} 󰤨",
         "format-ethernet": "{ipaddr} 󰈀",
         "format-disconnected": "Disconnected 󰤭"
     },
+
     "pulseaudio": {
         "format": "{volume}% {icon}",
         "format-muted": "Muted 󰝟",
@@ -34,17 +35,29 @@
             "default": ["󰕿", "󰖀", "󰕾"]
         }
     },
+
     "battery": {
         "format": "{capacity}% {icon}",
         "format-charging": "{capacity}% 󰂄",
         "format-icons": ["󰁺", "󰁼", "󰁾", "󰂀", "󰂂", "󰁹"]
     },
+
     "custom/docker": {
         "format": "{}",
         "exec": "~/.scripts/waybar/docker_status.sh",
         "interval": 1,
         "return-type": "json"
+    },
+
+    "custom/memory": {
+        "exec": "~/.scripts/waybar/memory.sh",
+        "interval": 5,
+        "format": "{}"
+    },
+
+    "custom/swap": {
+        "exec": "~/.scripts/waybar/swap.sh",
+        "interval": 5,
+        "format": "{}"
     }
 }
-
-

@@ -122,6 +122,7 @@ pavucontrol
 pgcli
 pgformatter-git
 picom
+playerctl
 playwright
 powertop
 psql
