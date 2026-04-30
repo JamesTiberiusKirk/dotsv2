@@ -16,6 +16,7 @@ bind
 blueman
 blue-recorder
 bluez-runit
+bluez-utils
 brave-bin
 brave-nightly-bin
 btop
@@ -176,6 +177,7 @@ wkhtmltopdf-bin
 wofi
 xclip
 xdg-desktop-portal
+xdg-desktop-portal-gtk
 xdotool
 xfce4-settings
 xorg-server

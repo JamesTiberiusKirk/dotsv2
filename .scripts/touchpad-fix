@@ -2,11 +2,18 @@
 
 sleep 2
 
-TRACKPAD_NAME="Apple Inc. Magic Trackpad"
-
-for id in $(xinput list --id-only "$TRACKPAD_NAME" 2>/dev/null); do
+# Apple Magic Trackpad
+for id in $(xinput list --id-only "Apple Inc. Magic Trackpad" 2>/dev/null); do
     xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Tapping Enabled" || continue
     xinput set-prop "$id" "libinput Tapping Enabled" 0
     xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Accel Speed" || continue
     xinput set-prop "$id" "libinput Accel Speed" 0.5
+done
+
+# Dell internal touchpad
+for id in $(xinput list --id-only "DELL081C:00 044E:121F Touchpad" 2>/dev/null); do
+    xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Natural Scrolling Enabled" || continue
+    xinput set-prop "$id" "libinput Natural Scrolling Enabled" 1
+    xinput list-props "$id" 2>/dev/null | grep -Fq "libinput Scrolling Pixel Distance" || continue
+    xinput set-prop "$id" "libinput Scrolling Pixel Distance" 15
 done
