@@ -2,7 +2,20 @@
     "layer": "top",
     "modules-left": ["hyprland/workspaces", "custom/submap"],
     "modules-center": ["custom/activewindow"],
-    "modules-right": ["tray", "clock"],
+    "modules-right": [
+        "network",
+        "custom/docker",
+        "custom/updates",
+        "custom/latency",
+        "battery",
+        "backlight",
+        "pulseaudio",
+        "disk",
+        "custom/memory",
+        "cpu",
+        "tray",
+        "clock"
+    ],
 
     "hyprland/workspaces": {
         "format": "{name}"
@@ -18,6 +31,68 @@
         "exec": "~/.scripts/waybar/activewindow.sh",
         "format": "{}",
         "max-length": 100
+    },
+
+    "network": {
+        "format-wifi": "W: ({signalStrength}% at {essid}) {ipaddr}",
+        "format-ethernet": "E: {ipaddr}",
+        "format-disconnected": "down",
+        "interval": 5
+    },
+
+    "custom/latency": {
+        "exec": "cat /tmp/i3status_latency 2>/dev/null",
+        "interval": 2,
+        "format": "⏱ {}"
+    },
+
+    "custom/docker": {
+        "exec": "~/.scripts/waybar/docker_status.sh",
+        "interval": 5,
+        "return-type": "json",
+        "format": "{}"
+    },
+
+    "custom/updates": {
+        "exec": "echo \"📦 $(cat /tmp/i3status_updates 2>/dev/null || echo n/a)\"",
+        "interval": 60,
+        "format": "{}"
+    },
+
+    "battery": {
+        "format": "🔋 {capacity}% {time}",
+        "format-charging": "⚡ {capacity}% {time}",
+        "format-full": "☻ {capacity}%",
+        "states": {
+            "warning": 20,
+            "critical": 10
+        }
+    },
+
+    "backlight": {
+        "format": "☀ {percent}%"
+    },
+
+    "pulseaudio": {
+        "format": "🔊 {volume}%",
+        "format-muted": "🔇 muted"
+    },
+
+    "disk": {
+        "path": "/",
+        "format": "💾 {free}",
+        "interval": 30
+    },
+
+    "custom/memory": {
+        "exec": "~/.scripts/waybar/memory.sh",
+        "interval": 5,
+        "format": "{}"
+    },
+
+    "cpu": {
+        "format": "📊 {usage}%",
+        "interval": 5
     },
 
     "tray": {

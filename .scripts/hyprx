@@ -4,4 +4,46 @@ set -euo pipefail
 
 export QT_QPA_PLATFORMTHEME=qt6ct
 
+# Ensure a DBus session exists so keyring/secret services can register
+if command -v dbus-launch >/dev/null 2>&1 && [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    eval "$(dbus-launch --sh-syntax --exit-with-session)"
+    export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+fi
+
+wait_for_secret_service() {
+    if ! command -v dbus-send >/dev/null 2>&1; then
+        return
+    fi
+
+    attempts=0
+    while [ $attempts -lt 50 ]; do
+        if dbus-send --session --dest=org.freedesktop.DBus \
+            --type=method_call --print-reply \
+            /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner \
+            string:org.freedesktop.secrets 2>/dev/null | grep -q "boolean true"; then
+            break
+        fi
+        attempts=$((attempts + 1))
+        sleep 0.1
+    done
+}
+
+# Gnome keyring (secrets + ssh agent — capture env so children inherit SSH_AUTH_SOCK)
+if command -v gnome-keyring-daemon >/dev/null 2>&1; then
+    eval "$(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh)" || true
+    export SSH_AUTH_SOCK
+    wait_for_secret_service
+fi
+
+# Audio (PipeWire)
+pipewire &
+pipewire-pulse &
+wireplumber &
+
+# Latency probe (waybar custom/latency module reads /tmp/i3status_latency)
+~/.scripts/ping-latency.sh &
+
+# Pending updates count (waybar custom/updates module reads /tmp/i3status_updates)
+~/.scripts/update-count.sh &
+
 exec start-hyprland
