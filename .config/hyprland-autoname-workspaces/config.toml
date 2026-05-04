@@ -1,17 +1,19 @@
-version = "1.1.16"
+version = "1.2.0"
 
 [class]
-DEFAULT = "n/a"  # example default icon (a question mark or generic app icon)
-Brave = "󰇧"
+nautilus = ""
+caja = ""
+Brave = ""
+brave-browser = ""
+brave-browser-nightly = ""
+steam = ""
+telegram = ""
+DEFAULT = "n/a"
 firefox = ""
 code = "󰨞"
-# Alacritty = "\uea85"
-telegram = "\ue217"
-discord = "\uf1ff" 
+discord = ""
+vesktop = ""
 Alacritty = ""
-nautilus = ""
-steam = "\uf1b6"
-caja = ""
 
 [class_active]
 
