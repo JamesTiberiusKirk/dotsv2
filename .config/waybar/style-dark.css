@@ -24,6 +24,11 @@ window#waybar {
     color: #1e1e2e;
 }
 
+#workspaces button.urgent:not(.active) {
+    background-color: #dc2626;
+    color: #fffafc;
+}
+
 #custom-activewindow,
 #tray,
 #clock,
