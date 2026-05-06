@@ -1,16 +1,6 @@
 #!/bin/sh
 set -eu
 
-if command -v darkman >/dev/null 2>&1; then
-    if next_mode=$(darkman toggle 2>/dev/null); then
-        case "$next_mode" in
-            dark|light)
-                exec "$HOME/.scripts/theme-apply" "$next_mode"
-                ;;
-        esac
-    fi
-fi
-
 mode_file="$HOME/.theme-mode"
 
 if [ -f "$mode_file" ]; then

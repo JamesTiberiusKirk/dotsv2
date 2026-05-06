@@ -8,7 +8,7 @@
 
 window#waybar {
     background-color: rgba(0, 0, 0, 0);
-    color: #4c4f69;
+    color: #3c3836;
 }
 
 #workspaces button {
@@ -16,11 +16,17 @@ window#waybar {
     padding-right: 12px;
     margin: 0 5px;
     border-radius: 8px;
+    color: #f9f5d7;
 }
 
 #workspaces button.active {
-    background-color: #8839ef;
-    color: #eff1f5;
+    background-color: #b57614;
+    color: #fbf1c7;
+}
+
+#workspaces button.urgent:not(.active) {
+    background-color: #cc241d;
+    color: #fbf1c7;
 }
 
 #custom-activewindow,
@@ -39,26 +45,19 @@ window#waybar {
     padding: 0 6px;
     margin: 0 2px;
     border-radius: 8px;
-    color: #eff1f5;
+    border: 1px solid #b57614;
+    color: #3c3836;
+    background-color: #ebdbb2;
 }
 
-#custom-activewindow { background-color: #9333ea; }
-#tray                { background-color: #7e22ce; }
-#clock               { background-color: #a855f7; }
+#clock               { background-color: #d5c4a1; }
+#custom-activewindow { background-color: #d5c4a1; }
 
-#network             { background-color: #6b21a8; }
-#custom-docker       { background-color: #7e22ce; }
-#custom-updates      { background-color: #8b5cf6; }
-#custom-latency      { background-color: #9333ea; }
-#battery             { background-color: #8b5cf6; }
-#battery.warning     { background-color: #ea580c; }
-#battery.critical    { background-color: #b91c1c; }
-#backlight           { background-color: #8b5cf6; }
-#pulseaudio          { background-color: #7e22ce; }
-#pulseaudio.muted    { background-color: #6b7280; }
-#disk                { background-color: #6b21a8; }
-#custom-memory       { background-color: #7e22ce; }
-#cpu                 { background-color: #8b5cf6; }
+#battery.critical:not(.charging):not(.full) {
+    background-color: #cc241d;
+    color: #fbf1c7;
+}
+#pulseaudio.muted    { background-color: #d5c4a1; color: #928374; }
 
 #custom-submap {
     padding: 0;
@@ -70,7 +69,7 @@ window#waybar {
     padding: 0 10px;
     margin: 0 4px;
     border-radius: 12px;
-    background-color: #d20f39;
-    color: #eff1f5;
+    background-color: #cc241d;
+    color: #fbf1c7;
     font-weight: bold;
 }

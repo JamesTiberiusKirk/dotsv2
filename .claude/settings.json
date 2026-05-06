@@ -48,5 +48,6 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
+  "theme": "auto",
   "voiceEnabled": true
 }

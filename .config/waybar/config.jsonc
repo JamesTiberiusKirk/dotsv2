@@ -60,12 +60,11 @@
     },
 
     "battery": {
-        "format": "🔋 {capacity}% {time}",
-        "format-charging": "⚡ {capacity}% {time}",
+        "format": "🔋 {capacity}%",
+        "format-charging": "⚡ {capacity}%",
         "format-full": "☻ {capacity}%",
         "states": {
-            "warning": 20,
-            "critical": 10
+            "critical": 30
         }
     },
 

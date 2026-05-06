@@ -16,11 +16,17 @@ window#waybar {
     padding-right: 12px;
     margin: 0 5px;
     border-radius: 8px;
+    color: #fffafc;
 }
 
 #workspaces button.active {
     background-color: #cba6f7;
     color: #1e1e2e;
+}
+
+#workspaces button.urgent:not(.active) {
+    background-color: #dc2626;
+    color: #fffafc;
 }
 
 #custom-activewindow,
@@ -51,8 +57,7 @@ window#waybar {
 #custom-updates      { background-color: #6d28d9; }
 #custom-latency      { background-color: #7c3aed; }
 #battery             { background-color: #6d28d9; }
-#battery.warning     { background-color: #d97706; }
-#battery.critical    { background-color: #dc2626; }
+#battery.critical:not(.charging):not(.full) { background-color: #dc2626; }
 #backlight           { background-color: #6d28d9; }
 #pulseaudio          { background-color: #5b21b6; }
 #pulseaudio.muted    { background-color: #4b5563; }
