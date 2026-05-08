@@ -1,9 +1,9 @@
 * {
     border: none;
-    border-radius: 8px;
+    border-radius: 0;
     font-family: "JetBrainsMono Nerd Font", "FiraCode Nerd Font", sans-serif;
-    font-size: 10px;
-    min-height: 13px;
+    font-size: 9px;
+    min-height: 11px;
 }
 
 window#waybar {
@@ -12,11 +12,13 @@ window#waybar {
 }
 
 #workspaces button {
-    padding-left: 6px;
-    padding-right: 12px;
-    margin: 0 5px;
-    border-radius: 8px;
+    padding-left: 5px;
+    padding-right: 10px;
+    margin: 2px 0;
+    border-radius: 0;
+    border: 1px solid #b57614;
     color: #f9f5d7;
+    background-color: #d5c4a1;
 }
 
 #workspaces button.active {
@@ -42,9 +44,9 @@ window#waybar {
 #disk,
 #custom-memory,
 #cpu {
-    padding: 0 6px;
-    margin: 0 2px;
-    border-radius: 8px;
+    padding: 0 5px;
+    margin: 2px 1px;
+    border-radius: 0;
     border: 1px solid #b57614;
     color: #3c3836;
     background-color: #ebdbb2;
@@ -66,9 +68,10 @@ window#waybar {
 }
 
 #custom-submap.active {
-    padding: 0 10px;
-    margin: 0 4px;
-    border-radius: 12px;
+    padding: 0 8px;
+    margin: 2px 2px;
+    border-radius: 0;
+    border: 1px solid #9d0006;
     background-color: #cc241d;
     color: #fbf1c7;
     font-weight: bold;
