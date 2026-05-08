@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave is done'"
+            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave is done'"
           }
         ]
       }
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave has a question for you'"
+            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave has a question for you'"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave needs your permission'"
+            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave needs your permission'"
           }
         ]
       }

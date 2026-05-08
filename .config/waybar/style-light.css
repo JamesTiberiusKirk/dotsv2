@@ -36,7 +36,7 @@ window#waybar {
 #custom-docker,
 #custom-updates,
 #custom-latency,
-#battery,
+#custom-battery,
 #backlight,
 #pulseaudio,
 #disk,
@@ -53,7 +53,7 @@ window#waybar {
 #clock               { background-color: #d5c4a1; }
 #custom-activewindow { background-color: #d5c4a1; }
 
-#battery.critical:not(.charging):not(.full) {
+#custom-battery.critical:not(.charging):not(.full) {
     background-color: #cc241d;
     color: #fbf1c7;
 }

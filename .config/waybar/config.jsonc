@@ -7,7 +7,7 @@
         "custom/docker",
         "custom/updates",
         "custom/latency",
-        "battery",
+        "custom/battery",
         "backlight",
         "pulseaudio",
         "disk",
@@ -59,13 +59,11 @@
         "format": "{}"
     },
 
-    "battery": {
-        "format": "🔋 {capacity}%",
-        "format-charging": "⚡ {capacity}%",
-        "format-full": "☻ {capacity}%",
-        "states": {
-            "critical": 30
-        }
+    "custom/battery": {
+        "exec": "~/.scripts/waybar/battery.sh",
+        "interval": 30,
+        "return-type": "json",
+        "format": "{}"
     },
 
     "backlight": {

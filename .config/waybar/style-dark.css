@@ -36,7 +36,7 @@ window#waybar {
 #custom-docker,
 #custom-updates,
 #custom-latency,
-#battery,
+#custom-battery,
 #backlight,
 #pulseaudio,
 #disk,
@@ -56,8 +56,8 @@ window#waybar {
 #custom-docker       { background-color: #5b21b6; }
 #custom-updates      { background-color: #6d28d9; }
 #custom-latency      { background-color: #7c3aed; }
-#battery             { background-color: #6d28d9; }
-#battery.critical:not(.charging):not(.full) { background-color: #dc2626; }
+#custom-battery      { background-color: #6d28d9; }
+#custom-battery.critical:not(.charging):not(.full) { background-color: #dc2626; }
 #backlight           { background-color: #6d28d9; }
 #pulseaudio          { background-color: #5b21b6; }
 #pulseaudio.muted    { background-color: #4b5563; }
