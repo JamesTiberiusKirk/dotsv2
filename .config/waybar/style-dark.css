@@ -38,6 +38,7 @@ window#waybar {
 #clock,
 #network,
 #custom-docker,
+#custom-corne-layer,
 #custom-updates,
 #custom-latency,
 #custom-battery,
@@ -59,6 +60,7 @@ window#waybar {
 #clock,
 #network,
 #custom-docker,
+#custom-corne-layer,
 #custom-updates,
 #custom-latency,
 #custom-battery,
@@ -76,6 +78,15 @@ window#waybar {
     padding: 0;
     margin: 0;
     background-color: transparent;
+}
+
+#custom-corne-layer.unknown {
+    opacity: 0.5;
+    font-style: italic;
+}
+
+#custom-corne-layer.submap {
+    color: #a78bfa;
 }
 
 #custom-submap.active {

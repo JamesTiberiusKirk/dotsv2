@@ -5,6 +5,7 @@
     "modules-right": [
         "network",
         "custom/docker",
+        "custom/corne-layer",
         "custom/updates",
         "custom/latency",
         "custom/battery",
@@ -44,6 +45,14 @@
         "exec": "cat /tmp/i3status_latency 2>/dev/null",
         "interval": 2,
         "format": "⏱ {}"
+    },
+
+    "custom/corne-layer": {
+        "return-type": "json",
+        "format": "{}",
+        "exec": "cornectl get layer",
+        "signal": 1,
+        "interval": 30
     },
 
     "custom/docker": {

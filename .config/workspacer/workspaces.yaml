@@ -2,36 +2,41 @@ default_workspace: ws
 session_presets:
     default:
         screens:
-            - layout: main-vertical
-              name: nvim
+            - name: nvim
+              layout: main-vertical
               panes:
                 - command: nvim
                 - {}
     dots:
         path: ~/
         screens:
-            - panes:
+            - name: profile
+              panes:
                 - command: nvim ~/.profile ~/.zshrc ~/.tmux.conf
-            - layout: main-vertical
-              name: config
+            - name: hypr
+              path: ~/.config/hypr
               panes:
-                - command: nvim
+                - command: nvim 
+            - name: config
               path: ~/.config/
-            - layout: main-vertical
-              name: nvim
+              layout: main-vertical
               panes:
                 - command: nvim
+            - name: nvim
               path: ~/.config/nvim
-            - layout: main-vertical
-              name: workspacer
+              layout: main-vertical
               panes:
                 - command: nvim
+            - name: workspacer
               path: ~/.config/workspacer
+              layout: main-vertical
+              panes:
+                - command: nvim
     notes:
         path: ~/Documents/notes/
         screens:
-            - layout: main-vertical
-              name: nvim
+            - name: nvim
+              layout: main-vertical
               panes:
                 - command: nvim
 workspaces:
@@ -63,6 +68,11 @@ workspaces:
         prefix: ff
         recent_access_window: 50
         session_preset: default
+        projects:
+            - name: framiworks.io
+              sister_repos:
+                - name: framiworks-docs
+                  label: docs
     notes:
         name: Notes
         path: ~/Documents/notes/
