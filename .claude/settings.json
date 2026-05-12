@@ -49,5 +49,6 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "theme": "auto",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "model": "sonnet"
 }
