@@ -1,6 +1,6 @@
 {
     "layer": "top",
-    "modules-left": ["hyprland/workspaces", "custom/submap"],
+    "modules-left": ["custom/layout", "hyprland/workspaces", "custom/submap"],
     "modules-center": ["custom/activewindow"],
     "modules-right": [
         "network",
@@ -20,6 +20,14 @@
 
     "hyprland/workspaces": {
         "format": "{name}"
+    },
+
+    "custom/layout": {
+        "exec": "~/.scripts/waybar/layout.sh",
+        "interval": 2,
+        "signal": 1,
+        "return-type": "json",
+        "format": "{}"
     },
 
     "custom/submap": {

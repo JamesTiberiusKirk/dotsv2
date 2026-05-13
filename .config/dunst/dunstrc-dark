@@ -497,7 +497,12 @@
 #    appname = "some_volume_notifiers"
 #    set_stack_tag = "volume"
 #
-#[audio-hotplug-source]
+[satty-ignore]
+    appname = "satty"
+    skip_display = yes
+    history_ignore = yes
+
+[audio-hotplug-source]
     summary = "*New source*"
     skip_display = yes
     history_ignore = yes

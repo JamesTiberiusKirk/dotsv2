@@ -4,55 +4,29 @@
     font-family: "JetBrainsMono Nerd Font", "FiraCode Nerd Font", sans-serif;
     font-size: 9px;
     min-height: 11px;
+    padding: 0;
+    margin: 0;
 }
 
 window#waybar {
-    background-color: rgba(0, 0, 0, 0);
-    color: #ffffff;
+    background-color: #0d0818;
+    color: #f0e8ff;
 }
 
 #workspaces button {
-    padding-left: 5px;
-    padding-right: 10px;
-    margin: 2px 0;
-    border-radius: 0;
-    border: 1px solid #5b21b6;
-    color: #fffafc;
-    background-color: #3b0764;
+    padding: 0 8px;
+    color: #5a3a7a;
+    background-color: transparent;
 }
 
 #workspaces button.active {
-    background-color: #3b0764;
-    border-color: #8b5cf6;
     color: #ffffff;
+    background-color: #1a0f2e;
 }
 
 #workspaces button.urgent:not(.active) {
-    background-color: #3b0764;
-    border-color: #f87171;
-    color: #fffafc;
-}
-
-#custom-activewindow,
-#tray,
-#clock,
-#network,
-#custom-docker,
-#custom-corne-layer,
-#custom-updates,
-#custom-latency,
-#custom-battery,
-#backlight,
-#pulseaudio,
-#disk,
-#custom-memory,
-#cpu {
-    padding: 0 5px;
-    margin: 2px 1px;
-    border-radius: 0;
-    border: 1px solid #5b21b6;
-    color: #ffffff;
-    background-color: #3b0764;
+    color: #f87171;
+    background-color: #2a1020;
 }
 
 #custom-activewindow,
@@ -69,14 +43,26 @@ window#waybar {
 #disk,
 #custom-memory,
 #cpu,
-#custom-battery.critical:not(.charging):not(.full),
+#custom-layout {
+    padding: 0 8px;
+    color: #d0b8f0;
+    background-color: transparent;
+}
+
+#custom-layout.layout-master {
+    color: #f0d878;
+}
+
+#custom-battery.critical:not(.charging):not(.full) {
+    color: #f87171;
+}
+
 #pulseaudio.muted {
-    background-color: #3b0764;
+    color: #4a2a6a;
 }
 
 #custom-submap {
     padding: 0;
-    margin: 0;
     background-color: transparent;
 }
 
@@ -86,15 +72,11 @@ window#waybar {
 }
 
 #custom-corne-layer.submap {
-    color: #a78bfa;
+    color: #b088f0;
 }
 
 #custom-submap.active {
     padding: 0 8px;
-    margin: 2px 2px;
-    border-radius: 0;
-    border: 1px solid #8b5cf6;
-    background-color: #3b0764;
-    color: #ffffff;
+    color: #b088f0;
     font-weight: bold;
 }
