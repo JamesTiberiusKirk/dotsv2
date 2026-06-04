@@ -1,0 +1,130 @@
+package cerbos
+
+type Resource string
+
+type Action string
+
+const (
+	ALL                                         Action = "*"
+	REPLACE_SIM                                 Action = "replace-sim"
+	CHANGE_SERVICE_NAME                         Action = "change-service-name"
+	UPDATE_SIM_SETTINGS                         Action = "update-sim-settings"
+	ACTIVATE_SIM                                Action = "activate-sim"
+	PORT_OUT                                    Action = "port-out"
+	PORT_VALIDATE_PAC                           Action = "port-validate-pac"
+	SUBMIT_CONTRACT_RENEWAL_DATE                Action = "submit-contract-renewal-date"
+	REFUND_ADMIN_FEE                            Action = "refund-admin-fee"
+	SUBMIT_QUOTE                                Action = "submit-quote"
+	GENERATE_AND_EMAIL_CONTRACT                 Action = "generate-and-email-contract"
+	TERMINATE_SERVICE_MP_0050                   Action = "terminate-service-mp0050"
+	TERMINATE_SERVICE_MP_0600                   Action = "terminate-service-mp0600"
+	EMAIL_CONTRACT                              Action = "email-contract"
+	GET_UPGRADE_AVAILABLE_QUOTE                 Action = "get-upgrade-available-quote"
+	GET_ACCOUNT                                 Action = "get-account"
+	GET_SERVICES                                Action = "get-services"
+	GET_SIM_SETTINGS                            Action = "get-sim-settings"
+	GET_BALANCE                                 Action = "get-balance"
+	GET_CONTRACT_RENEWAL_DATE                   Action = "get-contract-renewal-date"
+	GET_SERVICE_HISTORY                         Action = "get-service-history"
+	GET_ADDRESS                                 Action = "get-address"
+	FAULTS_VIEW                                 Action = "faults-view"
+	FAULTS_MANAGE                               Action = "faults-manage"
+	MANAGE_SIM                                  Action = "manage-sim"
+	TOPUP_REFUND_BALANCE                        Action = "topup-refund-balance"
+	UPGRADE_QUOTE                               Action = "upgrade-quote"
+	DOWNLOAD_CONTRACT                           Action = "download-contract"
+	GET_CONTRACT                                Action = "get-contract"
+	GENERATE_VERIFICATION_CODE                  Action = "generate-verification-code"
+	TOPUP_REQUEST                               Action = "topup-request"
+	TOPUP_COMPLETE                              Action = "topup-complete"
+	BLACKLIST_HANDSET                           Action = "blacklist-handset"
+	PORT_IN                                     Action = "port-in"
+	GET_QUOTE                                   Action = "get-quote"
+	GET_SERVICE_USAGE                           Action = "get-service-usage"
+	GET_SERVICE_USAGE_HISTORY                   Action = "get-service-usage-history"
+	GET_HANDSET_INFO                            Action = "get-handset-info"
+	TEST_LOCAL_DEV                              Action = "test-local-dev"
+	MSO_CREATE                                  Action = "create"
+	MSO_VIEW                                    Action = "view"
+	CALCULATE_ETF                               Action = "calculate-etf"
+	GET_TERMINATION_PROMPTS                     Action = "get-termination-prompts"
+	ROAMING_LIMIT_GET_USAGE_RATINGS             Action = "get-usage-ratings"
+	ROAMING_LIMIT_GET_EU_ROAMINGS_EVENTS        Action = "get-eu-roamings-events"
+	ROAMING_LIMIT_GET_ALERT_COMMS               Action = "get-alert-comms"
+	ROAMING_LIMIT_GENERATE_DAILY_ROAMING_CHARGE Action = "generate-daily-roaming-charge"
+	ROAMING_LIMIT_CREATE_TEST_TRANSACTIONS      Action = "create-test-transactions"
+	QUOTING_ACCESS_MOBILE_BROADBAND_TARIFFS     Action = "access-mobile-broadband-tariffs"
+	CANCEL_REPLACE_ESIM                         Action = "cancel-replace-esim"
+	GET_ROAMING_USAGE                           Action = "get-roaming-usage"
+	SHOW_PROMO_AND_CURRENT_TARIFFS              Action = "show-promo-and-current-tariffs"
+	GET_BARRED_SIM                              Action = "get-barred-sim"
+	GET_EXISTING_HELD_REPLACEMENT               Action = "get-existing-held-replacement"
+	RELEASE_EXISTING_HELD_REPLACEMENT           Action = "release-existing-held-replacement"
+	CHECK_CAN_ORDER_REPLACEMENT_ESIM            Action = "check-can-order-replacement-esim"
+	OVERRIDE_REPLACEMENT_SIM_LOCKOUT            Action = "override-replacement-sim-lockout"
+	RESEND_ESIM_ACTIVATION                      Action = "resend-esim-activation"
+	GET_AVAILABLE_HANDSETS                      Action = "get-available-handsets"
+)
+
+var actions = map[string]Action{
+	"*":                                 ALL,
+	"replace-sim":                       REPLACE_SIM,
+	"change-service-name":               CHANGE_SERVICE_NAME,
+	"update-sim-settings":               UPDATE_SIM_SETTINGS,
+	"activate-sim":                      ACTIVATE_SIM,
+	"port-out":                          PORT_OUT,
+	"port-validate-pac":                 PORT_VALIDATE_PAC,
+	"submit-contract-renewal-date":      SUBMIT_CONTRACT_RENEWAL_DATE,
+	"refund-admin-fee":                  REFUND_ADMIN_FEE,
+	"submit-quote":                      SUBMIT_QUOTE,
+	"generate-and-email-contract":       GENERATE_AND_EMAIL_CONTRACT,
+	"terminate-service-mp0050":          TERMINATE_SERVICE_MP_0050,
+	"terminate-service-mp0600":          TERMINATE_SERVICE_MP_0600,
+	"email-contract":                    EMAIL_CONTRACT,
+	"get-upgrade-available-quote":       GET_UPGRADE_AVAILABLE_QUOTE,
+	"get-services":                      GET_SERVICES,
+	"get-sim-settings":                  GET_SIM_SETTINGS,
+	"get-balance":                       GET_BALANCE,
+	"get-contract-renewal-date":         GET_CONTRACT_RENEWAL_DATE,
+	"get-service-history":               GET_SERVICE_HISTORY,
+	"get-address":                       GET_ADDRESS,
+	"faults-view":                       FAULTS_VIEW,
+	"faults-manage":                     FAULTS_MANAGE,
+	"manage-sim":                        MANAGE_SIM,
+	"topup-refund-balance":              TOPUP_REFUND_BALANCE,
+	"upgrade-quote":                     UPGRADE_QUOTE,
+	"download-contract":                 DOWNLOAD_CONTRACT,
+	"get-contract":                      GET_CONTRACT,
+	"generate-verification-code":        GENERATE_VERIFICATION_CODE,
+	"topup-request":                     TOPUP_REQUEST,
+	"topup-complete":                    TOPUP_COMPLETE,
+	"blacklist-handset":                 BLACKLIST_HANDSET,
+	"port-in":                           PORT_IN,
+	"get-quote":                         GET_QUOTE,
+	"get-service-usage":                 GET_SERVICE_USAGE,
+	"get-service-usage-history":         GET_SERVICE_USAGE_HISTORY,
+	"get-handset-info":                  GET_HANDSET_INFO,
+	"test-local-dev":                    TEST_LOCAL_DEV,
+	"create":                            MSO_CREATE,
+	"view":                              MSO_VIEW,
+	"calculate-etf":                     CALCULATE_ETF,
+	"get-termination-prompts":           GET_TERMINATION_PROMPTS,
+	"get-usage-ratings":                 ROAMING_LIMIT_GET_USAGE_RATINGS,
+	"get-eu-roamings-events":            ROAMING_LIMIT_GET_EU_ROAMINGS_EVENTS,
+	"get-alert-comms":                   ROAMING_LIMIT_GET_ALERT_COMMS,
+	"generate-daily-roaming-charge":     ROAMING_LIMIT_GENERATE_DAILY_ROAMING_CHARGE,
+	"create-test-transactions":          ROAMING_LIMIT_CREATE_TEST_TRANSACTIONS,
+	"cancel-replace-esim":               CANCEL_REPLACE_ESIM,
+	"get-roaming-usage":                 GET_ROAMING_USAGE,
+	"show-promo-and-current-tariffs":    SHOW_PROMO_AND_CURRENT_TARIFFS,
+	"get-barred-sim":                    GET_BARRED_SIM,
+	"get-existing-held-replacement":     GET_EXISTING_HELD_REPLACEMENT,
+	"release-existing-held-replacement": RELEASE_EXISTING_HELD_REPLACEMENT,
+	"override-replacement-sim-lockout":  OVERRIDE_REPLACEMENT_SIM_LOCKOUT,
+	string(RESEND_ESIM_ACTIVATION):      RESEND_ESIM_ACTIVATION,
+	"get-available-handsets":            GET_AVAILABLE_HANDSETS,
+}
+
+func GetActionByName(name string) Action {
+	return actions[name]
+}

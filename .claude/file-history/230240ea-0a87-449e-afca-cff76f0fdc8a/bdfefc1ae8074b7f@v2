@@ -1,0 +1,51 @@
+# PR Review: dv-sd-contract-expiration-tmt-1818
+
+## Context
+Branch adds handset contract expiration detection. A scheduled job runs every 6h, marks expired contracts in Mongo, and produces `MobileHandsetContractExpired` events. Includes a new proto message, storage method, job scheduler, cmd entrypoint, and test coverage.
+
+## Findings (ranked by severity)
+
+### 1. `nowFunc` not used in `UpdateContractEligibilityApproved` [BUG]
+File: `services/handset/internal/storage/storage.go`
+
+`updatedAt` is set with `time.Now()` directly, not `s.nowFunc()`. The entire purpose of injecting `nowFunc` was testability, but this function's `updatedAt` timestamp is still non-injectable. Inconsistent with `FindAndUpdateExpiredContracts` which correctly uses `s.nowFunc()`.
+
+### 2. Unbounded loop in `FindAndUpdateExpiredContracts` [RISK]
+File: `services/handset/internal/storage/storage.go`
+
+The `for {}` loop processes one contract at a time with no batch limit and no context cancellation check. All results are accumulated in memory before returning. On first deploy (or after a gap), there could be a large backlog. Consider:
+- Adding a `ctx.Err()` check per iteration
+- Capping iterations (e.g., process at most N per run)
+
+### 3. `setupContracts` takes mocks by value [TEST BUG]
+File: `services/handset/internal/jobs/expired_contracts_test.go`
+
+```go
+setupContracts := func(count int, store mockJobs.MockStorage, producer mockJobs.MockProducer) []models.Contract {
+```
+Called with `*mockStore` and `*mockProducer` (dereferenced). Expectations are registered on copies of the structs. Technically works because `ctrl`/`recorder` are pointer fields inside the mock, but it's fragile and non-idiomatic. Should take `*mockJobs.MockStorage` and `*mockJobs.MockProducer`.
+
+### 4. Typo: `scheules` in `Jobs` struct [MINOR]
+File: `services/handset/internal/jobs/jobs.go`
+
+```go
+scheules []*scheduler.Scheduler
+```
+Should be `schedules`.
+
+### 5. Nil `ExpiresAt` silently omitted from event [MINOR]
+File: `services/handset/internal/jobs/expired_contracts.go`
+
+If `contract.ExpiresAt` is nil, the event is produced with no timestamp and no log. Since `FindAndUpdateExpiredContracts` filters on `expiresAt <= now`, this shouldn't happen in practice — but if it does (e.g., a data-migration gap), it's a silent data quality issue. Either assert non-nil or log a warning.
+
+### 6. Duplicate comment + log in `startJobsMode` [NITS]
+File: `services/handset/cmd/handset/jobs.go`
+
+```go
+// Setup scheduler for handset updates
+tlog.Info(ctx, "Setup scheduler for handset updates")
+```
+Drop the comment — the log message says the same thing.
+
+## Verification
+Run existing tests: `cd services/handset && go test ./...`

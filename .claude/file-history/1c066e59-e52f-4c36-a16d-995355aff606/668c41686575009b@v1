@@ -1,0 +1,103 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: telecom-admin
+  namespace: telecom
+subjects:
+  - kind: User
+    name: mkaperys@uw.co.uk
+  - kind: User
+    name: ollewelyn@uw.co.uk
+  - kind: User
+    name: spiccolo@uw.co.uk
+  - kind: User
+    name: alessio.pieruccetti@uw.co.uk
+  - kind: User
+    name: anierzad@uw.co.uk
+  - kind: User
+    name: psweeney@uw.co.uk
+  - kind: User
+    name: jwalter@uw.co.uk
+  - kind: User
+    name: amalov@uw.co.uk
+  - kind: ServiceAccount
+    name: kube-applier
+  - kind: User
+    name: rphoenix@uw.co.uk
+  - kind: User
+    name: zkormany@uw.co.uk
+  - kind: User
+    name: espencer@uw.co.uk
+  - kind: User
+    name: vborta@uw.co.uk
+  - kind: User
+    name: bhorwath@uw.co.uk
+  - kind: User
+    name: mciesliczka@uw.co.uk
+  - kind: User
+    name: mshimwell@uw.co.uk
+  - kind: User
+    name: twinter@uw.co.uk
+  - kind: User
+    name: joshua.dysiewicz@uw.co.uk
+  - kind: User
+    name: jake.jackson@uw.co.uk
+  - kind: User
+    name: sbyers@uw.co.uk
+  - kind: User
+    name: rhonor@uw.co.uk
+  - kind: User
+    name: rkuna@uw.co.uk
+  - kind: User
+    name: chris.martyr@uw.co.uk
+  - kind: User
+    name: troy.snowden@uw.co.uk
+  - kind: User
+    name: paulo.oliveira@uw.co.uk
+  - kind: User
+    name: diogo.marques@uw.co.uk
+  - kind: User
+    name: stuart.dallas@uw.co.uk
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: telecom
+imagePullSecrets:
+  - name: dockerhub-key
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-port-forward
+  namespace: telecom
+rules:
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-port-forward
+  namespace: telecom
+subjects:
+  - kind: User
+    name: sbyers@uw.co.uk
+  - kind: User
+    name: bwatton@uw.co.uk
+  - kind: User
+    name: oliver.lewis@uw.co.uk
+  - kind: User
+    name: bdonaldson@uw.co.uk
+  - kind: User
+    name: adabek@uw.co.uk
+roleRef:
+  kind: Role
+  name: pod-port-forward
+  apiGroup: rbac.authorization.k8s.io

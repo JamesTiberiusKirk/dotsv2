@@ -1,0 +1,42 @@
+# Core terminal / shell
+# brew "wezterm"
+brew "tmux"
+brew "neovim"
+brew "ripgrep"
+brew "fd"
+brew "fzf"
+brew "lazygit"
+brew "stow"
+
+# Dev toolchain
+brew "go"
+brew "node"
+brew "oven-sh/bun/bun"
+brew "python"
+brew "shellcheck"
+brew "tree-sitter-cli"
+
+# CLI utilities
+brew "bat"
+brew "btop"
+brew "htop"
+brew "tree"
+brew "tig"
+brew "git"
+brew "gh"
+
+# Fonts
+cask "font-jetbrains-mono-nerd-font"
+cask "font-symbols-only-nerd-font"
+cask "font-fira-code-nerd-font"
+cask "font-arimo-nerd-font"
+cask "font-noto-nerd-font"
+cask "font-fontawesome"
+cask "font-noto-emoji"
+
+# Docker (cask for Docker Desktop)
+cask "docker-desktop"
+
+# Utilities
+cask "linearmouse"
+cask "middle"

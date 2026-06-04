@@ -1,0 +1,226 @@
+syntax = "proto3";
+package handset;
+
+option go_package = "github.com/utilitywarehouse/telecom-mobile/services/handset/pkg/protos/generated/v1/apis/handset";
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "mobile/v1/events/service_events.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Handset API"
+    version: "1.0.0"
+    contact: {
+      name: "telecom"
+      url: "https://github.com/utilitywarehouse/telecom-mobile"
+      email: "telecom@uw.co.uk"
+    }
+  };
+}
+;
+
+service HandsetAPI {
+  rpc GetActiveContractForService(GetActiveContractForServiceRequest)
+      returns (GetActiveContractForServiceResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "gets existing handset contract for a given service"
+    };
+    option (google.api.http) = {
+      get: "/v1/handsets/contracts"
+    };
+  }
+  rpc GetAvailableHandsets(GetAvailableHandsetsRequest)
+      returns (GetAvailableHandsetsResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "gets available handsets for order for a given service"
+    };
+    option (google.api.http) = {
+      get: "/v1/handsets/available"
+    };
+  }
+  rpc RequestHandsetForService(RequestHandsetForServiceRequest)
+      returns (RequestHandsetForServiceResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "requests a handset for a given service"
+    };
+    option (google.api.http) = {
+      post: "/v1/handsets/requests"
+      body: "*"
+    };
+  }
+  rpc EligibilityCallbackSuccess(EligibilityCallbackSuccessRequest)
+      returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "callback endpoint for handset eligibility success response from external provider"
+    };
+    option (google.api.http) = {
+      post: "/v1/handsets/eligibility/completed"
+      body: "*"
+    };
+  }
+  rpc EligibilityCallbackFailure(EligibilityCallbackFailureRequest)
+      returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "callback endpoint for handset eligibility failure response from external provider"
+    };
+    option (google.api.http) = {
+      post: "/v1/handsets/eligibility/failed"
+      body: "*"
+    };
+  }
+  rpc EligibilityStatusUpdate(EligibilityStatusUpdateRequest)
+      returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "status update endpoint for handset eligibility response from external provider"
+    };
+    option (google.api.http) = {
+      put: "/v1/handsets/eligibility/status"
+      body: "*"
+    };
+  }
+  rpc GetRequest(GetRequestRequest)
+      returns (GetRequestResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      description: "gets contract details by request ID, used by the third-party eligibility provider"
+    };
+    option (google.api.http) = {
+      get: "/v1/handsets/requests/{request_id}"
+    };
+  }
+}
+
+message GetActiveContractForServiceRequest {
+  string service_id = 1;
+}
+
+message GetActiveContractForServiceResponse {
+  Contract contract = 1;
+}
+
+message GetAvailableHandsetsRequest {
+  string service_id = 1;
+  string customer_id = 2;
+  bool include_out_of_stock = 3;
+}
+
+message GetAvailableHandsetsResponse {
+  repeated Handset handsets = 1;
+}
+
+message RequestHandsetForServiceRequest {
+  string service_id = 1;
+  string customer_id = 2;
+  string handset_id = 3;
+}
+
+message RequestHandsetForServiceResponse {
+  string handset_id = 1;
+  string request_id = 2;
+  string status = 3;
+  string redirect_url = 4;
+}
+
+message EligibilityCallbackSuccessRequest {
+  string request_id = 1;
+  string status = 2;
+  EligibilityCallbackSuccessOutcome decision = 3;
+  string agreement_id = 4;
+  string docusign_envelope_id = 5;
+  google.protobuf.Timestamp signed_at = 6;
+  google.protobuf.Timestamp completed_at = 7;
+}
+
+message EligibilityStatusUpdateRequest {
+  string request_id = 1;
+  EligibilityStatusUpdate status = 2;
+  string status_comment = 3;
+}
+
+message EligibilityCallbackFailureRequest {
+  string request_id = 1;
+  string status = 2;
+  EligibilityCallbackFailureReason failure_reason = 3;
+  EligibilityCallbackFailureStage failure_stage = 4;
+  string failure_message = 5;
+  google.protobuf.Timestamp failed_at = 6;
+}
+
+enum EligibilityCallbackSuccessOutcome {
+    APPROVED_AUTOMATED = 0;
+    APPROVED_MANUAL = 1;
+}
+
+enum EligibilityCallbackFailureReason {
+    KYC_FAILED = 0;
+    SOFT_CREDIT_FAILED = 1;
+    HARD_CREDIT_FAILED = 2;
+}
+
+enum EligibilityStatusUpdate {
+    COOLING_PERIOD_STARTED = 0;
+    COOLING_PERIOD_ENDED = 1;
+    DECLINED = 2;
+    UNDERWRITER_PIPELINE = 3;
+    WITHDRAWN = 4;
+}
+
+enum EligibilityCallbackFailureStage {
+    KYC = 0;
+    SOFT_CREDIT = 1;
+    HARD_CREDIT = 2;
+}
+
+message Handset {
+  string id = 1;
+  string name = 2;
+  service_events.Money rental_price = 3;
+  service_events.Money rrp = 4;
+  int32 contract_term_months = 5;
+  string manufacturer = 6;
+  string model = 7;
+  string colours = 8;
+  string capacity = 9;
+  string screen_size = 10;
+  string battery = 11;
+  string sd_capacity = 12;
+  string wifi_standard = 13;
+  bool esim = 14;
+  bool dual_sim = 15;
+  string sale_status = 16;
+  bool is_new = 17;
+  string specifications_link = 18;
+  bool out_of_stock = 19;
+}
+
+message Contract {
+  string id = 1;
+  Handset handset = 2;
+  string created_at = 3;
+  string expires_at = 4;
+  service_events.Money monthly_price = 5;
+  string status = 6;
+}
+
+message GetRequestRequest {
+  string request_id = 1;
+}
+
+message GetRequestResponse {
+  string customer_id = 1;
+  string service_id = 2;
+  string request_id = 3;
+  ContractProduct requested_product = 4;
+}
+
+message ContractProduct {
+  string id = 1;
+  string name = 2;
+  int32 basePrice = 3;
+  float aprPercent = 4;
+  int32 monthlyRepayment = 5;
+  int32 interestTotal = 6;
+  int32 totalFinance = 7;
+}

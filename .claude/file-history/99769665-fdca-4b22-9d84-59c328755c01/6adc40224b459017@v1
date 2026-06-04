@@ -1,0 +1,327 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	cli "github.com/jawher/mow.cli"
+	accountapi "github.com/utilitywarehouse/account-platform-protobuf-model/gen/go/account/api/v1"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/auth"
+	graphqlshared "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/shared"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tbootstrap"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tgrpc"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tlog"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/ttracing"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tvars"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset-blacklisting/pkg/protos/generated/v1/apis/handsetblacklisting"
+	lecpPb "github.com/utilitywarehouse/telecom-mobile/services/lifecycle-events-comms-processor/pkg/protos/generated/v1/apis/lifecycleeventscommsprocessor"
+	"github.com/utilitywarehouse/telecom-mobile/services/porting-service/pkg/protos/generated/v1/apis/portingservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/graph"
+	"github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/graph/model"
+	"github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/router"
+	"github.com/utilitywarehouse/telecom-mobile/services/roaming-limit-service/pkg/protos/generated/v1/apis/roaminglimit"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-activation-service/pkg/protos/generated/v1/apis/simactivationservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-barring-service/pkg/protos/generated/v1/apis/simbarringservice"
+	"github.com/utilitywarehouse/uwos-go/iam"
+	"github.com/utilitywarehouse/uwos-go/iam/machine"
+	"github.com/utilitywarehouse/uwos-go/iam/pdp"
+	"google.golang.org/grpc"
+)
+
+const (
+	appName = "public-graphql"
+	appDesc = "graphql gateway to mobile services, for customer facing apps"
+)
+
+var gitHash string // populated at compile time
+
+func main() {
+	app := cli.App(appName, appDesc)
+
+	opsAddress := app.String(cli.StringOpt{
+		Name:   "ops-address",
+		Desc:   "http ops address",
+		EnvVar: "OPS_ADDRESS",
+		Value:  ":8081",
+	})
+	httpAddress := app.String(cli.StringOpt{
+		Name:   "http-address",
+		Desc:   "The port to listen on for API GRAPHQL connections",
+		Value:  ":8080",
+		EnvVar: "HTTP_ADDRESS",
+	})
+	corsAllowOrigin := app.String(cli.StringOpt{
+		Name:   "cors-allow-origin",
+		Desc:   "A CSV of acceptable CORS origins",
+		EnvVar: "CORS_ALLOW_ORIGIN",
+		Value:  "https://uw.je,http://localhost:8080",
+	})
+	corsAllowMethods := app.String(cli.StringOpt{
+		Name:   "cors-allow-methods",
+		Desc:   "Access-Control-Allow-Methods header value",
+		EnvVar: "CORS_ALLOW_METHODS",
+		Value:  "GET,POST",
+	})
+	corsAllowHeaders := app.String(cli.StringOpt{
+		Name:   "cors-allow-headers",
+		Desc:   "Access-Control-Allow-Headers header value",
+		EnvVar: "CORS_ALLOW_HEADERS",
+		Value:  "content-type,authorization",
+	})
+	playgroundEnabled := app.Bool(cli.BoolOpt{
+		Name:   "playground-enabled",
+		Desc:   "Enable token based authentication",
+		EnvVar: "PLAYGROUND_ENABLED",
+		Value:  false,
+	})
+	grpcBalancer := app.String(cli.StringOpt{
+		Name:   "grpc-balancer",
+		Desc:   "GRPC load balancer name [pick_first, round_robin, xds, grpclb] (defaults to round_robin)",
+		EnvVar: "GRPC_BALANCER",
+		Value:  "round_robin",
+	})
+	quotingAPIURL := app.String(cli.StringOpt{
+		Name:   "quoting-api-url",
+		Desc:   "Quouting API URL",
+		EnvVar: "QUOTING_API_URL",
+		Value:  "localhost:8090",
+	})
+	eeccContractRequestURL := app.String(cli.StringOpt{
+		Name:   "eecc-contract-request-url",
+		Desc:   "The eecc contract request GRPc URL",
+		EnvVar: "EECC_CONTRACT_REQUEST_URL",
+		Value:  "dns:///eecc-contract-request-api:8090",
+	})
+	myServicesAPIURL := app.String(cli.StringOpt{
+		Name:   "my-services-api-url",
+		Desc:   "My Services API URL",
+		EnvVar: "MY_SERVICES_API_URL",
+		Value:  "localhost:8091",
+	})
+	simSettingsServiceAPIURL := app.String(cli.StringOpt{
+		Name:   "sim-settings-service-api-url",
+		Desc:   "Sim Settings Service API URL",
+		EnvVar: "SIM_SETTINGS_SERVICE_API_URL",
+		Value:  "localhost:8091",
+	})
+	simReplacementServiceURL := app.String(cli.StringOpt{
+		Name:   "sim-replacement-service-url",
+		Desc:   "Sim replacement service API URL",
+		EnvVar: "SIM_REPLACEMENT_SERVICE_URL",
+		Value:  "dns:///sim-replacement-service-api:8090",
+	})
+	topupServiceURL := app.String(cli.StringOpt{
+		Name:   "topup-api-url",
+		Desc:   "Mobile TopUp API URL",
+		EnvVar: "MOBILE_TOPUP_API_URL",
+		Value:  "dns:///topup-api-app:8090",
+	})
+	portingOutServiceURL := app.String(cli.StringOpt{
+		Name:   "porting-out-service-url",
+		Desc:   "Porting out service API URL",
+		EnvVar: "PORTING_OUT_SERVICE_URL",
+		Value:  "localhost:8092",
+	})
+	simActivationURL := app.String(cli.StringOpt{
+		Name:   "sim-activation-url",
+		Desc:   "The sim-activation-api GRPc URL",
+		EnvVar: "SIM_ACTIVATION_API_URL",
+		Value:  "dns:///sim-activation-api-app:8090",
+	})
+	portingServiceURL := app.String(cli.StringOpt{
+		Name:   "porting-service-api-url",
+		Desc:   "Mobile porting service API URL",
+		EnvVar: "MOBILE_PORTING_SERVICE_API_URL",
+		Value:  "dns:///porting-service-app:8090",
+	})
+	handsetBlacklistingURL := app.String(cli.StringOpt{
+		Name:   "handset-blacklisting-url",
+		Desc:   "Handset blacklisting gRPC address.",
+		EnvVar: "HANDSET_BLACKLISTING_URL",
+		Value:  "dns:///handset-blacklisting-api:8090",
+	})
+	roamingLimitServiceURL := app.String(cli.StringOpt{
+		Name:   "roaming-limit-service-url",
+		Desc:   "Roaming limit service gRPC address.",
+		EnvVar: "ROAMING_LIMIT_SERVICE_URL",
+	})
+	simBarringServiceURL := app.String(cli.StringOpt{
+		Name:   "sim-barring-service-url",
+		Desc:   "Sim barring service API URL",
+		EnvVar: "SIM_BARRING_SERVICE_URL",
+	})
+	lifecycleEventsCommsProcessorURL := *app.String(cli.StringOpt{
+		Name:   "lifecycle-events-comms-processor-url",
+		Desc:   "Lifecycle Events Comms Processor API URL",
+		EnvVar: "LIFECYCLE_EVENTS_COMMS_PROCESSOR_URL",
+	})
+	accountAPIURL := app.String(cli.StringOpt{
+		Name:   "account-api-url",
+		Desc:   "account-api-url",
+		EnvVar: "ACCOUNT_API_URL",
+	})
+
+	eg, ctx, stop := tbootstrap.InitBootstrapGroup()
+	defer stop()
+
+	tlog.RegisterDefaultLogger()
+	ttracing.MustRegisterTracing(ctx, appName, gitHash)
+
+	app.Action = func() {
+		pdpClient, err := pdp.NewClient()
+		if err != nil {
+			tlog.WithError(err).Fatal(ctx, "could not initialise pdp client")
+		}
+
+		clientsConnections := graphqlshared.InitSharedClientConnections(ctx, graphqlshared.GRPCConnectionConfig{
+			LoadBalancer:              *grpcBalancer,
+			EeccContractRequestApiUrl: *eeccContractRequestURL,
+			QuotingClientUrl:          *quotingAPIURL,
+			MyServicesClientUrl:       *myServicesAPIURL,
+			SimSettingsClientUrl:      *simSettingsServiceAPIURL,
+			SimReplacementClientUrl:   *simReplacementServiceURL,
+			TopupApiClientUrl:         *topupServiceURL,
+			PortingOutClientUrl:       *portingOutServiceURL,
+		})
+
+		dialOpts := tgrpc.GetDefaultDialOptions()
+		dialOpts.AddOptions(tgrpc.WithGRPCConnectionLoadBalancingPolicy(*grpcBalancer))
+
+		simActivationConn, err := tgrpc.InitGRPCConnection(ctx, *simActivationURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *simActivationURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+		portingServiceConn, err := tgrpc.InitGRPCConnection(ctx, *portingServiceURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *portingServiceURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+		handsetBlacklistServiceConn, err := tgrpc.InitGRPCConnection(ctx, *handsetBlacklistingURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *handsetBlacklistingURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+		roamingLimitServiceConn, err := tgrpc.InitGRPCConnection(ctx, *roamingLimitServiceURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *roamingLimitServiceURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+
+		simBarringServiceConn, err := tgrpc.InitGRPCConnection(ctx, *simBarringServiceURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *simBarringServiceURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+
+		lifecycleEventsCommsProcessorConn, err := tgrpc.InitGRPCConnection(ctx, lifecycleEventsCommsProcessorURL, dialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", lifecycleEventsCommsProcessorURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+
+		// A&I
+		iamMachine, err := machine.New()
+		if err != nil {
+			tlog.
+				WithError(err).
+				Fatal(ctx, "failed to create machine provider")
+		}
+		defer func(iamMachine machine.Provider) {
+			err := iamMachine.Close()
+			if err != nil {
+				tlog.
+					WithError(err).
+					Error(ctx, "failed to close machine provider")
+			}
+		}(iamMachine)
+
+		accountDialOpts := tgrpc.GetDefaultDialOptions()
+		accountDialOpts.AddOptions(grpc.WithUnaryInterceptor(iam.UnaryClientInterceptor(iam.WithMachine(iamMachine))))
+		accountApiConn, err := tgrpc.InitGRPCConnection(ctx, *accountAPIURL, accountDialOpts)
+		if err != nil {
+			tlog.WithError(err).
+				WithAttribute("address", *accountAPIURL).
+				Fatal(ctx, "could not dial grpc server")
+		}
+
+		resolver := &graph.Resolver{
+			Authorizer: auth.NewAuthorizer(pdpClient),
+			SharedResolver: graphqlshared.New(graphqlshared.GRPCClients{
+				QuotingClient:                clientsConnections.Clients.QuotingClient,
+				MyServicesClient:             clientsConnections.Clients.MyServicesClient,
+				EeccContractRequestApiClient: clientsConnections.Clients.EeccContractRequestApiClient,
+				SimSettingsClient:            clientsConnections.Clients.SimSettingsClient,
+				TopUpApiClient:               clientsConnections.Clients.TopUpApiClient,
+				PortingOutServiceClient:      clientsConnections.Clients.PortingOutServiceClient,
+				SimReplacementServiceClient:  clientsConnections.Clients.SimReplacementServiceClient,
+			}),
+			QuotingClient:                         clientsConnections.Clients.QuotingClient,
+			MyServicesClient:                      clientsConnections.Clients.MyServicesClient,
+			EeccContractRequestApiClient:          clientsConnections.Clients.EeccContractRequestApiClient,
+			SimSettingsClient:                     clientsConnections.Clients.SimSettingsClient,
+			TopupApiClient:                        clientsConnections.Clients.TopUpApiClient,
+			PortingOutClient:                      clientsConnections.Clients.PortingOutServiceClient,
+			SimReplacementClient:                  clientsConnections.Clients.SimReplacementServiceClient,
+			SimActivationApiClient:                simactivationservice.NewServiceClient(simActivationConn),
+			PortingServiceClient:                  portingservice.NewServiceClient(portingServiceConn),
+			HandsetBlacklistingServiceClient:      handsetblacklisting.NewHandsetBlacklistingApiClient(handsetBlacklistServiceConn),
+			RoamingLimitServiceClient:             roaminglimit.NewRoamingLimitApiClient(roamingLimitServiceConn),
+			SimBarringServiceClient:               simbarringservice.NewServiceClient(simBarringServiceConn),
+			LifecycleEventCommsProcessorApiClient: lecpPb.NewLifecycleEventsCommsProcessorApiClient(lifecycleEventsCommsProcessorConn),
+			AccountApiClient:                      accountapi.NewAccountServiceClient(accountApiConn),
+		}
+
+		httpRouter := router.NewRouter(router.Opts{
+			AppName:           appName,
+			CorsAllowOrigin:   *corsAllowOrigin,
+			CorsAllowMethods:  *corsAllowMethods,
+			CorsAllowHeaders:  *corsAllowHeaders,
+			PlaygroundEnabled: *playgroundEnabled,
+		}, graphqlshared.InitHandlerService(model.NewExecutableSchema(model.Config{Resolvers: resolver})))
+
+		httpServer := tbootstrap.NewHttpServer(*httpAddress, httpRouter)
+
+		opsServer := tbootstrap.InitOpsServer(ctx, tbootstrap.OpsServerOpts{
+			AppName:        appName,
+			AppDescription: appDesc,
+			Revision:       gitHash,
+			Addr:           *opsAddress,
+			Checkers: []tbootstrap.CheckerBuilder{
+				&tbootstrap.HttpChecker{
+					CheckName:                    tvars.CheckGraphQlServerLabel,
+					HttpServerHealthcheckAddress: fmt.Sprintf("%s/health", *httpAddress),
+				},
+			},
+		})
+
+		err = tbootstrap.StartBootstrapGroup(eg,
+			tbootstrap.WithOpsServer(ctx, opsServer),
+			tbootstrap.WithWaitableHttpServer(ctx, httpServer, tvars.CheckGraphQlServerLabel),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.QuotingApiClientConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.MyServicesClientConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.EeccContractRequestApiConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.SimSettingsClientConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.TopupApiClientConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.PortingOutClientConn),
+			tbootstrap.WithGRPCClient(ctx, clientsConnections.Connections.SimReplacementClientConn),
+			tbootstrap.WithGRPCClient(ctx, simActivationConn),
+			tbootstrap.WithGRPCClient(ctx, handsetBlacklistServiceConn),
+			tbootstrap.WithGRPCClient(ctx, portingServiceConn),
+			tbootstrap.WithGRPCClient(ctx, simBarringServiceConn),
+		)
+
+		if err != nil {
+			tlog.WithError(err).Error(ctx, "error returned from error group")
+		}
+	}
+	if err := app.Run(os.Args); err != nil {
+		tlog.WithError(err).Fatal(ctx, "unable to run app")
+	}
+}

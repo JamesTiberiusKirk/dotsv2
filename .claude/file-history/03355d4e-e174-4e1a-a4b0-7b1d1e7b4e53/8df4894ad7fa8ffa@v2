@@ -1,0 +1,33 @@
+import { readFileSync, writeFileSync } from 'fs';
+
+let content = readFileSync(process.env.TMPDIR + '/repo-snapshot-clean.json', 'utf8');
+content = content.replace(/\n\[INFO\].*$/m, '');
+const snap = JSON.parse(content);
+
+const tree = {};
+snap.files.forEach(f => {
+  const parts = f.relativePath.split('/');
+  const depth = Math.min(parts.length - 1, 6);
+  const dir = parts.slice(0, depth).join('/');
+  if (!tree[dir]) tree[dir] = { files: 0, lines: 0, largest: [] };
+  tree[dir].files++;
+  tree[dir].lines += f.lineCount;
+  if (f.lineCount > 200) {
+    tree[dir].largest.push({ p: f.relativePath, l: f.lineCount });
+  }
+});
+
+Object.values(tree).forEach(d => {
+  d.largest = d.largest.sort((a, b) => b.l - a.l).slice(0, 2);
+});
+
+const summary = Object.entries(tree)
+  .filter(([, v]) => v.files > 0)
+  .sort((a, b) => b[1].lines - a[1].lines)
+  .slice(0, 200)
+  .map(([dir, v]) => ({ dir, files: v.files, lines: v.lines, largest: v.largest }));
+
+const str = JSON.stringify({ totalFiles: snap.totalFiles, totalLines: snap.totalLines, dirs: summary });
+writeFileSync(process.env.TMPDIR + '/repo-summary.json', str);
+console.log('Summary size:', str.length, 'bytes (~', Math.round(str.length / 1024), 'KB)');
+console.log('Dir count:', summary.length);

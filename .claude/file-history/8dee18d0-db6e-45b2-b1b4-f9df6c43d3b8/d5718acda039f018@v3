@@ -1,0 +1,171 @@
+# telecom-mobile
+
+Go monorepo for all mobile services at UW.
+Module: `github.com/utilitywarehouse/telecom-mobile`
+CI: CircleCI. Only changed packages are tested/built per run.
+
+## Layout
+
+```
+cmd/        CLI tools and CI utilities
+services/   ~66 deployable services (one dir per service)
+pkg/        shared Go packages (imported by services)
+internal/   shared code not exported outside the module
+protos/     Protocol Buffer definitions (.proto files)
+docker/     Dockerfiles and docker-compose stack
+scripts/    CI/build scripts
+docs/       API specs, Swagger, architecture docs
+buf/        buf tool config for proto generation
+```
+
+Each service under `services/` typically contains:
+```
+cmd/<name>/     main.go + api.go + projector.go (mode split)
+internal/       service-private packages (grpc/, storage/, models/, consumer/)
+pkg/            service-exported packages (protos/generated/)
+```
+
+## Domains
+
+| Domain | Services |
+|---|---|
+| **Service Lifecycle** | `service-lifecycle-event-fabricator`, `service-lifecycle-projector`, `lifecycle-events-comms-processor`, `lifecycle-sink`, `event-hold` |
+| **SIM Management** | `sim-activation-service`, `sim-barring-service`, `sim-replacement-service`, `sim-requested-service`, `sim-settings-service`, `esim-stock-service`, `sim-activation-bill-connector` |
+| **Handset / Equipment** | `handset`, `handset-blacklisting`, `handset-yaml-updater`, `service-equipment-bridge` |
+| **Porting** | `porting-service`, `porting-out-service`, `porting-smpp-gateway`, `smpp-porting-out-requests-listener`, `porting-out-staging-connector`, `porting-ee-smpp-events-staging-connector`, `ee-smpp-porting-events-connector`, `onep-mobile-porting-response-notifier` |
+| **Tariffs & Quoting** | `tariff-catalogue`, `tariff-translator`, `quoting-api`, `quoting-platform-api` |
+| **Bill Integration** | `bill-connector`, `sim-activation-bill-connector` |
+| **Roaming & Usage** | `roaming-billing`, `roaming-limit-service`, `roaming-cli-aggregator`, `usage-summary-service`, `ee-udr-events-fabricator`, `ee-cdr-audit`, `ee-cdr-splitter` |
+| **Customer APIs** | `public-graphql`, `internal-graphql`, `my-services-api`, `my-services-api-projector`, `account-gateway`, `topup-api` |
+| **CRM** | `crm-actions`, `crm-projector`, `crm-important-status-applier` |
+| **Ordering** | `ordering-platform` |
+| **Wholesale** | `wholesale-state-api`, `wholesale-state-projector` |
+| **External Gateways** | `unicom-gateway` (EE), `syniverse-gateway` (roaming/SMS), `mso-connector`, `ee-sftp-file-watcher`, `proximo2kafka`, `kafka-to-kafka` |
+| **Fraud** | `fraud-detection-ee-sms`, `handset-blacklisting` |
+
+## Inter-Service Communication
+
+### gRPC (synchronous)
+Used when a service needs an immediate answer.
+```go
+machineToken, _ := tiam.GetNewMachineToken()
+secureOpts.AddOptions(uwgrpc.WithDialIAM(iam.WithMachine(machineToken)))
+conn, _ := tgrpc.InitGRPCConnection(ctx, *serviceURL, secureOpts)
+client := someservice.NewServiceClient(conn)
+```
+Internal-only services skip IAM and use `tgrpc.GetDefaultDialOptions()` directly.
+
+### Kafka (async)
+Primary pattern. Two levels:
+- **Protostrate** — newer, use for all new work. Wraps events in envelopes (correlation ID, sender, audit trail). Code-generated consumer/producer interfaces.
+- **Substrate** — older, raw Kafka. Still present in legacy services.
+
+## Storage
+
+- **MongoDB** — primary store for all mobile-owned data. Use `tmongo.InitMongoDB()` + bulk writes via `tmongobulk`.
+- **PostgreSQL** — read-only access to **Equinox** (legacy external billing/CRM system). Only a handful of services use it. Not used for mobile-owned data.
+
+## External Integrations Pattern
+
+All external systems get a dedicated gateway/connector. Pattern: external protocol → gateway → Kafka event → internal services react.
+
+| External System | Transport | Services |
+|---|---|---|
+| Syniverse | HTTPS + mTLS | `syniverse-gateway` |
+| EE Nexus | REST (OpenAPI generated client) | `pkg/nexus/` |
+| MSO | REST | `mso-connector` |
+| EE (porting) | SMPP | `porting-smpp-gateway`, `smpp-porting-out-requests-listener` |
+| EE (files) | SFTP | `ee-sftp-file-watcher` |
+| AWS S3 | AWS SDK | `pkg/s3fetcher`, `pkg/s3uploader` |
+| Bill (legacy billing) | Protobuf via Kafka/Proximo | `bill-connector`, `sim-activation-bill-connector` |
+| Proximo (UW message broker) | substrate/proximo | `proximo2kafka` |
+| Equinox (legacy CRM) | Postgres | direct in service |
+| Loans company (handset finance) | REST (async callback) | `services/handset/internal/eligibility/` |
+
+## Cross-Team Contracts
+
+External systems share typed contracts as versioned Go modules — no proto duplication:
+- `github.com/utilitywarehouse/bill-contracts/go` — Bill comment codes + constants
+- `github.com/utilitywarehouse/telecom-contracts/go` — cross-team telecom events
+- `github.com/utilitywarehouse/ordering-platform-contracts`
+- `github.com/utilitywarehouse/payments-contracts`
+- `github.com/utilitywarehouse/telecom-equipment` — equipment/fulfilment API
+
+## Key Shared Library: `pkg/libdry`
+
+| Package | Purpose |
+|---|---|
+| `tbootstrap` | Service lifecycle — `InitBootstrapGroup()` first, then `StartBootstrapGroup()` |
+| `tlog` | Structured logging (wraps slog). Fluent: `tlog.WithError(err).WithAttribute("k","v").Info(ctx, "msg")` |
+| `tpubsub` | Kafka — Protostrate (new) and Substrate (old) |
+| `tgrpc` | gRPC client + server setup, Swagger REST gateway |
+| `tmongo` / `tmongobulk` | MongoDB connection + batch writes |
+| `tiam` | Machine auth tokens for IAM-protected gRPC calls |
+| `ttracing` | OpenTelemetry, auto-injected into gRPC + Kafka |
+| `tvars` | Standard env vars (namespace, environment) |
+
+## Service Structure Pattern
+
+Most services support two modes in one binary:
+- **API mode** — gRPC server, handles business logic, produces Kafka events
+- **Projector mode** — Kafka consumer, builds a read model in MongoDB
+
+Config is always CLI flags with env var fallback via `mow.cli`. No config files.
+
+Standard env vars most services need:
+- `OPS_ADDRESS` (`:8081`) — health/metrics HTTP
+- `GRPC_SERVER_LISTEN_ADDRESS` (`:8090`)
+- `SWAGGER_LISTEN_ADDRESS` (`:8080`)
+- `MONGO_URL`, `MONGO_DB`
+- `KAFKA_BROKERS`, `KAFKA_VERSION`
+
+## Testing
+
+- **Ginkgo + Gomega** — BDD framework, `*_suite_test.go` registers suites
+- **mockgen** — mocks generated via `//go:generate` comments on interfaces
+- **TestContainers** — real MongoDB/Postgres spun up for integration tests
+
+## Common Make Targets
+
+| Command | Description |
+|---|---|
+| `make build-all-binaries` | Build all Go binaries (use to verify env) |
+| `make build-changed-binaries` | Build only changed binaries (vs origin/master) |
+| `make test` | Test only changed packages |
+| `make test-all` | Test all packages |
+| `make lint` | Run golangci-lint |
+| `make fmt` | Run all formatters (gofumpt, sh-fmt, proto-fmt) |
+| `make check` | fmt + lint + test-all (CI equivalent) |
+| `make buf-gen` | Generate Go code and Swagger from .proto files |
+| `make clients` | Generate REST clients from OpenAPI specs |
+| `make generate` | Run `go generate ./...` |
+| `make docker-up` | Start local dev stack (Kafka, Mongo, etc.) |
+| `make docker-down` | Stop local dev stack |
+
+## Local Dev Stack (docker-compose)
+
+`make docker-up` starts: Kafka (`localhost:9092`), Zookeeper (2181), Kafka UI/Kafdrop (`localhost:9000`), MongoDB (`localhost:27017`).
+
+## Commit Message Format
+
+```
+[<tag>] <Subject> (max 72 chars)
+```
+Tags: `feat`, `fix`, `refactor`, `style`, `doc`, `test`, `version`, `dbg`, `hack`, `WIP`, `defaults`
+Run `make install-git-message` to get the template.
+
+## Deploy Flow
+
+1. Merge PR to master → CircleCI builds changed images
+2. CircleCI patches image tag in `telecom-mobile-manifests` dev-merit overlay
+3. ArgoCD auto-deploys to dev
+4. Production is **manual** — update `prod-aws` overlay in `telecom-mobile-manifests`
+
+**DO NOT push directly to master.**
+
+## Protocol Buffers
+
+- `.proto` files in `protos/`
+- Convention: service `foo-bar` → package `foo_bar`, go_package `.../pkg/foo_bar`
+- `make buf-gen` → Go stubs into `pkg/`, Swagger into `docs/swagger/`
+- Generated consumer/producer boilerplate via `protoc-gen-protostrate`

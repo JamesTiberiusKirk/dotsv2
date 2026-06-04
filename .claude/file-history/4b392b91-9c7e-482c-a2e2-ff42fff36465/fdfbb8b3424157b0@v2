@@ -1,0 +1,1373 @@
+package service_test
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/terrors"
+	"github.com/utilitywarehouse/telecom-mobile/services/account-gateway/pkg/protos/generated/v1/apis/accountgateway"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/service"
+	mockService "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/service/mocks"
+	"github.com/utilitywarehouse/telecom-mobile/services/my-services-api/pkg/protos/generated/v1/apis/myservicesapi"
+)
+
+var (
+	testHandsetID        = "11111111-1111-1111-1111-111111111111"
+	testMissingHandsetID = "33333333-3333-3333-3333-333333333333"
+	testContractID       = "22222222-2222-2222-2222-222222222222"
+)
+
+// helper to build a GetServices response with a single LIVE mobile service
+func liveServiceResponse(serviceID string) *myservicesapi.Services {
+	return &myservicesapi.Services{
+		Services: []*myservicesapi.MobileService{
+			{
+				MobileService: &serviceevents.MobileService{
+					ServiceId: serviceID,
+					State:     serviceevents.MobileService_LIVE,
+				},
+			},
+		},
+	}
+}
+
+// helper to create a 1-hour time.Duration
+func oneHourDuration() time.Duration {
+	d, _ := time.ParseDuration("1h")
+	return d
+}
+
+var _ = Describe("GetAvailableHandsets", func() {
+	var (
+		ctrl      *gomock.Controller
+		mockStore *mockService.MockStorage
+		svc       *service.Service
+		ctx       context.Context
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("service_id is empty", func() {
+		It("returns a bad request error", func() {
+			_, err := svc.GetAvailableHandsets(ctx, "", "", false)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("an active contract already exists", func() {
+		It("returns nil (empty list)", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(&models.Contract{}, nil)
+
+			handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1", false)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(handsets).To(BeNil())
+		})
+	})
+
+	When("checking active contract fails with unexpected error", func() {
+		It("returns the error", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, errors.New("db error"))
+
+			_, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1", false)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("db error"))
+		})
+	})
+
+	When("no active contract but declined contract exists", func() {
+		It("returns no handsets", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(true, nil)
+
+			handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1", false)
+			Expect(err).To(HaveOccurred())
+			Expect(handsets).To(BeNil())
+		})
+	})
+
+	When("no active contract or declined contract exists", func() {
+		It("returns available handsets", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsets(gomock.Any(), true).
+				Return([]models.Handset{
+					{
+						ID:     testHandsetID,
+						Active: true,
+						CurrentProperties: models.HandsetProperties{
+							Name:               "iPhone 15",
+							RentalPricePence:   4200,
+							RRPPence:           99900,
+							ContractTermMonths: 24,
+						},
+					},
+				}, nil)
+
+			handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1", false)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(handsets).To(HaveLen(1))
+			Expect(handsets[0].ID).To(Equal(testHandsetID))
+			Expect(handsets[0].CurrentProperties.Name).To(Equal("iPhone 15"))
+		})
+
+		It("includes out-of-stock handsets when includeOutOfStock is true", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsets(gomock.Any(), false).
+				Return([]models.Handset{
+					{
+						ID:     testHandsetID,
+						Active: true,
+						CurrentProperties: models.HandsetProperties{
+							Name:             "iPhone 15",
+							RentalPricePence: 4200,
+						},
+					},
+				}, nil)
+
+			handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1", true)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(handsets).To(HaveLen(1))
+		})
+	})
+})
+
+var _ = Describe("GetActiveContractForService", func() {
+	var (
+		ctrl      *gomock.Controller
+		mockStore *mockService.MockStorage
+		svc       *service.Service
+		ctx       context.Context
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("service_id is empty", func() {
+		It("returns a bad request error", func() {
+			_, err := svc.GetActiveContractForService(ctx, "")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("no active contract exists", func() {
+		It("returns a not found error", func() {
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			_, err := svc.GetActiveContractForService(ctx, "service-1")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrNotFound)).To(BeTrue())
+		})
+	})
+
+	When("an active contract exists", func() {
+		It("returns the contract", func() {
+			now := time.Now()
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(&models.Contract{
+					ID:         testContractID,
+					ServiceID:  "service-1",
+					CustomerID: "customer-1",
+					HandsetID:  "1",
+					Status:     models.ContractStatusApproved,
+					CreatedAt:  now,
+				}, nil)
+
+			contract, err := svc.GetActiveContractForService(ctx, "service-1")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(contract.ID).To(Equal(testContractID))
+			Expect(contract.Status).To(Equal(models.ContractStatusApproved))
+		})
+	})
+})
+
+var _ = Describe("RequestHandsetForService", func() {
+	var (
+		ctrl           *gomock.Controller
+		mockStore      *mockService.MockStorage
+		mockEvents     *mockService.MockEventProducer
+		mockAccount    *mockService.MockAccountClient
+		mockMyServices *mockService.MockMyServicesClient
+		svc            *service.Service
+		ctx            context.Context
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		mockEvents = mockService.NewMockEventProducer(ctrl)
+		mockAccount = mockService.NewMockAccountClient(ctrl)
+		mockMyServices = mockService.NewMockMyServicesClient(ctrl)
+		svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("required fields are missing", func() {
+		It("returns a bad request error", func() {
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("GetServices fails", func() {
+		It("returns an error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("my-services unavailable"))
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("my-services"))
+		})
+	})
+
+	When("service is not found for customer", func() {
+		It("returns a not found error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(&myservicesapi.Services{
+					Services: []*myservicesapi.MobileService{
+						{
+							MobileService: &serviceevents.MobileService{
+								ServiceId: "other-service",
+								State:     serviceevents.MobileService_LIVE,
+							},
+						},
+					},
+				}, nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrNotFound)).To(BeTrue())
+		})
+	})
+
+	When("service is found but not LIVE", func() {
+		It("returns a failed validation error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(&myservicesapi.Services{
+					Services: []*myservicesapi.MobileService{
+						{
+							MobileService: &serviceevents.MobileService{
+								ServiceId: "service-1",
+								State:     serviceevents.MobileService_PENDING,
+							},
+						},
+					},
+				}, nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
+		})
+	})
+
+	When("an active contract already exists", func() {
+		It("returns a failed validation error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(&models.Contract{}, nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
+		})
+	})
+
+	When("a declined contract exists within the backoff period", func() {
+		It("returns a failed validation error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(true, nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
+		})
+	})
+
+	When("the handset is not found", func() {
+		It("returns a not found error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testMissingHandsetID).
+				Return(nil, terrors.ErrNotFound)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testMissingHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrNotFound)).To(BeTrue())
+		})
+	})
+
+	When("IncrementHandsetOrdersPlaced fails with an infrastructure error", func() {
+		It("returns the error without treating it as out-of-stock", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(errors.New("connection timeout"))
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeFalse())
+			Expect(err.Error()).To(ContainSubstring("failed to reserve handset stock"))
+		})
+	})
+
+	When("IncrementHandsetOrdersPlaced fails (concurrent out-of-stock race)", func() {
+		It("returns an out-of-stock error without decrementing", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(terrors.ErrNotFound)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
+		})
+	})
+
+	When("account-gateway returns an error", func() {
+		It("releases the reserved stock slot and returns an error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("account-gateway unavailable"))
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("account"))
+		})
+	})
+
+	When("account-gateway returns nil account", func() {
+		It("releases the reserved stock slot and returns an error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), gomock.Any()).
+				Return(&accountgateway.GetAccountResponse{Account: nil}, nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing account data"))
+		})
+	})
+
+	When("all validations pass and account-gateway returns customer details", func() {
+		It("creates a contract, produces event, and returns request ID with redirect URL", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						Name:               "iPhone 15",
+						Manufacturer:       "Apple",
+						Model:              "iPhone 15",
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			dob := time.Date(1990, 3, 15, 0, 0, 0, 0, time.UTC)
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), &accountgateway.GetAccountRequest{AccountId: "customer-1"}).
+				Return(&accountgateway.GetAccountResponse{
+					Account: &accountgateway.Account{
+						ContactDetails: &accountgateway.Account_ContactDetails{
+							Salutation: "Mr John Smith",
+							Email:      "john@example.com",
+							Mobile:     "07700900000",
+						},
+						CustomerDetails: &accountgateway.Account_CustomerDetails{
+							DateOfBirth: timestamppb.New(dob),
+						},
+						CorrespondenceAddress: &accountgateway.Account_Address{
+							FormattedLines: []string{"1 High Street", "London", "SW1A 1AA"},
+						},
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				CreateContract(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, c models.Contract) error {
+					Expect(c.ServiceID).To(Equal("service-1"))
+					Expect(c.CustomerID).To(Equal("customer-1"))
+					Expect(c.HandsetID).To(Equal(testHandsetID))
+					Expect(c.ContractPricePence).To(Equal("4200"))
+					Expect(c.RetailPricePence).To(Equal("99900"))
+					Expect(c.ContractMonths).To(Equal("24"))
+					Expect(c.Status).To(Equal(models.ContractStatusPendingEligibility))
+					return nil
+				})
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractRequestedSync(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			requestID, redirectURL, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(requestID).ToNot(BeEmpty())
+			Expect(redirectURL).To(ContainSubstring("https://eligibility.example.com/check"))
+			Expect(redirectURL).To(ContainSubstring("request_id=" + requestID))
+		})
+	})
+
+	When("the eligibility provider URL already has query parameters", func() {
+		It("adds request_id without breaking the existing query string", func() {
+			svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check?source=handset", oneHourDuration())
+
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), gomock.Any()).
+				Return(&accountgateway.GetAccountResponse{Account: &accountgateway.Account{}}, nil)
+
+			mockStore.EXPECT().
+				CreateContract(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractRequestedSync(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			requestID, redirectURL, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(redirectURL).To(Equal("https://eligibility.example.com/check?request_id=" + requestID + "&source=handset"))
+		})
+	})
+
+	When("all validations pass with minimal account data", func() {
+		It("creates a contract, produces event, and returns redirect URL", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-1"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-1").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), gomock.Any()).
+				Return(&accountgateway.GetAccountResponse{Account: &accountgateway.Account{}}, nil)
+
+			mockStore.EXPECT().
+				CreateContract(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractRequestedSync(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			requestID, redirectURL, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(requestID).ToNot(BeEmpty())
+			Expect(redirectURL).To(ContainSubstring(requestID))
+		})
+	})
+
+	When("CreateContract fails", func() {
+		It("releases the reserved stock slot and returns an error", func() {
+			mockMyServices.EXPECT().
+				GetServices(gomock.Any(), gomock.Any()).
+				Return(liveServiceResponse("service-2"), nil)
+
+			mockStore.EXPECT().
+				GetActiveContractForService(gomock.Any(), "service-2").
+				Return(nil, terrors.ErrNotFound)
+
+			mockStore.EXPECT().
+				CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
+				Return(false, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:        testHandsetID,
+					Active:    true,
+					StockBase: 1,
+					CurrentProperties: models.HandsetProperties{
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			mockStore.EXPECT().
+				IncrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			mockAccount.EXPECT().
+				GetAccount(gomock.Any(), gomock.Any()).
+				Return(&accountgateway.GetAccountResponse{Account: &accountgateway.Account{}}, nil)
+
+			mockStore.EXPECT().
+				CreateContract(gomock.Any(), gomock.Any()).
+				Return(errors.New("insert failed"))
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), testHandsetID).
+				Return(nil)
+
+			_, _, err := svc.RequestHandsetForService(ctx, "service-2", "customer-1", testHandsetID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("insert failed"))
+		})
+	})
+})
+
+var _ = Describe("GetRequest", func() {
+	var (
+		ctrl      *gomock.Controller
+		mockStore *mockService.MockStorage
+		svc       *service.Service
+		ctx       context.Context
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("request_id is empty", func() {
+		It("returns a bad request error", func() {
+			_, _, err := svc.GetRequest(ctx, "")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("contract is not found", func() {
+		It("returns a not found error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-missing").
+				Return(nil, terrors.ErrNotFound)
+
+			_, _, err := svc.GetRequest(ctx, "request-missing")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrNotFound)).To(BeTrue())
+		})
+	})
+
+	When("storage returns an unexpected error", func() {
+		It("returns the error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(nil, errors.New("db error"))
+
+			_, _, err := svc.GetRequest(ctx, "request-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("db error"))
+		})
+	})
+
+	When("contract exists but handset lookup fails", func() {
+		It("returns an error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					ID:        testContractID,
+					HandsetID: testHandsetID,
+					RequestID: "request-1",
+				}, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(nil, errors.New("handset not found"))
+
+			_, _, err := svc.GetRequest(ctx, "request-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to get handset"))
+		})
+	})
+
+	When("contract and handset both exist", func() {
+		It("returns the contract and handset", func() {
+			now := time.Now()
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					ID:         testContractID,
+					ServiceID:  "service-1",
+					CustomerID: "customer-1",
+					HandsetID:  testHandsetID,
+					RequestID:  "request-1",
+					Status:     models.ContractStatusPendingEligibility,
+					CreatedAt:  now,
+				}, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:     testHandsetID,
+					Active: true,
+					CurrentProperties: models.HandsetProperties{
+						Name:               "iPhone 15",
+						RentalPricePence:   4200,
+						RRPPence:           99900,
+						ContractTermMonths: 24,
+					},
+				}, nil)
+
+			contract, h, err := svc.GetRequest(ctx, "request-1")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(contract.ID).To(Equal(testContractID))
+			Expect(contract.RequestID).To(Equal("request-1"))
+			Expect(contract.CustomerID).To(Equal("customer-1"))
+			Expect(contract.ServiceID).To(Equal("service-1"))
+			Expect(contract.Status).To(Equal(models.ContractStatusPendingEligibility))
+			Expect(h.ID).To(Equal(testHandsetID))
+			Expect(h.CurrentProperties.Name).To(Equal("iPhone 15"))
+			Expect(h.CurrentProperties.RentalPricePence).To(Equal(4200))
+		})
+	})
+
+	When("contract and catalogue handset details are incomplete", func() {
+		It("returns a failed validation error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					ID:        testContractID,
+					HandsetID: testHandsetID,
+					RequestID: "request-1",
+				}, nil)
+
+			mockStore.EXPECT().
+				GetHandsetByID(gomock.Any(), testHandsetID).
+				Return(&models.Handset{
+					ID:     testHandsetID,
+					Active: true,
+					CurrentProperties: models.HandsetProperties{
+						Name:             "iPhone 15",
+						RentalPricePence: 4200,
+						// Missing RRPPence and ContractTermMonths
+					},
+				}, nil)
+
+			_, _, err := svc.GetRequest(ctx, "request-1")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
+		})
+	})
+
+	When("contract already has handset details", func() {
+		It("returns the contract handset details without loading the current catalogue record", func() {
+			now := time.Now()
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					ID:                 testContractID,
+					ServiceID:          "service-1",
+					CustomerID:         "customer-1",
+					HandsetID:          testHandsetID,
+					HandsetName:        "Agreed iPhone 15",
+					ContractPricePence: "4000",
+					RetailPricePence:   "95000",
+					ContractMonths:     "24",
+					RequestID:          "request-1",
+					Status:             models.ContractStatusEligibilityApproved,
+					CreatedAt:          now,
+				}, nil)
+
+			contract, h, err := svc.GetRequest(ctx, "request-1")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(contract.ID).To(Equal(testContractID))
+			Expect(contract.HandsetName).To(Equal("Agreed iPhone 15"))
+			Expect(contract.ContractPricePence).To(Equal("4000"))
+			Expect(contract.RetailPricePence).To(Equal("95000"))
+			Expect(contract.ContractMonths).To(Equal("24"))
+			Expect(h).To(BeNil())
+		})
+	})
+})
+
+var _ = Describe("EligibilityCallbackSuccess", func() {
+	var (
+		ctrl       *gomock.Controller
+		mockStore  *mockService.MockStorage
+		mockEvents *mockService.MockEventProducer
+		svc        *service.Service
+		ctx        context.Context
+	)
+
+	pendingContract := func() *models.Contract {
+		return &models.Contract{
+			ID:                 testContractID,
+			ServiceID:          "service-1",
+			CustomerID:         "customer-1",
+			HandsetID:          testHandsetID,
+			HandsetName:        "iPhone 15",
+			ContractPricePence: "4200",
+			RetailPricePence:   "99900",
+			ContractMonths:     "24",
+			RequestID:          "request-1",
+			Status:             models.ContractStatusPendingEligibility,
+		}
+	}
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		mockEvents = mockService.NewMockEventProducer(ctrl)
+		svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("request_id is missing", func() {
+		It("returns a bad request error", func() {
+			err := svc.EligibilityCallbackSuccess(ctx, "", models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"})
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("the contract is not found", func() {
+		It("returns a not found error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-missing").
+				Return(nil, terrors.ErrNotFound)
+
+			err := svc.EligibilityCallbackSuccess(ctx, "request-missing", models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"})
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	When("the contract is already past pending (idempotency)", func() {
+		It("returns nil without updating", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					RequestID: "request-1",
+					Status:    models.ContractStatusApproved,
+				}, nil)
+
+			err := svc.EligibilityCallbackSuccess(ctx, "request-1", models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"})
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("decision is approved", func() {
+		It("updates the contract status and produces an approved event", func() {
+			outcome := models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityApproved(gomock.Any(), "request-1", outcome).
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractApprovedSync(gomock.Any(), &serviceevents.MobileHandsetContractApproved{
+					ServiceId:      "service-1",
+					CustomerId:     "customer-1",
+					ContractId:     testContractID,
+					HandsetId:      testHandsetID,
+					HandsetName:    "iPhone 15",
+					ContractPrice:  &serviceevents.Money{Amount: "42.00", Currency: "GBP"},
+					RetailPrice:    &serviceevents.Money{Amount: "999.00", Currency: "GBP"},
+					ContractMonths: "24",
+				}).
+				Return(nil)
+
+			err := svc.EligibilityCallbackSuccess(ctx, "request-1", outcome)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("updating status fails", func() {
+		It("returns the error", func() {
+			outcome := models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityApproved(gomock.Any(), "request-1", outcome).
+				Return(errors.New("update failed"))
+
+			err := svc.EligibilityCallbackSuccess(ctx, "request-1", outcome)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("update failed"))
+		})
+	})
+
+	When("producing the approved event fails", func() {
+		It("still returns nil (event error is logged)", func() {
+			outcome := models.EligibilityOutcome{Decision: "APPROVED_AUTOMATED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityApproved(gomock.Any(), "request-1", outcome).
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractApprovedSync(gomock.Any(), gomock.Any()).
+				Return(errors.New("kafka unavailable"))
+
+			err := svc.EligibilityCallbackSuccess(ctx, "request-1", outcome)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+})
+
+var _ = Describe("EligibilityCallbackFailure", func() {
+	var (
+		ctrl       *gomock.Controller
+		mockStore  *mockService.MockStorage
+		mockEvents *mockService.MockEventProducer
+		svc        *service.Service
+		ctx        context.Context
+	)
+
+	pendingContract := func() *models.Contract {
+		return &models.Contract{
+			ID:         testContractID,
+			ServiceID:  "service-1",
+			CustomerID: "customer-1",
+			HandsetID:  "1",
+			RequestID:  "request-1",
+			Status:     models.ContractStatusPendingEligibility,
+		}
+	}
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		mockEvents = mockService.NewMockEventProducer(ctrl)
+		svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("request_id is missing", func() {
+		It("returns a bad request error", func() {
+			err := svc.EligibilityCallbackFailure(ctx, "", models.EligibilityFailureOutcome{})
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("the contract is not found", func() {
+		It("returns an error", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-missing").
+				Return(nil, terrors.ErrNotFound)
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-missing", models.EligibilityFailureOutcome{})
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	When("the contract is already declined (idempotency)", func() {
+		It("returns nil without updating", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					RequestID: "request-1",
+					Status:    models.ContractStatusDeclined,
+				}, nil)
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-1", models.EligibilityFailureOutcome{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("the contract is pending eligibility", func() {
+		It("updates the contract to DECLINED, releases stock, and produces a declined event", func() {
+			outcome := models.EligibilityFailureOutcome{
+				FailureReason: "KYC_FAILED",
+				FailureStage:  "KYC",
+			}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityFailed(gomock.Any(), "request-1", outcome).
+				Return(nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), "1").
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractDeclinedSync(gomock.Any(), &serviceevents.MobileHandsetContractDeclined{
+					ServiceId:  "service-1",
+					CustomerId: "customer-1",
+					ContractId: testContractID,
+					HandsetId:  "1",
+				}).
+				Return(nil)
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-1", outcome)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("updating status fails", func() {
+		It("returns the error", func() {
+			outcome := models.EligibilityFailureOutcome{FailureReason: "KYC_FAILED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityFailed(gomock.Any(), "request-1", outcome).
+				Return(errors.New("update failed"))
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-1", outcome)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("update failed"))
+		})
+	})
+
+	When("DecrementHandsetOrdersPlaced fails", func() {
+		It("still returns nil (error is logged)", func() {
+			outcome := models.EligibilityFailureOutcome{FailureReason: "KYC_FAILED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityFailed(gomock.Any(), "request-1", outcome).
+				Return(nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), "1").
+				Return(errors.New("db error"))
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractDeclinedSync(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-1", outcome)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("producing the declined event fails", func() {
+		It("still returns nil (event error is logged)", func() {
+			outcome := models.EligibilityFailureOutcome{FailureReason: "KYC_FAILED"}
+
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractEligibilityFailed(gomock.Any(), "request-1", outcome).
+				Return(nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), "1").
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractDeclinedSync(gomock.Any(), gomock.Any()).
+				Return(errors.New("kafka unavailable"))
+
+			err := svc.EligibilityCallbackFailure(ctx, "request-1", outcome)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+})
+
+var _ = Describe("EligibilityStatusUpdate", func() {
+	var (
+		ctrl       *gomock.Controller
+		mockStore  *mockService.MockStorage
+		mockEvents *mockService.MockEventProducer
+		svc        *service.Service
+		ctx        context.Context
+	)
+
+	pendingContract := func() *models.Contract {
+		return &models.Contract{
+			ID:         testContractID,
+			ServiceID:  "service-1",
+			CustomerID: "customer-1",
+			HandsetID:  "1",
+			RequestID:  "request-1",
+			Status:     models.ContractStatusPendingEligibility,
+		}
+	}
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		mockStore = mockService.NewMockStorage(ctrl)
+		mockEvents = mockService.NewMockEventProducer(ctrl)
+		svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+		ctx = context.Background()
+	})
+
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	When("request_id is missing", func() {
+		It("returns a bad request error", func() {
+			err := svc.EligibilityStatusUpdate(ctx, "", "DECLINED")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+		})
+	})
+
+	When("status is an informational update (e.g. COOLING_PERIOD_STARTED)", func() {
+		It("returns nil without touching storage", func() {
+			err := svc.EligibilityStatusUpdate(ctx, "request-1", "COOLING_PERIOD_STARTED")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("status is UNDERWRITER_PIPELINE", func() {
+		It("returns nil without touching storage", func() {
+			err := svc.EligibilityStatusUpdate(ctx, "request-1", "UNDERWRITER_PIPELINE")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("status is DECLINED", func() {
+		It("updates the contract to DECLINED, releases stock, and produces a declined event", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractStatus(gomock.Any(), "request-1", models.ContractStatusDeclined).
+				Return(nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), "1").
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractDeclinedSync(gomock.Any(), &serviceevents.MobileHandsetContractDeclined{
+					ServiceId:  "service-1",
+					CustomerId: "customer-1",
+					ContractId: testContractID,
+					HandsetId:  "1",
+				}).
+				Return(nil)
+
+			err := svc.EligibilityStatusUpdate(ctx, "request-1", "DECLINED")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("status is WITHDRAWN", func() {
+		It("updates the contract to DECLINED, releases stock, and produces a declined event", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(pendingContract(), nil)
+
+			mockStore.EXPECT().
+				UpdateContractStatus(gomock.Any(), "request-1", models.ContractStatusDeclined).
+				Return(nil)
+
+			mockStore.EXPECT().
+				DecrementHandsetOrdersPlaced(gomock.Any(), "1").
+				Return(nil)
+
+			mockEvents.EXPECT().
+				ProduceMobileHandsetContractDeclinedSync(gomock.Any(), gomock.Any()).
+				Return(nil)
+
+			err := svc.EligibilityStatusUpdate(ctx, "request-1", "WITHDRAWN")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("the contract is already declined (idempotency)", func() {
+		It("returns nil without updating", func() {
+			mockStore.EXPECT().
+				GetContractByRequestID(gomock.Any(), "request-1").
+				Return(&models.Contract{
+					RequestID: "request-1",
+					Status:    models.ContractStatusDeclined,
+				}, nil)
+
+			err := svc.EligibilityStatusUpdate(ctx, "request-1", "DECLINED")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+})

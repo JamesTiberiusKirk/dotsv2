@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave is done'"
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:] | join(\"/\")'); if [ \"$(uname -s)\" = \"Darwin\" ]; then osascript -e \"display notification \\\"Slave is done\\\" with title \\\"Claude Code ($dir)\\\"\"; else p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave is done'; fi"
           }
         ]
       }
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave has a question for you'"
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:] | join(\"/\")'); if [ \"$(uname -s)\" = \"Darwin\" ]; then osascript -e \"display notification \\\"Slave has a question for you\\\" with title \\\"Claude Code ($dir)\\\"\"; else p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave has a question for you'; fi"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:]  | join(\"/\")'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave needs your permission'"
+            "command": "dir=$(cat | jq -r '.cwd | split(\"/\") | .[-2:] | join(\"/\")'); if [ \"$(uname -s)\" = \"Darwin\" ]; then osascript -e \"display notification \\\"Slave needs your permission\\\" with title \\\"Claude Code ($dir)\\\"\"; else p=$(pgrep -x dunst | head -1); [ -n \"$p\" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr '\\0' '\\n' </proc/$p/environ | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'); notify-send -u normal -i dialog-information \"Claude Code ($dir)\" 'Slave needs your permission'; fi"
           }
         ]
       }

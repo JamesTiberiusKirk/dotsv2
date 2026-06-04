@@ -78,6 +78,25 @@ workspaces:
         path: ~/Documents/notes/
         prefix: notes
         session_preset: notes
+    uw:
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        is_org: true
+        name: Utility Warehouse
+        org_github: utilitywarehouse
+        path: ~/uw
+        prefix: uw
+        recent_access_window: 50
+        session_preset: default
+        projects:
+            - name: telecom-mobile
+              sister_repos:
+                - name: telecom-mobile-manifests
+                  label: manifests
     ws:
         show_archived_repos: false
         active_projects_first: true

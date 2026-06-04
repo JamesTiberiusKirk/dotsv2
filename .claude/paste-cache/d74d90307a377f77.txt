@@ -1,0 +1,713 @@
+diff --git a/protos/mobile/v1/apis/handset.proto b/protos/mobile/v1/apis/handset.proto
+index 90566f6ae..a2abf8804 100644
+--- a/protos/mobile/v1/apis/handset.proto
++++ b/protos/mobile/v1/apis/handset.proto
+@@ -102,6 +102,7 @@ message GetActiveContractForServiceResponse {
+ 
+ message GetAvailableHandsetsRequest {
+   string service_id = 1;
++  string customer_id = 2;
+ }
+ 
+ message GetAvailableHandsetsResponse {
+@@ -220,4 +221,4 @@ message ContractProduct {
+   int32 monthlyRepayment = 5;
+   int32 interestTotal = 6;
+   int32 totalFinance = 7;
+-}
+\ No newline at end of file
++}
+diff --git a/services/handset/cmd/handset/api.go b/services/handset/cmd/handset/api.go
+index b95ebb8b6..19b48c647 100644
+--- a/services/handset/cmd/handset/api.go
++++ b/services/handset/cmd/handset/api.go
+@@ -5,6 +5,7 @@ import (
+     "fmt"
+     "net/url"
+     "strings"
++    "time"
+ 
+     "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+     cli "github.com/jawher/mow.cli"
+@@ -65,6 +66,11 @@ func startApiMode(ctx context.Context, eg *errgroup.Group, app *cli.Cli, cfg *sh
+         Desc:   "Third-party eligibility provider base URL",
+         EnvVar: "ELIGIBILITY_PROVIDER_URL",
+     })
++    eligibilityBackoffDurationStr := app.String(cli.StringOpt{
++        Name:   "eligibility-backoff-duration",
++        Desc:   "Minimum duration between eligibility decline and retry allowed",
++        EnvVar: "ELIGIBILITY_BACKOFF_DURATION",
++    })
+     kafkaTopic := app.String(cli.StringOpt{
+         Name:   "kafka-topic-out",
+         Desc:   "Kafka topic to publish lifecycle events to",
+@@ -80,6 +86,11 @@ func startApiMode(ctx context.Context, eg *errgroup.Group, app *cli.Cli, cfg *sh
+         tlog.WithError(err).Fatal(ctx, "invalid api configuration")
+     }
+ 
++    eligibilityBackoffDuration, err := time.ParseDuration(*eligibilityBackoffDurationStr)
++    if err != nil {
++        tlog.WithError(err).Fatal(ctx, "invalid eligibility backoff duration")
++    }
++
+     mongoDB, err := tmongo.InitMongoDB(ctx, tmongo.MongoOpts{
+         Url:          *cfg.mongoURL,
+         DatabaseName: *cfg.mongoDBName,
+@@ -88,7 +99,7 @@ func startApiMode(ctx context.Context, eg *errgroup.Group, app *cli.Cli, cfg *sh
+         tlog.WithError(err).Fatal(ctx, "failed to initialise mongodb")
+     }
+ 
+-    db, err := storage.NewStorage(ctx, *mongoDB)
++    db, err := storage.NewStorage(ctx, *mongoDB, time.Now)
+     if err != nil {
+         tlog.WithError(err).Fatal(ctx, "failed to create mongo store")
+     }
+@@ -163,7 +174,7 @@ func startApiMode(ctx context.Context, eg *errgroup.Group, app *cli.Cli, cfg *sh
+     defer myServicesConn.Close()
+     myServicesClient := myservicesapi.NewServiceClient(myServicesConn)
+ 
+-    handsetService := service.NewService(db, eventProducer, accountClient, myServicesClient, *eligibilityProviderURL)
++    handsetService := service.NewService(db, eventProducer, accountClient, myServicesClient, *eligibilityProviderURL, eligibilityBackoffDuration)
+     handsetAPI := grpchandler.NewController(handsetService, *callbackSecret)
+ 
+     swaggerAPI, err := tgrpc.InitSwaggerAPIWithMuxes(ctx, tgrpc.EmbedSwagger{Static: swagger.Static}, handset.RegisterHandsetAPIHandlerFromEndpoint, maxMessageSize, swaggerListenAddress, grpcListenAddress,
+diff --git a/services/handset/cmd/handset/consumer.go b/services/handset/cmd/handset/consumer.go
+index a869fc0ff..60521deab 100644
+--- a/services/handset/cmd/handset/consumer.go
++++ b/services/handset/cmd/handset/consumer.go
+@@ -79,7 +79,7 @@ func startConsumerMode(ctx context.Context, eg *errgroup.Group, app *cli.Cli, cf
+     if err != nil {
+         tlog.WithError(err).Fatal(ctx, "failed to initialise mongodb")
+     }
+-    db, err := storage.NewStorage(ctx, *mongoDB)
++    db, err := storage.NewStorage(ctx, *mongoDB, time.Now)
+     if err != nil {
+         tlog.WithError(err).Fatal(ctx, "failed to create mongo store")
+     }
+diff --git a/services/handset/internal/grpc/controller.go b/services/handset/internal/grpc/controller.go
+index bfdc26728..7922406e4 100644
+--- a/services/handset/internal/grpc/controller.go
++++ b/services/handset/internal/grpc/controller.go
+@@ -46,7 +46,7 @@ const callbackSecretHeaderKey = "x-callback-secret" // nolint: gosec
+ 
+ type Service interface {
+     GetActiveContractForService(ctx context.Context, serviceID string) (*models.Contract, error)
+-    GetAvailableHandsets(ctx context.Context, serviceID string) ([]models.Handset, error)
++    GetAvailableHandsets(ctx context.Context, customerID, serviceID string) ([]models.Handset, error)
+     RequestHandsetForService(ctx context.Context, serviceID, customerID, handsetID string) (string, string, error)
+     EligibilityCallbackSuccess(ctx context.Context, requestID string, outcome models.EligibilityOutcome) error
+     EligibilityCallbackFailure(ctx context.Context, requestID string, outcome models.EligibilityFailureOutcome) error
+@@ -78,7 +78,7 @@ func (c *Controller) GetAvailableHandsets(ctx context.Context, request *handset.
+         recordRequestMetric("GetAvailableHandsets", err)
+     }()
+ 
+-    handsets, err := c.service.GetAvailableHandsets(ctx, request.GetServiceId())
++    handsets, err := c.service.GetAvailableHandsets(ctx, request.GetCustomerId(), request.GetServiceId())
+     if err != nil {
+         return nil, toGRPCError(ctx, "GetAvailableHandsets", err)
+     }
+diff --git a/services/handset/internal/service/mocks/service.go b/services/handset/internal/service/mocks/service.go
+index 09af1859a..517613b1b 100644
+--- a/services/handset/internal/service/mocks/service.go
++++ b/services/handset/internal/service/mocks/service.go
+@@ -12,6 +12,7 @@ package mock_service
+ import (
+     context "context"
+     reflect "reflect"
++    time "time"
+ 
+     uuid "github.com/google/uuid"
+     serviceevents "github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+@@ -60,6 +61,21 @@ func (mr *MockStorageMockRecorder) CreateContract(ctx, contract any) *gomock.Cal
+     return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockStorage)(nil).CreateContract), ctx, contract)
+ }
+ 
++// CustomerHasDeclinedContract mocks base method.
++func (m *MockStorage) CustomerHasDeclinedContract(ctx context.Context, customerID string, since time.Duration) (bool, error) {
++    m.ctrl.T.Helper()
++    ret := m.ctrl.Call(m, "CustomerHasDeclinedContract", ctx, customerID, since)
++    ret0, _ := ret[0].(bool)
++    ret1, _ := ret[1].(error)
++    return ret0, ret1
++}
++
++// CustomerHasDeclinedContract indicates an expected call of CustomerHasDeclinedContract.
++func (mr *MockStorageMockRecorder) CustomerHasDeclinedContract(ctx, customerID, since any) *gomock.Call {
++    mr.mock.ctrl.T.Helper()
++    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomerHasDeclinedContract", reflect.TypeOf((*MockStorage)(nil).CustomerHasDeclinedContract), ctx, customerID, since)
++}
++
+ // GetActiveContractForService mocks base method.
+ func (m *MockStorage) GetActiveContractForService(ctx context.Context, serviceID string) (*models.Contract, error) {
+     m.ctrl.T.Helper()
+diff --git a/services/handset/internal/service/service.go b/services/handset/internal/service/service.go
+index 54a186ce1..c65118e20 100644
+--- a/services/handset/internal/service/service.go
++++ b/services/handset/internal/service/service.go
+@@ -36,6 +36,7 @@ type Storage interface {
+     UpdateContractEligibilityFailed(ctx context.Context, requestID string, outcome models.EligibilityFailureOutcome) error
+     UpdateContractLoanReference(ctx context.Context, requestID string, loanReference string) error
+     UpdateContractBankDetails(ctx context.Context, requestID string, bankAccountNumber string, bankTitle string) error
++    CustomerHasDeclinedContract(ctx context.Context, customerID string, since time.Duration) (bool, error)
+ }
+ 
+ type EventProducer interface {
+@@ -58,19 +59,21 @@ type Service struct {
+     accountClient          AccountClient
+     myServicesClient       MyServicesClient
+     eligibilityProviderURL string
++    backoffPeriod          time.Duration
+ }
+ 
+-func NewService(store Storage, eventProducer EventProducer, accountClient AccountClient, myServicesClient MyServicesClient, eligibilityProviderURL string) *Service {
++func NewService(store Storage, eventProducer EventProducer, accountClient AccountClient, myServicesClient MyServicesClient, eligibilityProviderURL string, backoffPeriod time.Duration) *Service {
+     return &Service{
+         store:                  store,
+         eventProducer:          eventProducer,
+         accountClient:          accountClient,
+         myServicesClient:       myServicesClient,
+         eligibilityProviderURL: eligibilityProviderURL,
++        backoffPeriod:          backoffPeriod,
+     }
+ }
+ 
+-func (s *Service) GetAvailableHandsets(ctx context.Context, serviceID string) ([]models.Handset, error) {
++func (s *Service) GetAvailableHandsets(ctx context.Context, customerID, serviceID string) ([]models.Handset, error) {
+     if serviceID == "" {
+         return nil, fmt.Errorf("service_id is required: %w", terrors.ErrBadRequest)
+     }
+@@ -86,6 +89,11 @@ func (s *Service) GetAvailableHandsets(ctx context.Context, serviceID string) ([
+         return nil, fmt.Errorf("failed to check active contract: %w", err)
+     }
+ 
++    err = s.checkPreEligibility(ctx, customerID)
++    if err != nil {
++        return nil, fmt.Errorf("failed pre-eligibility checks: %w", err)
++    }
++
+     handsets, err := s.store.GetHandsets(ctx, true)
+     if err != nil {
+         return nil, fmt.Errorf("failed to get handsets: %w", err)
+@@ -202,6 +210,11 @@ func (s *Service) RequestHandsetForService(ctx context.Context, serviceID, custo
+         return "", "", fmt.Errorf("failed to check active contract: %w", err)
+     }
+ 
++    err = s.checkPreEligibility(ctx, customerID)
++    if err != nil {
++        return "", "", fmt.Errorf("failed pre-eligibility checks: %w", err)
++    }
++
+     // Verify handset exists and is in stock
+     h, err := s.store.GetHandsetByID(ctx, handsetUUID)
+     if err != nil {
+@@ -412,6 +425,21 @@ func (s *Service) EligibilityStatusUpdate(ctx context.Context, requestID, status
+     return nil
+ }
+ 
++// checkPreEligibility perform pre-eligibility checks
++func (s Service) checkPreEligibility(ctx context.Context, customerID string) error {
++    // Check for declined contract
++    hasDeclined, err := s.store.CustomerHasDeclinedContract(ctx, customerID, s.backoffPeriod)
++    if err != nil {
++        return fmt.Errorf("failed to check declined contract: %w", err)
++    }
++    if hasDeclined {
++        return fmt.Errorf("a declined contract exists within the backup period: %w", terrors.ErrFailedValidation)
++    }
++
++    // Customer is eligible
++    return nil
++}
++
+ // money converts a pence integer string (e.g. "4200") to a Money message with
+ // the amount expressed in pounds (e.g. "42.00"). The Money type is consumed by
+ // downstream services that treat Amount as a decimal pound value.
+diff --git a/services/handset/internal/service/service_test.go b/services/handset/internal/service/service_test.go
+index bc4f6153b..29addebf6 100644
+--- a/services/handset/internal/service/service_test.go
++++ b/services/handset/internal/service/service_test.go
+@@ -40,6 +40,12 @@ func liveServiceResponse(serviceID string) *myservicesapi.Services {
+     }
+ }
+ 
++// helper to create a 1-hour time.Duration
++func oneHourDuration() time.Duration {
++    d, _ := time.ParseDuration("1h")
++    return d
++}
++
+ var _ = Describe("GetAvailableHandsets", func() {
+     var (
+         ctrl      *gomock.Controller
+@@ -51,7 +57,7 @@ var _ = Describe("GetAvailableHandsets", func() {
+     BeforeEach(func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+-        svc = service.NewService(mockStore, nil, nil, nil, "")
++        svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -61,7 +67,7 @@ var _ = Describe("GetAvailableHandsets", func() {
+ 
+     When("service_id is empty", func() {
+         It("returns a bad request error", func() {
+-            _, err := svc.GetAvailableHandsets(ctx, "")
++            _, err := svc.GetAvailableHandsets(ctx, "", "")
+             Expect(err).To(HaveOccurred())
+             Expect(errors.Is(err, terrors.ErrBadRequest)).To(BeTrue())
+         })
+@@ -73,7 +79,7 @@ var _ = Describe("GetAvailableHandsets", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(&models.Contract{}, nil)
+ 
+-            handsets, err := svc.GetAvailableHandsets(ctx, "service-1")
++            handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1")
+             Expect(err).ToNot(HaveOccurred())
+             Expect(handsets).To(BeNil())
+         })
+@@ -85,18 +91,38 @@ var _ = Describe("GetAvailableHandsets", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, errors.New("db error"))
+ 
+-            _, err := svc.GetAvailableHandsets(ctx, "service-1")
++            _, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1")
+             Expect(err).To(HaveOccurred())
+             Expect(err.Error()).To(ContainSubstring("db error"))
+         })
+     })
+ 
+-    When("no active contract exists", func() {
++    When("no active contract but declined contract exists", func() {
++        It("returns no handsets", func() {
++            mockStore.EXPECT().
++                GetActiveContractForService(gomock.Any(), "service-1").
++                Return(nil, terrors.ErrNotFound)
++
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(true, nil)
++
++            handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1")
++            Expect(err).To(HaveOccurred())
++            Expect(handsets).To(BeNil())
++        })
++    })
++
++    When("no active contract or declined contract exists", func() {
+         It("returns available handsets", func() {
+             mockStore.EXPECT().
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsets(gomock.Any(), true).
+                 Return([]models.Handset{
+@@ -112,7 +138,7 @@ var _ = Describe("GetAvailableHandsets", func() {
+                     },
+                 }, nil)
+ 
+-            handsets, err := svc.GetAvailableHandsets(ctx, "service-1")
++            handsets, err := svc.GetAvailableHandsets(ctx, "customer-1", "service-1")
+             Expect(err).ToNot(HaveOccurred())
+             Expect(handsets).To(HaveLen(1))
+             Expect(handsets[0].ID).To(Equal(testHandsetUUID))
+@@ -132,7 +158,7 @@ var _ = Describe("GetActiveContractForService", func() {
+     BeforeEach(func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+-        svc = service.NewService(mockStore, nil, nil, nil, "")
++        svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -199,7 +225,7 @@ var _ = Describe("RequestHandsetForService", func() {
+         mockEvents = mockService.NewMockEventProducer(ctrl)
+         mockAccount = mockService.NewMockAccountClient(ctrl)
+         mockMyServices = mockService.NewMockMyServicesClient(ctrl)
+-        svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check")
++        svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -285,6 +311,26 @@ var _ = Describe("RequestHandsetForService", func() {
+         })
+     })
+ 
++    When("a declined contract exists within the backoff period", func() {
++        It("returns a failed validation error", func() {
++            mockMyServices.EXPECT().
++                GetServices(gomock.Any(), gomock.Any()).
++                Return(liveServiceResponse("service-1"), nil)
++
++            mockStore.EXPECT().
++                GetActiveContractForService(gomock.Any(), "service-1").
++                Return(nil, terrors.ErrNotFound)
++
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(true, nil)
++
++            _, _, err := svc.RequestHandsetForService(ctx, "service-1", "customer-1", testHandsetUUID.String())
++            Expect(err).To(HaveOccurred())
++            Expect(errors.Is(err, terrors.ErrFailedValidation)).To(BeTrue())
++        })
++    })
++
+     When("the handset is not found", func() {
+         It("returns a not found error", func() {
+             mockMyServices.EXPECT().
+@@ -295,6 +341,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testMissingHandsetUUID).
+                 Return(nil, terrors.ErrNotFound)
+@@ -315,6 +365,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -348,6 +402,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -381,6 +439,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -443,7 +505,7 @@ var _ = Describe("RequestHandsetForService", func() {
+ 
+     When("the eligibility provider URL already has query parameters", func() {
+         It("adds request_id without breaking the existing query string", func() {
+-            svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check?source=handset")
++            svc = service.NewService(mockStore, mockEvents, mockAccount, mockMyServices, "https://eligibility.example.com/check?source=handset", oneHourDuration())
+ 
+             mockMyServices.EXPECT().
+                 GetServices(gomock.Any(), gomock.Any()).
+@@ -453,6 +515,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -494,6 +560,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-1").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -536,6 +606,10 @@ var _ = Describe("RequestHandsetForService", func() {
+                 GetActiveContractForService(gomock.Any(), "service-2").
+                 Return(nil, terrors.ErrNotFound)
+ 
++            mockStore.EXPECT().
++                CustomerHasDeclinedContract(gomock.Any(), "customer-1", oneHourDuration()).
++                Return(false, nil)
++
+             mockStore.EXPECT().
+                 GetHandsetByID(gomock.Any(), testHandsetUUID).
+                 Return(&models.Handset{
+@@ -575,7 +649,7 @@ var _ = Describe("GetRequest", func() {
+     BeforeEach(func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+-        svc = service.NewService(mockStore, nil, nil, nil, "")
++        svc = service.NewService(mockStore, nil, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -763,7 +837,7 @@ var _ = Describe("EligibilityCallbackSuccess", func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+         mockEvents = mockService.NewMockEventProducer(ctrl)
+-        svc = service.NewService(mockStore, mockEvents, nil, nil, "")
++        svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -912,7 +986,7 @@ var _ = Describe("EligibilityCallbackFailure", func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+         mockEvents = mockService.NewMockEventProducer(ctrl)
+-        svc = service.NewService(mockStore, mockEvents, nil, nil, "")
++        svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+@@ -1046,7 +1120,7 @@ var _ = Describe("EligibilityStatusUpdate", func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockStore = mockService.NewMockStorage(ctrl)
+         mockEvents = mockService.NewMockEventProducer(ctrl)
+-        svc = service.NewService(mockStore, mockEvents, nil, nil, "")
++        svc = service.NewService(mockStore, mockEvents, nil, nil, "", oneHourDuration())
+         ctx = context.Background()
+     })
+ 
+diff --git a/services/handset/internal/storage/storage.go b/services/handset/internal/storage/storage.go
+index f7332b495..c6a92f982 100644
+--- a/services/handset/internal/storage/storage.go
++++ b/services/handset/internal/storage/storage.go
+@@ -36,13 +36,15 @@ type storage struct {
+     tmongo.Mongo
+     handsetsCollection  MongoCollection
+     contractsCollection MongoCollection
++    nowFunc             func() time.Time
+ }
+ 
+-func NewStorage(ctx context.Context, mongo tmongo.Mongo) (*storage, error) {
++func NewStorage(ctx context.Context, mongo tmongo.Mongo, nowFunc func() time.Time) (*storage, error) {
+     db := &storage{
+         Mongo:               mongo,
+         handsetsCollection:  mongo.Client.Database(mongo.Database).Collection(collectionHandsets),
+         contractsCollection: mongo.Client.Database(mongo.Database).Collection(collectionContracts),
++        nowFunc:             nowFunc,
+     }
+ 
+     err := db.ensureIndexes(ctx, mongo)
+@@ -78,6 +80,13 @@ func (s storage) ensureIndexes(ctx context.Context, mongoDb tmongo.Mongo) error
+                 Keys:    bson.M{"serviceId": 1},
+                 Options: options.Index().SetName("contract_service_id"),
+             },
++            mongo.IndexModel{
++                Keys: bson.D{
++                    {Key: "customerId", Value: 1},
++                    {Key: "status", Value: 1},
++                },
++                Options: options.Index().SetName("contract_customer_status_created"),
++            },
+         },
+     })()
+ 
+@@ -409,6 +418,24 @@ func (s storage) UpdateContractBankDetails(ctx context.Context, requestID string
+     return nil
+ }
+ 
++func (s storage) CustomerHasDeclinedContract(ctx context.Context, customerID string, since time.Duration) (bool, error) {
++    filter := bson.M{
++        "customerId": customerID,
++        "status":     models.ContractStatusDeclined,
++        "createdAt":  bson.M{"$gte": s.nowFunc().Add(-since)},
++    }
++
++    var contract models.Contract
++    err := s.contractsCollection.FindOne(ctx, filter).Decode(&contract)
++    if err != nil {
++        if errors.Is(err, mongo.ErrNoDocuments) {
++            return false, nil
++        }
++        return false, fmt.Errorf("could not check for declined contract: %w", err)
++    }
++    return true, nil
++}
++
+ // StorageWrapper is an exported type that wraps the internal storage struct,
+ // allowing tests to inject mock collections without needing a real MongoDB connection.
+ type StorageWrapper struct {
+@@ -417,11 +444,12 @@ type StorageWrapper struct {
+ 
+ // NewStorageWithCollections creates a StorageWrapper with the given collections injected.
+ // Intended for use in tests.
+-func NewStorageWithCollections(handsetsCollection, contractsCollection MongoCollection) *StorageWrapper {
++func NewStorageWithCollections(handsetsCollection, contractsCollection MongoCollection, nowFunc func() time.Time) *StorageWrapper {
+     return &StorageWrapper{
+         storage: storage{
+             handsetsCollection:  handsetsCollection,
+             contractsCollection: contractsCollection,
++            nowFunc:             nowFunc,
+         },
+     }
+ }
+diff --git a/services/handset/internal/storage/storage_test.go b/services/handset/internal/storage/storage_test.go
+index 295b80108..8d101b108 100644
+--- a/services/handset/internal/storage/storage_test.go
++++ b/services/handset/internal/storage/storage_test.go
+@@ -30,7 +30,7 @@ var _ = Describe("Contract Storage", func() {
+     BeforeEach(func() {
+         ctrl = gomock.NewController(GinkgoT())
+         mockContracts = mockStorage.NewMockMongoCollection(ctrl)
+-        store = storage.NewStorageWithCollections(mockContracts, mockContracts)
++        store = storage.NewStorageWithCollections(mockContracts, mockContracts, time.Now)
+         ctx = context.Background()
+     })
+ 
+@@ -153,6 +153,69 @@ var _ = Describe("Contract Storage", func() {
+         })
+     })
+ 
++    Describe("CustomerHasDeclinedContract", func() {
++        var (
++            testNow time.Time
++            nowFunc func() time.Time
++        )
++
++        BeforeEach(func() {
++            testNow = time.Date(2024, 1, 25, 12, 0, 0, 0, time.UTC)
++            nowFunc = func() time.Time { return testNow }
++            store = storage.NewStorageWithCollections(mockContracts, mockContracts, nowFunc)
++        })
++
++        When("a declined contract exists within the duration", func() {
++            It("returns true", func() {
++                expectedContract := models.Contract{
++                    ID:         testContractUUID,
++                    CustomerID: "customer-1",
++                    Status:     models.ContractStatusDeclined,
++                    CreatedAt:  testNow.Add(-24 * time.Hour),
++                }
++
++                singleResult := mongo.NewSingleResultFromDocument(expectedContract, nil, nil)
++
++                mockContracts.EXPECT().
++                    FindOne(gomock.Any(), gomock.Any()).
++                    Return(singleResult)
++
++                result, err := store.CustomerHasDeclinedContract(ctx, "customer-1", 48*time.Hour)
++                Expect(err).ToNot(HaveOccurred())
++                Expect(result).To(BeTrue())
++            })
++        })
++
++        When("no declined contract exists within the duration", func() {
++            It("returns false", func() {
++                singleResult := mongo.NewSingleResultFromDocument(models.Contract{}, mongo.ErrNoDocuments, nil)
++
++                mockContracts.EXPECT().
++                    FindOne(gomock.Any(), gomock.Any()).
++                    Return(singleResult)
++
++                result, err := store.CustomerHasDeclinedContract(ctx, "customer-1", 48*time.Hour)
++                Expect(err).ToNot(HaveOccurred())
++                Expect(result).To(BeFalse())
++            })
++        })
++
++        When("the query fails", func() {
++            It("returns an error", func() {
++                singleResult := mongo.NewSingleResultFromDocument(models.Contract{}, errors.New("connection error"), nil)
++
++                mockContracts.EXPECT().
++                    FindOne(gomock.Any(), gomock.Any()).
++                    Return(singleResult)
++
++                result, err := store.CustomerHasDeclinedContract(ctx, "customer-1", 48*time.Hour)
++                Expect(err).To(HaveOccurred())
++                Expect(err.Error()).To(ContainSubstring("could not check for declined contract"))
++                Expect(result).To(BeFalse())
++            })
++        })
++    })
++
+     Describe("UpdateContractStatus", func() {
+         It("updates the contract status", func() {
+             mockContracts.EXPECT().
+diff --git a/services/handset/internal/swagger/swagger.json b/services/handset/internal/swagger/swagger.json
+index 55ef577e4..c1d494f60 100644
+--- a/services/handset/internal/swagger/swagger.json
++++ b/services/handset/internal/swagger/swagger.json
+@@ -45,6 +45,12 @@
+             "in": "query",
+             "required": false,
+             "type": "string"
++          },
++          {
++            "name": "customerId",
++            "in": "query",
++            "required": false,
++            "type": "string"
+           }
+         ],
+         "tags": [
+diff --git a/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.go b/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.go
+index 0c826a602..e4f79ce8b 100644
+--- a/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.go
++++ b/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.go
+@@ -316,6 +316,7 @@ func (x *GetActiveContractForServiceResponse) GetContract() *Contract {
+ type GetAvailableHandsetsRequest struct {
+     state         protoimpl.MessageState `protogen:"open.v1"`
+     ServiceId     string                 `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
++    CustomerId    string                 `protobuf:"bytes,2,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+     unknownFields protoimpl.UnknownFields
+     sizeCache     protoimpl.SizeCache
+ }
+@@ -357,6 +358,13 @@ func (x *GetAvailableHandsetsRequest) GetServiceId() string {
+     return ""
+ }
+ 
++func (x *GetAvailableHandsetsRequest) GetCustomerId() string {
++    if x != nil {
++        return x.CustomerId
++    }
++    return ""
++}
++
+ type GetAvailableHandsetsResponse struct {
+     state         protoimpl.MessageState `protogen:"open.v1"`
+     Handsets      []*Handset             `protobuf:"bytes,1,rep,name=handsets,proto3" json:"handsets,omitempty"`
+@@ -1242,10 +1250,12 @@ const file_mobile_v1_apis_handset_proto_rawDesc = "" +
+     "\n" +
+     "service_id\x18\x01 \x01(\tR\tserviceId\"T\n" +
+     "#GetActiveContractForServiceResponse\x12-\n" +
+-    "\bcontract\x18\x01 \x01(\v2\x11.handset.ContractR\bcontract\"<\n" +
++    "\bcontract\x18\x01 \x01(\v2\x11.handset.ContractR\bcontract\"]\n" +
+     "\x1bGetAvailableHandsetsRequest\x12\x1d\n" +
+     "\n" +
+-    "service_id\x18\x01 \x01(\tR\tserviceId\"L\n" +
++    "service_id\x18\x01 \x01(\tR\tserviceId\x12\x1f\n" +
++    "\vcustomer_id\x18\x02 \x01(\tR\n" +
++    "customerId\"L\n" +
+     "\x1cGetAvailableHandsetsResponse\x12,\n" +
+     "\bhandsets\x18\x01 \x03(\v2\x10.handset.HandsetR\bhandsets\"\x80\x01\n" +
+     "\x1fRequestHandsetForServiceRequest\x12\x1d\n" +
+diff --git a/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.validate.go b/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.validate.go
+index 971e09acd..59af8a779 100644
+--- a/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.validate.go
++++ b/services/handset/pkg/protos/generated/v1/apis/handset/handset.pb.validate.go
+@@ -300,6 +300,8 @@ func (m *GetAvailableHandsetsRequest) validate(all bool) error {
+ 
+     // no validation rules for ServiceId
+ 
++    // no validation rules for CustomerId
++
+     if len(errors) > 0 {
+         return GetAvailableHandsetsRequestMultiError(errors)
+     }

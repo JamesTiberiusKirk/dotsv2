@@ -1,0 +1,440 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strconv"
+	"time"
+
+	"github.com/google/uuid"
+	"google.golang.org/grpc"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/terrors"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tlog"
+	"github.com/utilitywarehouse/telecom-mobile/services/account-gateway/pkg/protos/generated/v1/apis/accountgateway"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+	"github.com/utilitywarehouse/telecom-mobile/services/my-services-api/pkg/protos/generated/v1/apis/myservicesapi"
+)
+
+const currencyGBP = "GBP"
+
+//go:generate mockgen -destination=./mocks/$GOFILE -source=./$GOFILE
+
+type Storage interface {
+	UpsertHandsetModel(ctx context.Context, handset models.Handset) error
+	GetHandsets(ctx context.Context, isInStock bool) ([]models.Handset, error)
+	GetHandsetByID(ctx context.Context, handsetID uuid.UUID) (*models.Handset, error)
+	CreateContract(ctx context.Context, contract models.Contract) error
+	GetContractByRequestID(ctx context.Context, requestID string) (*models.Contract, error)
+	GetActiveContractForService(ctx context.Context, serviceID string) (*models.Contract, error)
+	UpdateContractStatus(ctx context.Context, requestID string, status models.ContractStatus) error
+	UpdateContractStatusByID(ctx context.Context, contractID uuid.UUID, status models.ContractStatus) error
+	UpdateContractEligibilityApproved(ctx context.Context, requestID string, outcome models.EligibilityOutcome) error
+	UpdateContractEligibilityFailed(ctx context.Context, requestID string, outcome models.EligibilityFailureOutcome) error
+	UpdateContractLoanReference(ctx context.Context, requestID string, loanReference string) error
+	UpdateContractBankDetails(ctx context.Context, requestID string, bankAccountNumber string, bankTitle string) error
+}
+
+type EventProducer interface {
+	ProduceMobileHandsetContractRequestedSync(ctx context.Context, out *serviceevents.MobileHandsetContractRequested) error
+	ProduceMobileHandsetContractApprovedSync(ctx context.Context, out *serviceevents.MobileHandsetContractApproved) error
+	ProduceMobileHandsetContractDeclinedSync(ctx context.Context, out *serviceevents.MobileHandsetContractDeclined) error
+}
+
+type AccountClient interface {
+	GetAccount(ctx context.Context, in *accountgateway.GetAccountRequest, opts ...grpc.CallOption) (*accountgateway.GetAccountResponse, error)
+}
+
+type MyServicesClient interface {
+	GetServices(ctx context.Context, in *myservicesapi.GetServicesRequest, opts ...grpc.CallOption) (*myservicesapi.Services, error)
+}
+
+type Service struct {
+	store                  Storage
+	eventProducer          EventProducer
+	accountClient          AccountClient
+	myServicesClient       MyServicesClient
+	eligibilityProviderURL string
+}
+
+func NewService(store Storage, eventProducer EventProducer, accountClient AccountClient, myServicesClient MyServicesClient, eligibilityProviderURL string) *Service {
+	return &Service{
+		store:                  store,
+		eventProducer:          eventProducer,
+		accountClient:          accountClient,
+		myServicesClient:       myServicesClient,
+		eligibilityProviderURL: eligibilityProviderURL,
+	}
+}
+
+func (s *Service) GetAvailableHandsets(ctx context.Context, serviceID string) ([]models.Handset, error) {
+	if serviceID == "" {
+		return nil, fmt.Errorf("service_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	// If the customer already has an active contract on this service, return empty list
+	_, err := s.store.GetActiveContractForService(ctx, serviceID)
+	if err == nil {
+		tlog.WithAttribute("service_id", serviceID).
+			Info(ctx, "active contract exists, returning empty handset list")
+		return nil, nil
+	}
+	if !errors.Is(err, terrors.ErrNotFound) {
+		return nil, fmt.Errorf("failed to check active contract: %w", err)
+	}
+
+	handsets, err := s.store.GetHandsets(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get handsets: %w", err)
+	}
+
+	tlog.WithAttribute("service_id", serviceID).
+		WithAttribute("count", fmt.Sprintf("%d", len(handsets))).
+		Info(ctx, "returning available handsets")
+
+	return handsets, nil
+}
+
+func (s *Service) GetRequest(ctx context.Context, requestID string) (*models.Contract, *models.Handset, error) {
+	if requestID == "" {
+		return nil, nil, fmt.Errorf("request_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	contract, err := s.store.GetContractByRequestID(ctx, requestID)
+	if err != nil {
+		if errors.Is(err, terrors.ErrNotFound) {
+			return nil, nil, fmt.Errorf("contract not found for request_id: %w", terrors.ErrNotFound)
+		}
+		return nil, nil, fmt.Errorf("failed to get contract by request_id: %w", err)
+	}
+
+	// If the contract already has all handset details captured at creation time, use them directly
+	// without a storage lookup. This preserves the pricing agreed at time of request.
+	if contract.HandsetName != "" && contract.ContractPrice != "" && contract.RetailPrice != "" && contract.ContractMonths != "" {
+		return contract, nil, nil
+	}
+
+	handsetUUID, err := uuid.Parse(contract.HandsetID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid handset id on contract: %w", err)
+	}
+
+	h, err := s.store.GetHandsetByID(ctx, handsetUUID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get handset for contract: %w", err)
+	}
+
+	if h.CurrentProperties.RRPPence == 0 || h.CurrentProperties.RentalPricePence == 0 || h.CurrentProperties.ContractTermMonths == 0 {
+		return nil, nil, fmt.Errorf("handset has incomplete pricing data: %w", terrors.ErrFailedValidation)
+	}
+
+	// If contract has a specific version, find that version's properties
+	if contract.HandsetVersion != "" && contract.HandsetVersion != h.CurrentProperties.Version {
+		for _, v := range h.Versions {
+			if v.Version == contract.HandsetVersion {
+				h.CurrentProperties = v
+				break
+			}
+		}
+	}
+
+	return contract, h, nil
+}
+
+func (s *Service) GetActiveContractForService(ctx context.Context, serviceID string) (*models.Contract, error) {
+	if serviceID == "" {
+		return nil, fmt.Errorf("service_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	contract, err := s.store.GetActiveContractForService(ctx, serviceID)
+	if err != nil {
+		if errors.Is(err, terrors.ErrNotFound) {
+			return nil, fmt.Errorf("no active contract found for service: %w", terrors.ErrNotFound)
+		}
+		return nil, fmt.Errorf("failed to get active contract: %w", err)
+	}
+
+	return contract, nil
+}
+
+func (s *Service) RequestHandsetForService(ctx context.Context, serviceID, customerID, handsetID string) (string, string, error) {
+	if serviceID == "" || customerID == "" || handsetID == "" {
+		return "", "", fmt.Errorf("service_id, customer_id, and handset_id are required: %w", terrors.ErrBadRequest)
+	}
+
+	handsetUUID, err := uuid.Parse(handsetID)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid handset_id: %w", terrors.ErrBadRequest)
+	}
+
+	// Check service belongs to customer
+	servicesResp, err := s.myServicesClient.GetServices(ctx, &myservicesapi.GetServicesRequest{
+		CustomerId:   customerID,
+		IncludeEnded: true,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to retrieve services for customer: %w", err)
+	}
+
+	found := false
+	for _, svc := range servicesResp.Services {
+		if svc.GetMobileService() != nil && svc.GetMobileService().GetServiceId() == serviceID {
+			found = true
+			if svc.GetMobileService().GetState() != serviceevents.MobileService_LIVE {
+				return "", "", fmt.Errorf("service is not active: %w", terrors.ErrFailedValidation)
+			}
+			break
+		}
+	}
+	if !found {
+		return "", "", fmt.Errorf("service not found for customer: %w", terrors.ErrNotFound)
+	}
+
+	// Check for existing active contract
+	_, err = s.store.GetActiveContractForService(ctx, serviceID)
+	if err == nil {
+		return "", "", fmt.Errorf("an active handset contract already exists for this service: %w", terrors.ErrFailedValidation)
+	}
+	if !errors.Is(err, terrors.ErrNotFound) {
+		return "", "", fmt.Errorf("failed to check active contract: %w", err)
+	}
+
+	// Verify handset exists and is in stock
+	h, err := s.store.GetHandsetByID(ctx, handsetUUID)
+	if err != nil {
+		return "", "", fmt.Errorf("handset not found: %w", terrors.ErrNotFound)
+	}
+	if !h.Active {
+		return "", "", fmt.Errorf("handset is not active: %w", terrors.ErrFailedValidation)
+	}
+	if h.QuantityInStock <= 0 {
+		return "", "", fmt.Errorf("handset is out of stock: %w", terrors.ErrFailedValidation)
+	}
+
+	// Fetch customer information from account-gateway
+	accountResp, err := s.accountClient.GetAccount(ctx, &accountgateway.GetAccountRequest{
+		AccountId: customerID,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to retrieve account: %w", err)
+	}
+	if accountResp.GetAccount() == nil {
+		return "", "", fmt.Errorf("account response missing account data")
+	}
+
+	now := time.Now()
+	props := h.CurrentProperties
+	contract := models.Contract{
+		ID:             uuid.New(),
+		ServiceID:      serviceID,
+		CustomerID:     customerID,
+		HandsetID:      handsetID,
+		HandsetName:    fmt.Sprintf("%s %s", props.Manufacturer, props.Model),
+		HandsetVersion: props.Version,
+		ContractPrice:  fmt.Sprintf("%d", props.RentalPricePence),
+		RetailPrice:    fmt.Sprintf("%d", props.RRPPence),
+		ContractMonths: fmt.Sprintf("%d", props.ContractTermMonths),
+		RequestID:      uuid.New().String(),
+		Status:         models.ContractStatusPendingEligibility,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err = s.store.CreateContract(ctx, contract); err != nil {
+		return "", "", fmt.Errorf("failed to create contract: %w", err)
+	}
+
+	tlog.WithAttribute("service_id", contract.ServiceID).
+		WithAttribute("customer_id", contract.CustomerID).
+		WithAttribute("contract_id", contract.ID.String()).
+		WithAttribute("request_id", contract.RequestID).
+		WithAttribute("handset_id", contract.HandsetID).
+		Info(ctx, "handset contract created")
+
+	// Produce lifecycle event
+	if err := s.eventProducer.ProduceMobileHandsetContractRequestedSync(ctx, &serviceevents.MobileHandsetContractRequested{
+		ServiceId:  contract.ServiceID,
+		CustomerId: contract.CustomerID,
+		ContractId: contract.ID.String(),
+		HandsetId:  contract.HandsetID,
+	}); err != nil {
+		tlog.WithError(err).
+			WithAttribute("contract_id", contract.ID.String()).
+			Error(ctx, "failed to produce MobileHandsetContractRequested event")
+	}
+
+	redirectURL, err := eligibilityRedirectURL(s.eligibilityProviderURL, contract.RequestID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return contract.RequestID, redirectURL, nil
+}
+
+// EligibilityCallbackSuccess handles the callback from the eligibility provider once the
+// eligibility check has completed. The outcome.Decision field determines the result.
+func (s *Service) EligibilityCallbackSuccess(ctx context.Context, requestID string, outcome models.EligibilityOutcome) error {
+	if requestID == "" {
+		return fmt.Errorf("request_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	contract, err := s.store.GetContractByRequestID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("failed to get contract: %w", err)
+	}
+
+	// Only the first eligibility callback should move a contract out of pending.
+	if contract.Status != models.ContractStatusPendingEligibility {
+		tlog.WithAttribute("request_id", requestID).
+			WithAttribute("current_status", string(contract.Status)).
+			Info(ctx, "eligibility callback ignored, contract is not pending eligibility")
+		return nil
+	}
+
+	if err := s.store.UpdateContractEligibilityApproved(ctx, requestID, outcome); err != nil {
+		return fmt.Errorf("failed to update contract status: %w", err)
+	}
+
+	if err := s.eventProducer.ProduceMobileHandsetContractApprovedSync(ctx, &serviceevents.MobileHandsetContractApproved{
+		ServiceId:      contract.ServiceID,
+		CustomerId:     contract.CustomerID,
+		ContractId:     contract.ID.String(),
+		HandsetId:      contract.HandsetID,
+		HandsetName:    contract.HandsetName,
+		ContractPrice:  money(contract.ContractPrice),
+		RetailPrice:    money(contract.RetailPrice),
+		ContractMonths: contract.ContractMonths,
+	}); err != nil {
+		tlog.WithError(err).
+			WithAttribute("contract_id", contract.ID.String()).
+			Error(ctx, "failed to produce MobileHandsetContractApproved event")
+	}
+
+	tlog.WithAttribute("request_id", requestID).
+		WithAttribute("contract_id", contract.ID.String()).
+		WithAttribute("decision", outcome.Decision).
+		Info(ctx, "eligibility approved, contract awaiting loan processing")
+
+	return nil
+}
+
+// EligibilityCallbackFailure handles a failure callback from the eligibility provider,
+// indicating the eligibility process could not be completed (e.g. KYC or credit check failure).
+func (s *Service) EligibilityCallbackFailure(ctx context.Context, requestID string, outcome models.EligibilityFailureOutcome) error {
+	if requestID == "" {
+		return fmt.Errorf("request_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	contract, err := s.store.GetContractByRequestID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("failed to get contract: %w", err)
+	}
+
+	if contract.Status != models.ContractStatusPendingEligibility {
+		tlog.WithAttribute("request_id", requestID).
+			WithAttribute("current_status", string(contract.Status)).
+			Info(ctx, "eligibility failure callback ignored, contract is not pending eligibility")
+		return nil
+	}
+
+	if err := s.store.UpdateContractEligibilityFailed(ctx, requestID, outcome); err != nil {
+		return fmt.Errorf("failed to update contract status: %w", err)
+	}
+
+	if err := s.eventProducer.ProduceMobileHandsetContractDeclinedSync(ctx, &serviceevents.MobileHandsetContractDeclined{
+		ServiceId:  contract.ServiceID,
+		CustomerId: contract.CustomerID,
+		ContractId: contract.ID.String(),
+		HandsetId:  contract.HandsetID,
+	}); err != nil {
+		tlog.WithError(err).
+			WithAttribute("contract_id", contract.ID.String()).
+			Error(ctx, "failed to produce MobileHandsetContractDeclined event")
+	}
+
+	tlog.WithAttribute("request_id", requestID).
+		WithAttribute("contract_id", contract.ID.String()).
+		Info(ctx, "eligibility failed, contract declined")
+
+	return nil
+}
+
+// EligibilityStatusUpdate handles status update notifications from the eligibility provider.
+// For DECLINED and WITHDRAWN statuses, the contract is moved to DECLINED.
+func (s *Service) EligibilityStatusUpdate(ctx context.Context, requestID, statusStr string) error {
+	// @todo matt - this is a bit of a catch-all for any future status updates from the eligibility provider that require action. we don't really know what the statuses in the proto actually represent at this stage, neither do we know which are terminal states and how they should interact with the success/failure callbacks. consider this method WIP for the time being.
+	if requestID == "" {
+		return fmt.Errorf("request_id is required: %w", terrors.ErrBadRequest)
+	}
+
+	if statusStr != "DECLINED" && statusStr != "WITHDRAWN" {
+		tlog.WithAttribute("request_id", requestID).
+			WithAttribute("status", statusStr).
+			Info(ctx, "eligibility status update received, no action required")
+		return nil
+	}
+
+	contract, err := s.store.GetContractByRequestID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("failed to get contract: %w", err)
+	}
+
+	if contract.Status != models.ContractStatusPendingEligibility {
+		tlog.WithAttribute("request_id", requestID).
+			WithAttribute("current_status", string(contract.Status)).
+			Info(ctx, "eligibility status update ignored, contract is not pending eligibility")
+		return nil
+	}
+
+	if err := s.store.UpdateContractStatus(ctx, requestID, models.ContractStatusDeclined); err != nil {
+		return fmt.Errorf("failed to update contract status: %w", err)
+	}
+
+	if err := s.eventProducer.ProduceMobileHandsetContractDeclinedSync(ctx, &serviceevents.MobileHandsetContractDeclined{
+		ServiceId:  contract.ServiceID,
+		CustomerId: contract.CustomerID,
+		ContractId: contract.ID.String(),
+		HandsetId:  contract.HandsetID,
+	}); err != nil {
+		tlog.WithError(err).
+			WithAttribute("contract_id", contract.ID.String()).
+			Error(ctx, "failed to produce MobileHandsetContractDeclined event")
+	}
+
+	tlog.WithAttribute("request_id", requestID).
+		WithAttribute("contract_id", contract.ID.String()).
+		WithAttribute("status", statusStr).
+		Info(ctx, "eligibility status update, contract declined")
+
+	return nil
+}
+
+// money converts a pence integer string (e.g. "4200") to a Money message with
+// the amount expressed in pounds (e.g. "42.00"). The Money type is consumed by
+// downstream services that treat Amount as a decimal pound value.
+func money(penceStr string) *serviceevents.Money {
+	pence, err := strconv.Atoi(penceStr)
+	if err != nil {
+		return &serviceevents.Money{Amount: penceStr, Currency: currencyGBP}
+	}
+	return &serviceevents.Money{
+		Amount:   fmt.Sprintf("%.2f", float64(pence)/100),
+		Currency: currencyGBP,
+	}
+}
+
+func eligibilityRedirectURL(providerURL, requestID string) (string, error) {
+	u, err := url.Parse(providerURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse eligibility provider URL: %w", err)
+	}
+
+	query := u.Query()
+	query.Set("request_id", requestID)
+	u.RawQuery = query.Encode()
+
+	return u.String(), nil
+}

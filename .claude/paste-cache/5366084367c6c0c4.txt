@@ -1,0 +1,27 @@
+$ make lint
+Makefile:12: warning: overriding commands for target `buf-gen'
+.core/Makefile:81: warning: ignoring old commands for target `buf-gen'
+Makefile:21: warning: overriding commands for target `buf-gen-clean'
+.core/Makefile:91: warning: ignoring old commands for target `buf-gen-clean'
+Running lint toolchain
+• resolving Dependencies
+go: downloading mvdan.cc/gofumpt v0.4.0
+go: downloading golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
+go: downloading golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+go: downloading github.com/google/go-cmp v0.5.8
+go: downloading golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
+go: downloading golang.org/x/tools v0.1.12
+golangci/golangci-lint info checking GitHub for tag 'v2.11.4'
+golangci/golangci-lint info found version: 2.11.4 for v2.11.4/linux/arm64
+golangci/golangci-lint info installed /go/bin/golangci-lint
+• linting
+services/public-graphql/internal/graph/schema.resolvers_test.go:1: : # github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/graph_test [github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/graph.test]
+services/public-graphql/internal/graph/schema.resolvers_test.go:121:38: cannot use mockHandsetApi (variable of type *handset_mocks.MockHandsetAPIClient) as handset.HandsetAPIClient value in struct literal: *handset_mocks.MockHandsetAPIClient does not implement handset.HandsetAPIClient (missing method GetHandsetEligibleServices) (typecheck)
+package graph_test
+1 issues:
+* typecheck: 1
+
+What's next:
+    Debug this container error with Gordon → docker ai "help me fix this container error"
+Done
+make: *** [lint] Error 1

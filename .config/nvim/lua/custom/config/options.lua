@@ -14,8 +14,21 @@ vim.o.mouse = 'a'
 --  See `:help 'clipboard'`
 vim.o.clipboard = 'unnamedplus'
 
--- Force use of xclip for X11 instead of wl-copy
-if os.getenv("WAYLAND_DISPLAY") == nil and os.getenv("DISPLAY") ~= nil then
+-- macOS uses pbcopy/pbpaste; Linux X11 falls back to xclip
+if vim.fn.has('mac') == 1 then
+  vim.g.clipboard = {
+    name = 'pbcopy',
+    copy = {
+      ['+'] = 'pbcopy',
+      ['*'] = 'pbcopy',
+    },
+    paste = {
+      ['+'] = 'pbpaste',
+      ['*'] = 'pbpaste',
+    },
+    cache_enabled = 1,
+  }
+elseif os.getenv('WAYLAND_DISPLAY') == nil and os.getenv('DISPLAY') ~= nil then
   vim.g.clipboard = {
     name = 'xclip',
     copy = {

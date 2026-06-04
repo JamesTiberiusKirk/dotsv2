@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "plugins": {
+    "gopls-lsp@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/dumitruvulpe/.claude/plugins/cache/claude-plugins-official/gopls-lsp/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-05-28T13:47:01.372Z",
+        "lastUpdated": "2026-05-28T13:47:01.372Z",
+        "gitCommitSha": "e9b54375b8e6b83a718cebb2033caca8c01976a8"
+      }
+    ],
+    "clangd-lsp@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/dumitruvulpe/.claude/plugins/cache/claude-plugins-official/clangd-lsp/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-05-28T13:47:01.372Z",
+        "lastUpdated": "2026-05-28T13:47:01.372Z",
+        "gitCommitSha": "e9b54375b8e6b83a718cebb2033caca8c01976a8"
+      }
+    ],
+    "frontend-design@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/dumitruvulpe/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown",
+        "version": "unknown",
+        "installedAt": "2026-05-28T13:47:01.372Z",
+        "lastUpdated": "2026-05-28T13:51:22.570Z",
+        "gitCommitSha": "e9b54375b8e6b83a718cebb2033caca8c01976a8"
+      }
+    ]
+  }
+}

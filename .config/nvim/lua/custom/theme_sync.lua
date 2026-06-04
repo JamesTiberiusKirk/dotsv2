@@ -27,8 +27,7 @@ vim.api.nvim_create_user_command("ThemeSync", function(opts)
   end
 
   if mode == "" then
-    vim.notify("ThemeSync requires 'dark' or 'light'", vim.log.levels.WARN)
-    return
+    mode = "dark" -- default when no file exists
   end
 
   apply(mode)

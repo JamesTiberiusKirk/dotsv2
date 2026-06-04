@@ -1,0 +1,9 @@
+package jobs
+
+import "context"
+
+func expireContractsRunner(store Storage, eventProducer Producer) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		//do the thing
+	}
+}

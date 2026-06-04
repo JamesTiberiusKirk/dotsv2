@@ -16,6 +16,9 @@ gtk4_settings="$HOME/.config/gtk-4.0/settings.ini"
 ln -sfn ~/.config/alacritty/colors-"$MODE".toml ~/.config/alacritty/colors.toml
 touch ~/.config/alacritty/alacritty.toml
 
+# wezterm — write theme mode, touch config to trigger reload
+touch ~/.config/wezterm/wezterm.lua
+
 # i3 — swap include target, reload
 ln -sfn ~/.config/i3/colors-"$MODE".conf ~/.config/i3/colors.conf
 i3-msg -q reload >/dev/null 2>&1 || true

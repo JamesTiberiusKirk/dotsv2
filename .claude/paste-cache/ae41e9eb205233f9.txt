@@ -1,0 +1,18 @@
+=== RUN   Test_WhenMobileMSISDNChangedMessageIsConsumed_ItUpdatesTheServiceOnDB
+--- PASS: Test_WhenMobileMSISDNChangedMessageIsConsumed_ItUpdatesTheServiceOnDB (0.02s)
+=== RUN   Test_WhenMobileSimNumberChangedMessageIsConsumed_ItUpdatesTheServiceOnDB
+--- PASS: Test_WhenMobileSimNumberChangedMessageIsConsumed_ItUpdatesTheServiceOnDB (0.02s)
+=== RUN   Test_WhenMobileNameChangedMessageIsConsumed_ItUpdatesTheServiceOnDB
+--- PASS: Test_WhenMobileNameChangedMessageIsConsumed_ItUpdatesTheServiceOnDB (0.02s)
+PASS
+coverage: 50.0% of statements
+ok      github.com/utilitywarehouse/telecom-mobile/services/quoting-api/internal/consumer/events    3.933s    coverage: 50.0% of statements
+=== RUN   TestCustomerResidential
+    db_test.go:40: dial tcp 127.0.0.1:5432: connect: connection refused
+--- FAIL: TestCustomerResidential (0.01s)
+FAIL
+coverage: 0.0% of statements
+FAIL    github.com/utilitywarehouse/telecom-mobile/services/quoting-api/internal/equinoxdb    1.568s
+    github.com/utilitywarehouse/telecom-mobile/services/quoting-api/internal/equinoxdb/mocks        coverage: 0.0% of statements
+    github.com/utilitywarehouse/telecom-mobile/services/quoting-api/internal/mocks        coverage: 0.0% of statements
+

@@ -69,7 +69,7 @@ precmd() {
 zstyle ':completion:*' list-colors ''
 zstyle ':completion:*' menu select=long
 zstyle ':completion:*' select-prompt %SScrolling active: current selection at %p%s
-zstyle :compinstall filename '/home/darthvader/.zshrc'
+zstyle :compinstall filename "$HOME/.zshrc"
 
 autoload -Uz compinit
 compinit
@@ -154,4 +154,4 @@ if [[ -x "$HOME/.codex/codex-with-notify.sh" ]]; then
 fi
 
 # opencode
-export PATH=/home/darthvader/.opencode/bin:$PATH
+export PATH=$HOME/.opencode/bin:$PATH

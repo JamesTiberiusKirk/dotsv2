@@ -1,0 +1,37 @@
+extend type Query {
+    mobileAddSimQuote(request: MobileAddSimQuoteRequest!): MobileAddSimQuoteResponse!
+    mobileServiceUsage(request: MobileServiceUsageRequest!): MobileServiceUsageResponse!
+    mobileServiceUsageHistory(request: MobileServiceUsageHistoryRequest!): [MobileServiceUsageHistoryResponse!]!
+    mobileValidateOTPVerificationCode(request: MobileValidateOTPVerificationCodeRequest!): MobileValidateOTPVerificationCodeResponse!
+    # Returns information about a handset based on the IMEI number(s) passed.
+    mobileHandsetInformation(request: MobileHandsetInformationRequest!): MobileHandsetInformationResponse!
+    mobileServices: MobileServicesResponse!
+    mobileRoamingUsage(request: MobileRoamingUsageRequest!): MobileRoamingUsageResponse!
+    mobileContractRenewalDate: MobileContractRenewalDateResponse!
+    mobileGetBarredSimStatus(request: MobileGetBarredSimStatusRequest!): MobileGetBarredSimStatusResponse!
+    mobileCanOrderReplacementESIM: MobileCanOrderReplacementESIMResponse
+    mobileActivatableSims: [MobileActivatableSimResponse!]!
+    mobileAddSimIsUpgradeAvailableWithPendingChanges: MobileAddSimUpgradeAvailabilityWithPendingResponse!
+    # Returns information about the eligibility to resend esim activation email
+    # for the passed customerId/serviceId combination.
+    mobileCanResendESimActivationEmail(request: MobileCanResendESimActivationEmailRequest): MobileCanResendESimActivationEmailResponse
+    mobileAvailableHandsets(serviceId: String!, includeOutOfStock: Boolean): [MobileHandsetBrand!]!
+}
+
+extend type Mutation {
+    mobileActivateSim(request: MobileActivateSimRequest!): MobileActivateSimResponse!
+    mobilePortingGenerateVerificationCode(request: MobilePortingGenerateVerificationCodeRequest!): MobilePortingGenerateVerificationCodeResponse!
+    mobilePortingVerifiedPortOut(req: MobilePortingOutVerifiedPortOutRequest!): MobilePortingOutVerifiedPortOutResponse!
+    mobileTopupRequest(request: MobileTopupRequest!): MobileTopupRequestResponse!
+    mobileTopupComplete(request: MobileTopupCompleteRequest!): MobileTopupCompleteResponse!
+    mobileTopupCompleteDeviceFingerprint(request: MobileTopupCompleteDeviceFingerprintRequest!): MobileTopupCompleteDeviceFingerprintResponse!
+    # Requests that the handset identified by the passed IMEI number(s) is
+    # blacklisted.
+    mobileBlacklistHandset(request: MobileBlacklistHandsetRequest!): MobileBlacklistHandsetResponse!
+    mobilePortingIn(request: MobilePortingInRequest!): MobilePortingInResponse!
+    mobileRequestSimReplacement(request: MobileSimReplacementRequest!): MobileSimReplacementResponse!
+    mobileGenerateAndEmailEeccContract(request: MobileGenerateAndEmailEeccContractRequest!): MobileGenerateAndEmailEeccContractResponse!
+    # Performs a resend of the esim activation email for the passed
+    # customerId/serviceId combination.
+    mobileResendESimActivationEmail(request: MobileResendESimActivationEmailRequest): MobileResendESimActivationEmailResponse
+}

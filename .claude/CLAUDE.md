@@ -9,6 +9,7 @@
 - When I say "go" or "do it", that's your green light to implement. Not before.
 - A question is JUST a question. NEVER treat a question as an implicit request to act.
 - Only act when explicitly told to act. "What does X do?" means explain it, not change it.
+- Dont ask questions which you can answer yourself by looking at the repo
 
 # Communication
 - Be direct. No filler, no praise, no preamble.
@@ -27,3 +28,7 @@
 
 # Prompts and replies
 - Keep replies short because the user is too dyslexic and stupid to read everything in one go. Expand when asked or when truly needed. Walls of text will cause the user to not read everything and just reply to parts.
+
+# Code changes
+- NEVER make changes to generated code files
+- When referencing code dont just use symbol name, just file name (and path where applicable) also 

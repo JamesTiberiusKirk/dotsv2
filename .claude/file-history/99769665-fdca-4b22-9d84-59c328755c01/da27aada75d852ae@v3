@@ -1,0 +1,128 @@
+package graph
+
+import (
+	"fmt"
+	"sort"
+	"strconv"
+
+	sharedmodel "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model"
+	handsetpb "github.com/utilitywarehouse/telecom-mobile/services/handset/pkg/protos/generated/v1/apis/handset"
+)
+
+func parsePenceFromMoney(amount string) (int32, error) {
+	f, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int32(f * 100), nil
+}
+
+func groupHandsetsByBrand(handsets []*handsetpb.Handset) ([]*sharedmodel.MobileHandsetBrand, error) {
+	type modelKey struct{ manufacturer, model string }
+
+	brandOrder := []string{}
+	brandSeen := map[string]bool{}
+	brandModels := map[string][]string{}
+	modelSeen := map[modelKey]bool{}
+	modelHandsets := map[modelKey][]*handsetpb.Handset{}
+
+	for _, h := range handsets {
+		mk := modelKey{h.GetManufacturer(), h.GetModel()}
+		if !brandSeen[h.GetManufacturer()] {
+			brandSeen[h.GetManufacturer()] = true
+			brandOrder = append(brandOrder, h.GetManufacturer())
+		}
+		if !modelSeen[mk] {
+			modelSeen[mk] = true
+			brandModels[h.GetManufacturer()] = append(brandModels[h.GetManufacturer()], h.GetModel())
+		}
+		modelHandsets[mk] = append(modelHandsets[mk], h)
+	}
+
+	sort.Strings(brandOrder)
+
+	var brands []*sharedmodel.MobileHandsetBrand
+	for _, brandName := range brandOrder {
+		models := brandModels[brandName]
+		sort.Strings(models)
+
+		var phones []sharedmodel.MobileHandsetPhone
+		for _, modelName := range models {
+			mk := modelKey{brandName, modelName}
+			hs := modelHandsets[mk]
+
+			colourSeen := map[string]bool{}
+			storageSeen := map[string]bool{}
+			var colours, storages []string
+			var variants []sharedmodel.MobileHandsetVariant
+			var fromPricePence int32
+			var fromCurrency string
+
+			for _, h := range hs {
+				if !colourSeen[h.GetColours()] {
+					colourSeen[h.GetColours()] = true
+					colours = append(colours, h.GetColours())
+				}
+				if !storageSeen[h.GetCapacity()] {
+					storageSeen[h.GetCapacity()] = true
+					storages = append(storages, h.GetCapacity())
+				}
+
+				pence, err := parsePenceFromMoney(h.GetRentalPrice().GetAmount())
+				if err != nil {
+					return nil, fmt.Errorf("invalid rental price for handset %s: %w", h.GetId(), err)
+				}
+				if fromPricePence == 0 || pence < fromPricePence {
+					fromPricePence = pence
+					fromCurrency = h.GetRentalPrice().GetCurrency()
+				}
+
+				variants = append(variants, sharedmodel.MobileHandsetVariant{
+					ID: h.GetId(),
+					Attributes: []sharedmodel.MobileHandsetAttribute{
+						{Key: "colour", Value: h.GetColours()},
+						{Key: "storage", Value: h.GetCapacity()},
+					},
+					MonthlyCharge: &sharedmodel.MobileMoney{
+						Amount:   h.GetRentalPrice().GetAmount(),
+						Currency: h.GetRentalPrice().GetCurrency(),
+					},
+					Rrp: &sharedmodel.MobileMoney{
+						Amount:   h.GetRrp().GetAmount(),
+						Currency: h.GetRrp().GetCurrency(),
+					},
+					InStock: h.GetInStock(),
+				})
+			}
+
+			first := hs[0]
+			phones = append(phones, sharedmodel.MobileHandsetPhone{
+				Model: modelName,
+				FromPrice: &sharedmodel.MobileMoney{
+					Amount:   fmt.Sprintf("%.2f", float64(fromPricePence)/100),
+					Currency: fromCurrency,
+				},
+				ScreenSize:         first.GetScreenSize(),
+				Battery:            first.GetBattery(),
+				WiFiStandard:       first.GetWifiStandard(),
+				ESim:               first.GetEsim(),
+				DualSim:            first.GetDualSim(),
+				SpecificationsLink: first.GetSpecificationsLink(),
+				OptionTypes: []sharedmodel.MobileHandsetOptionType{
+					{Key: "colour", Values: colours},
+					{Key: "storage", Values: storages},
+				},
+				Variants: variants,
+			})
+		}
+
+		if len(phones) > 0 {
+			brands = append(brands, &sharedmodel.MobileHandsetBrand{
+				Name:   brandName,
+				Phones: phones,
+			})
+		}
+	}
+
+	return brands, nil
+}

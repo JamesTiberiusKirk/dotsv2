@@ -1,0 +1,186 @@
+package consumer_test
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
+
+	"github.com/google/uuid"
+	"github.com/utilitywarehouse/protoc-gen-protostrate/protostrate/message"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/services/account-gateway/pkg/protos/generated/v1/apis/accountgateway"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer"
+	mockConsumer "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer/mocks"
+	loanboxclient "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/loanbox"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+)
+
+var testContractUUID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+var _ = Describe("ConsumeMobileHandsetOrdered", func() {
+	var (
+		ctrl        *gomock.Controller
+		store       *mockConsumer.MockStorage
+		consumerSvc *consumer.Consumer
+		ctx         context.Context
+		acked       bool
+		ack         func() error
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		store = mockConsumer.NewMockStorage(ctrl)
+		consumerSvc = consumer.New(store, nil, nil)
+		ctx = context.Background()
+		acked = false
+		ack = func() error {
+			acked = true
+			return nil
+		}
+	})
+
+	consume := func(contractID string) error {
+		return consumerSvc.ConsumeMobileHandsetOrdered(
+			ctx,
+			&message.Envelope{Id: "event-1"},
+			&serviceevents.MobileHandsetOrdered{ContractId: contractID},
+			ack,
+		)
+	}
+
+	When("contract is already HANDSET_ORDERED", func() {
+		It("skips and acks", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{ID: testContractUUID, Status: models.ContractStatusHandsetOrdered}, nil)
+
+			Expect(consume(testContractUUID.String())).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+
+	When("contract is not APPROVED", func() {
+		It("returns an error without acking", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{ID: testContractUUID, Status: models.ContractStatusEligibilityApproved}, nil)
+
+			Expect(consume(testContractUUID.String())).To(HaveOccurred())
+			Expect(acked).To(BeFalse())
+		})
+	})
+
+	When("contract is APPROVED", func() {
+		It("updates status and acks", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:     testContractUUID,
+					Status: models.ContractStatusApproved,
+				}, nil)
+
+			store.EXPECT().
+				UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+				Return(nil)
+
+			Expect(consume(testContractUUID.String())).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("ConsumeMobileHandsetContractApproved", func() {
+	var (
+		ctrl          *gomock.Controller
+		store         *mockConsumer.MockStorage
+		accountClient *mockConsumer.MockAccountClient
+		loanboxClient *mockConsumer.MockLoanboxClient
+		consumerSvc   *consumer.Consumer
+		ctx           context.Context
+		acked         bool
+		ack           func() error
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		store = mockConsumer.NewMockStorage(ctrl)
+		accountClient = mockConsumer.NewMockAccountClient(ctrl)
+		loanboxClient = mockConsumer.NewMockLoanboxClient(ctrl)
+		consumerSvc = consumer.New(store, accountClient, loanboxClient)
+		ctx = context.Background()
+		acked = false
+		ack = func() error {
+			acked = true
+			return nil
+		}
+	})
+
+	consume := func(event *serviceevents.MobileHandsetContractApproved) error {
+		return consumerSvc.ConsumeMobileHandsetContractApproved(
+			ctx,
+			&message.Envelope{Id: "event-1"},
+			event,
+			ack,
+		)
+	}
+
+	When("contract is already HANDSET_ORDERED", func() {
+		It("skips and acks", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{ID: testContractUUID, Status: models.ContractStatusHandsetOrdered}, nil)
+
+			Expect(consume(&serviceevents.MobileHandsetContractApproved{
+				ContractId: testContractUUID.String(),
+			})).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+
+	When("contract is ELIGIBILITY_APPROVED with loan values", func() {
+		It("creates loan with approved event values, updates references, and acks", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:                testContractUUID,
+					RequestID:         "request-1",
+					Status:            models.ContractStatusEligibilityApproved,
+					BankAccountNumber: "12345678",
+					BankTitle:         "Barclays",
+				}, nil)
+
+			accountClient.EXPECT().
+				GetAccount(gomock.Any(), &accountgateway.GetAccountRequest{AccountId: "customer-1"}).
+				Return(&accountgateway.GetAccountResponse{Account: &accountgateway.Account{}}, nil)
+
+			loanboxClient.EXPECT().
+				CreateLoan(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, req loanboxclient.CreateLoanRequest) (*loanboxclient.CreateLoanResponse, error) {
+					Expect(req.AmountApproved).To(Equal(float32(950)))
+					Expect(req.TermMonths).To(Equal(int32(24)))
+					Expect(req.BankAccountNumber).To(Equal("12345678"))
+					return &loanboxclient.CreateLoanResponse{LoanApplicationID: 123}, nil
+				})
+
+			store.EXPECT().
+				UpdateContractLoanReference(gomock.Any(), "request-1", "123").
+				Return(nil)
+
+			store.EXPECT().
+				UpdateContractStatus(gomock.Any(), "request-1", models.ContractStatusApproved).
+				Return(nil)
+
+			Expect(consume(&serviceevents.MobileHandsetContractApproved{
+				ServiceId:      "service-1",
+				CustomerId:     "customer-1",
+				ContractId:     testContractUUID.String(),
+				HandsetId:      "h-1",
+				RetailPrice:    &serviceevents.Money{Amount: "950", Currency: "GBP"},
+				ContractMonths: "24",
+			})).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+})

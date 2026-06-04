@@ -1,0 +1,241 @@
+package consumer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/utilitywarehouse/protoc-gen-protostrate/protostrate/message"
+	"google.golang.org/grpc"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/terrors"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tlog"
+	"github.com/utilitywarehouse/telecom-mobile/services/account-gateway/pkg/protos/generated/v1/apis/accountgateway"
+	loanboxclient "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/loanbox"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+)
+
+//go:generate mockgen -destination=./mocks/$GOFILE -source=./$GOFILE
+
+type Storage interface {
+	GetContractByID(ctx context.Context, contractID uuid.UUID) (*models.Contract, error)
+	UpdateContractStatus(ctx context.Context, requestID string, status models.ContractStatus) error
+	UpdateContractStatusByID(ctx context.Context, contractID uuid.UUID, status models.ContractStatus) error
+	UpdateContractLoanReference(ctx context.Context, requestID string, loanReference string) error
+	UpdateContractExpiresAt(ctx context.Context, contractID uuid.UUID, expiresAt time.Time) error
+}
+
+type AccountClient interface {
+	GetAccount(ctx context.Context, in *accountgateway.GetAccountRequest, opts ...grpc.CallOption) (*accountgateway.GetAccountResponse, error)
+}
+
+type LoanboxClient interface {
+	CreateLoan(ctx context.Context, req loanboxclient.CreateLoanRequest) (*loanboxclient.CreateLoanResponse, error)
+}
+
+// Consumer processes MobileHandsetContractApproved events to create loans via Loanbox.
+type Consumer struct {
+	serviceevents.UnimplementedServiceeventsConsumer
+	store         Storage
+	accountClient AccountClient
+	loanboxClient LoanboxClient
+}
+
+func New(store Storage, accountClient AccountClient, loanboxClient LoanboxClient) *Consumer {
+	return &Consumer{
+		store:         store,
+		accountClient: accountClient,
+		loanboxClient: loanboxClient,
+	}
+}
+
+func (c *Consumer) ConsumeMobileHandsetContractApproved(ctx context.Context, env *message.Envelope,
+	in *serviceevents.MobileHandsetContractApproved, ack func() error,
+) error {
+	contractIDStr := in.GetContractId()
+	serviceID := in.GetServiceId()
+	customerID := in.GetCustomerId()
+	handsetID := in.GetHandsetId()
+
+	contractID, err := uuid.Parse(contractIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid contract_id %q: %w", contractIDStr, err)
+	}
+
+	tlog.WithAttribute("contract_id", contractIDStr).
+		WithAttribute("service_id", serviceID).
+		WithAttribute("handset_id", handsetID).
+		Info(ctx, "processing handset contract approved event")
+
+	// Look up contract — we need the request_id and bank details
+	contract, err := c.store.GetContractByID(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("failed to load contract %s: %w", contractIDStr, err)
+	}
+
+	// Idempotency: if already approved or ordered, skip.
+	if contract.Status == models.ContractStatusApproved || contract.Status == models.ContractStatusHandsetOrdered {
+		tlog.WithAttribute("contract_id", contractIDStr).
+			WithAttribute("status", string(contract.Status)).
+			Info(ctx, "contract already processed, skipping")
+
+		return ack()
+	}
+
+	// Fetch customer details from account-gateway
+	accountResp, err := c.accountClient.GetAccount(ctx, &accountgateway.GetAccountRequest{
+		AccountId: customerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to fetch account for customer %s: %w", customerID, err)
+	}
+
+	// Build loan request
+	retailPriceAmount := in.GetRetailPrice().GetAmount()
+	if retailPriceAmount == "" {
+		return fmt.Errorf("retail price is required for approved handset contract %s", contractIDStr)
+	}
+	retailPrice, err := strconv.ParseFloat(retailPriceAmount, 32)
+	if err != nil {
+		return fmt.Errorf("failed to parse approved event retail price %q: %w", retailPriceAmount, err)
+	}
+
+	contractMonths := in.GetContractMonths()
+	if contractMonths == "" {
+		return fmt.Errorf("contract months is required for approved handset contract %s", contractIDStr)
+	}
+	contractTerm, err := strconv.ParseInt(contractMonths, 10, 32)
+	if err != nil {
+		return fmt.Errorf("failed to parse approved event contract months %q: %w", contractMonths, err)
+	}
+	if contractTerm < 1 || contractTerm > math.MaxInt32 {
+		return fmt.Errorf("approved event contract months %q is outside supported range", contractMonths)
+	}
+
+	loanReq := loanboxclient.CreateLoanRequest{
+		RequestID:         contract.RequestID,
+		AmountApproved:    float32(retailPrice),
+		TermMonths:        int32(contractTerm),
+		InterestRate:      loanboxclient.DefaultInterestRate,
+		LoanProduct:       loanboxclient.DefaultLoanProduct(),
+		BankAccountNumber: contract.BankAccountNumber,
+		BankTitle:         contract.BankTitle,
+	}
+
+	// Enrich with customer details
+	if accountResp.GetAccount() != nil {
+		acct := accountResp.GetAccount()
+		if contact := acct.GetContactDetails(); contact != nil {
+			loanReq.Email = contact.GetEmail()
+			loanReq.Phone = contact.GetMobile()
+			parts := strings.Fields(contact.GetSalutation())
+			if len(parts) >= 2 {
+				loanReq.FirstName = parts[0]
+				loanReq.LastName = strings.Join(parts[1:], " ")
+			}
+		}
+		if customer := acct.GetCustomerDetails(); customer != nil && customer.GetDateOfBirth() != nil {
+			dob := customer.GetDateOfBirth().AsTime()
+			loanReq.DateOfBirth = &dob
+		}
+		if address := acct.GetCorrespondenceAddress(); address != nil {
+			loanReq.StreetAddress = strings.Join(address.GetFormattedLines(), ", ")
+			loanReq.CountryCode = "GB"
+		}
+	}
+
+	tlog.WithAttribute("contract_id", contractIDStr).
+		WithAttribute("request_id", contract.RequestID).
+		WithAttribute("amount", fmt.Sprintf("%.2f", retailPrice)).
+		WithAttribute("term_months", strconv.FormatInt(contractTerm, 10)).
+		Info(ctx, "submitting loan request to Loanbox")
+
+	loanResp, err := c.loanboxClient.CreateLoan(ctx, loanReq)
+	if err != nil {
+		return fmt.Errorf("loanbox loan creation failed for contract %s: %w", contractIDStr, err)
+	}
+
+	// Store loan reference
+	loanRef := strconv.FormatInt(loanResp.LoanApplicationID, 10)
+	if err := c.store.UpdateContractLoanReference(ctx, contract.RequestID, loanRef); err != nil {
+		return fmt.Errorf("failed to store loan reference for contract %s: %w", contractIDStr, err)
+	}
+
+	if err := c.store.UpdateContractStatus(ctx, contract.RequestID, models.ContractStatusApproved); err != nil {
+		if errors.Is(err, terrors.ErrConflict) {
+			tlog.WithAttribute("contract_id", contractIDStr).
+				Info(ctx, "contract status changed before approval update, skipping")
+
+			return ack()
+		}
+
+		return fmt.Errorf("failed to update contract %s to APPROVED: %w", contractIDStr, err)
+	}
+
+	tlog.WithAttribute("contract_id", contractIDStr).
+		WithAttribute("loan_ref", loanRef).
+		Info(ctx, "loan created, contract approved")
+
+	return ack()
+}
+
+func (c *Consumer) ConsumeMobileHandsetOrdered(ctx context.Context, env *message.Envelope,
+	in *serviceevents.MobileHandsetOrdered, ack func() error,
+) error {
+	contractIDStr := in.GetContractId()
+	if contractIDStr == "" {
+		return fmt.Errorf("contract_id is required for MobileHandsetOrdered %s", env.GetId())
+	}
+
+	contractID, err := uuid.Parse(contractIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid contract_id %q: %w", contractIDStr, err)
+	}
+
+	contract, err := c.store.GetContractByID(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("failed to load contract %s: %w", contractIDStr, err)
+	}
+	if contract.Status == models.ContractStatusHandsetOrdered {
+		tlog.WithAttribute("contract_id", contractIDStr).
+			Info(ctx, "contract already HANDSET_ORDERED, skipping")
+
+		return ack()
+	}
+	if contract.Status != models.ContractStatusApproved {
+		return fmt.Errorf("contract %s is not ready to mark HANDSET_ORDERED: status %s", contractIDStr, contract.Status)
+	}
+
+	if err := c.store.UpdateContractStatusByID(ctx, contractID, models.ContractStatusHandsetOrdered); err != nil {
+		if errors.Is(err, terrors.ErrConflict) {
+			tlog.WithAttribute("contract_id", contractIDStr).
+				WithAttribute("status", string(contract.Status)).
+				Info(ctx, "contract is not approved, skipping handset ordered update")
+			return ack()
+		}
+
+		return fmt.Errorf("failed to update contract %s as ordered: %w", contractIDStr, err)
+	}
+
+	tlog.WithAttribute("contract_id", contractIDStr).
+		Info(ctx, "contract marked handset ordered")
+
+	if contract.SignedAt != nil {
+		contractMonths, err := strconv.Atoi(contract.ContractMonths)
+		if err != nil {
+			return fmt.Errorf("invalid contract_months %q for contract %s: %w", contract.ContractMonths, contractIDStr, err)
+		}
+		expiresAt := contract.SignedAt.AddDate(0, contractMonths, 0)
+		if err := c.store.UpdateContractExpiresAt(ctx, contractID, expiresAt); err != nil {
+			return fmt.Errorf("failed to set expires_at for contract %s: %w", contractIDStr, err)
+		}
+	}
+
+	return ack()
+}

@@ -1,0 +1,257 @@
+import { readFileSync, writeFileSync } from 'fs';
+
+let content = readFileSync(process.env.TMPDIR + '/repo-snapshot-clean.json', 'utf8');
+content = content.replace(/\n\[INFO\].*$/m, '');
+const snap = JSON.parse(content);
+
+function slugify(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function fileSlug(relativePath) {
+  return 'file-' + slugify(relativePath);
+}
+
+// Determine health based on file metrics
+function fileHealth(file) {
+  if (file.lineCount > 500) return ['red', `${file.lineCount} lines — too large`];
+  if (file.lineCount > 300) return ['yellow', `${file.lineCount} lines — large`];
+  if ((file.imports || []).length > 12) return ['yellow', `${(file.imports||[]).length} imports`];
+  return ['green', null];
+}
+
+function systemHealth(files) {
+  const maxLines = Math.max(...files.map(f => f.lineCount));
+  if (maxLines > 500) return ['red', 'contains 500+ line files'];
+  if (maxLines > 300) return ['yellow', 'contains large files'];
+  if (files.length > 15) return ['yellow', 'large system, consider nesting'];
+  return ['green', null];
+}
+
+// Map from relativePath prefix to system info
+function getSystemId(relativePath) {
+  const p = relativePath;
+
+  // kubernetes
+  if (p.startsWith('kubernetes-manifests/')) return 'system-kubernetes';
+  // telecom-mobile
+  if (p.startsWith('telecom-mobile/')) return 'system-telecom-mobile';
+  // js-mono root config files
+  if (p === 'js-mono/.prettierrc.js') return 'system-tooling';
+  if (p.startsWith('js-mono/scripts/')) return 'system-tooling';
+  if (p.startsWith('js-mono/tools/')) return 'system-tooling';
+  // js-mono libs
+  if (p.startsWith('js-mono/libs/fastify-uw-session-plugin/')) return 'system-lib-session';
+  if (p.startsWith('js-mono/libs/tracing/')) return 'system-lib-tracing';
+  if (p.startsWith('js-mono/libs/apollo/')) return 'system-lib-apollo';
+  if (p.startsWith('js-mono/libs/eslint-plugin/')) return 'system-tooling';
+  if (p.startsWith('js-mono/libs/prettier-config/')) return 'system-tooling';
+  // smart-tips-graphql
+  if (p.startsWith('js-mono/apps/smart-tips-graphql/')) return 'system-smart-tips-api';
+  // game-of-thrones-api
+  if (p.startsWith('js-mono/apps/game-of-thrones-api/')) return 'system-got-api';
+  // e2e
+  if (p.startsWith('js-mono/apps/my-account-web-e2e/')) return 'system-e2e';
+
+  // my-account-web domains
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/auth/')) return 'system-domain-auth';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/account/')) return 'system-domain-account';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/billing/')) return 'system-domain-billing';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/payments/')) return 'system-domain-payments';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/cashback/')) return 'system-domain-cashback';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/insurance/')) return 'system-domain-insurance';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/energy/smart-booking/')) return 'system-domain-energy-smartbooking';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/energy/meter-reads/')) return 'system-domain-energy-meterreads';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/energy/ev-switch/')) return 'system-domain-energy-evswitch';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/energy/')) return 'system-domain-energy';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/mobile/')) return 'system-domain-mobile';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/fixed-line/')) return 'system-domain-fixedline';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/home/')) return 'system-domain-home';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/debt/')) return 'system-domain-debt';
+  if (p.startsWith('js-mono/apps/my-account-web/src/domains/')) return 'system-domain-other';
+
+  // my-account-web server
+  if (p.startsWith('js-mono/apps/my-account-web/server/')) return 'system-maw-server';
+  // my-account-web shared
+  if (p.startsWith('js-mono/apps/my-account-web/src/components/')) return 'system-maw-components';
+  if (p.startsWith('js-mono/apps/my-account-web/src/pages/')) return 'system-maw-pages';
+  if (p.startsWith('js-mono/apps/my-account-web/src/lib/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/src/utils/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/src/hooks/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/src/contexts/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/src/graphql/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/src/tests/')) return 'system-e2e';
+  if (p.startsWith('js-mono/apps/my-account-web/mocks/')) return 'system-maw-lib';
+  if (p.startsWith('js-mono/apps/my-account-web/')) return 'system-maw-config';
+
+  return 'system-tooling';
+}
+
+const systemDefs = [
+  // Top-level: my-account-web
+  { id: 'system-my-account-web', label: 'My Account Web', parentId: null, filePath: 'js-mono/apps/my-account-web/', icon: 'globe', summary: 'Customer portal Next.js app' },
+  // Top-level: domains parent
+  { id: 'system-domains', label: 'Product Domains', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/domains/', icon: 'layers', summary: 'Feature domains by product line' },
+  // Domain children
+  { id: 'system-domain-auth', label: 'Auth', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/auth/', icon: 'lock', summary: 'Authentication flows' },
+  { id: 'system-domain-account', label: 'Account', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/account/', icon: 'shield', summary: 'Account management' },
+  { id: 'system-domain-billing', label: 'Billing', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/billing/', icon: 'database', summary: 'Billing & statements' },
+  { id: 'system-domain-payments', label: 'Payments', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/payments/', icon: 'zap', summary: 'Payment processing' },
+  { id: 'system-domain-cashback', label: 'Cashback', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/cashback/', icon: 'database', summary: 'Cashback rewards' },
+  { id: 'system-domain-insurance', label: 'Insurance', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/insurance/', icon: 'shield', summary: 'Insurance products' },
+  // Energy with nested subsystems
+  { id: 'system-domain-energy', label: 'Energy', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/energy/', icon: 'zap', summary: 'Energy services & smart home' },
+  { id: 'system-domain-energy-smartbooking', label: 'Smart Booking', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/smart-booking/', icon: 'clock', summary: 'Smart meter booking flow' },
+  { id: 'system-domain-energy-meterreads', label: 'Meter Reads', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/meter-reads/', icon: 'gear', summary: 'Meter reading submission' },
+  { id: 'system-domain-energy-evswitch', label: 'EV Switch', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/ev-switch/', icon: 'zap', summary: 'EV tariff switching' },
+  { id: 'system-domain-mobile', label: 'Mobile', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/mobile/', icon: 'envelope', summary: 'Mobile service management' },
+  { id: 'system-domain-fixedline', label: 'Fixed Line', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/fixed-line/', icon: 'route', summary: 'Broadband & fixed line' },
+  { id: 'system-domain-home', label: 'Home', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/home/', icon: 'globe', summary: 'Home dashboard' },
+  { id: 'system-domain-debt', label: 'Debt', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/debt/', icon: 'database', summary: 'Debt management' },
+  { id: 'system-domain-other', label: 'Other Domains', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/', icon: 'puzzle', summary: 'Miscellaneous domain pages' },
+  // MAW shared
+  { id: 'system-maw-components', label: 'Shared Components', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/components/', icon: 'puzzle', summary: 'Reusable UI components' },
+  { id: 'system-maw-pages', label: 'Pages', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/pages/', icon: 'file', summary: 'Next.js page routes' },
+  { id: 'system-maw-lib', label: 'Shared Lib', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/lib/', icon: 'gear', summary: 'Hooks, utils, contexts, graphql' },
+  { id: 'system-maw-server', label: 'Server', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/server/', icon: 'server', summary: 'Node.js Fastify server layer' },
+  { id: 'system-maw-config', label: 'Config & Root', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/', icon: 'gear', summary: 'App config, mocks, scripts' },
+  // Other apps
+  { id: 'system-smart-tips-api', label: 'Smart Tips API', parentId: null, filePath: 'js-mono/apps/smart-tips-graphql/', icon: 'route', summary: 'GraphQL API for smart tips' },
+  { id: 'system-got-api', label: 'GoT API', parentId: null, filePath: 'js-mono/apps/game-of-thrones-api/', icon: 'server', summary: 'Demo Game of Thrones API' },
+  { id: 'system-e2e', label: 'E2E Tests', parentId: null, filePath: 'js-mono/apps/my-account-web-e2e/', icon: 'code', summary: 'End-to-end test suite' },
+  // Libraries
+  { id: 'system-lib-session', label: 'Session Plugin', parentId: null, filePath: 'js-mono/libs/fastify-uw-session-plugin/', icon: 'lock', summary: 'Fastify session management plugin' },
+  { id: 'system-lib-tracing', label: 'Tracing', parentId: null, filePath: 'js-mono/libs/tracing/', icon: 'layers', summary: 'OpenTelemetry tracing lib' },
+  { id: 'system-lib-apollo', label: 'Apollo', parentId: null, filePath: 'js-mono/libs/apollo/', icon: 'route', summary: 'Apollo GraphQL client config' },
+  // Infra & tooling
+  { id: 'system-kubernetes', label: 'Kubernetes', parentId: null, filePath: 'kubernetes-manifests/', icon: 'server', summary: 'K8s deployment manifests' },
+  { id: 'system-telecom-mobile', label: 'Telecom Mobile', parentId: null, filePath: 'telecom-mobile/', icon: 'envelope', summary: 'Telecom mobile service' },
+  { id: 'system-tooling', label: 'Tooling', parentId: null, filePath: 'js-mono/', icon: 'gear', summary: 'ESLint, Prettier, build tools' },
+];
+
+const nodes = [];
+const edges = [];
+const edgeSet = new Set();
+
+// Add system nodes (compute lineCount from files later)
+const systemLineCounts = {};
+systemDefs.forEach(s => { systemLineCounts[s.id] = 0; });
+
+// Map files to systems
+const filesBySystem = {};
+snap.files.forEach(f => {
+  const sysId = getSystemId(f.relativePath);
+  if (!filesBySystem[sysId]) filesBySystem[sysId] = [];
+  filesBySystem[sysId].push(f);
+});
+
+// Accumulate line counts up the hierarchy
+function getAncestors(sysId) {
+  const sys = systemDefs.find(s => s.id === sysId);
+  if (!sys || !sys.parentId) return [];
+  return [sys.parentId, ...getAncestors(sys.parentId)];
+}
+
+snap.files.forEach(f => {
+  const sysId = getSystemId(f.relativePath);
+  systemLineCounts[sysId] = (systemLineCounts[sysId] || 0) + f.lineCount;
+  getAncestors(sysId).forEach(ancestor => {
+    systemLineCounts[ancestor] = (systemLineCounts[ancestor] || 0) + f.lineCount;
+  });
+});
+
+// Build system nodes
+systemDefs.forEach(s => {
+  const files = [];
+  // Collect all files in this system and descendants for health check
+  const collectFiles = (id) => {
+    (filesBySystem[id] || []).forEach(f => files.push(f));
+    systemDefs.filter(c => c.parentId === id).forEach(c => collectFiles(c.id));
+  };
+  collectFiles(s.id);
+
+  const [health, healthReason] = files.length > 0 ? systemHealth(files) : ['green', null];
+  const node = {
+    id: s.id,
+    label: s.label,
+    type: 'system',
+    icon: s.icon,
+    parentId: s.parentId,
+    filePath: s.filePath,
+    lineCount: systemLineCounts[s.id] || 0,
+    health,
+  };
+  if (s.summary) node.summary = s.summary;
+  if (healthReason) node.healthReason = healthReason;
+  nodes.push(node);
+});
+
+// Build file nodes
+snap.files.forEach(f => {
+  const sysId = getSystemId(f.relativePath);
+  const [health, healthReason] = fileHealth(f);
+  const node = {
+    id: fileSlug(f.relativePath),
+    label: f.name,
+    type: 'file',
+    icon: 'file',
+    parentId: sysId,
+    filePath: f.relativePath,
+    lineCount: f.lineCount,
+    health,
+  };
+  if (healthReason) node.healthReason = healthReason;
+  nodes.push(node);
+});
+
+// Build cross-system edges from imports
+const fileToSystem = {};
+snap.files.forEach(f => {
+  fileToSystem[f.relativePath] = getSystemId(f.relativePath);
+});
+
+// Helper to find the top-level system for a system ID
+function topLevelSystem(sysId) {
+  const sys = systemDefs.find(s => s.id === sysId);
+  if (!sys || !sys.parentId) return sysId;
+  return topLevelSystem(sys.parentId);
+}
+
+snap.files.forEach(f => {
+  if (!f.imports) return;
+  const srcTop = topLevelSystem(getSystemId(f.relativePath));
+  f.imports.forEach(imp => {
+    // Only internal relative imports
+    if (!imp.startsWith('.')) return;
+    // For cross-system edges, we'd need to resolve paths — skip for now
+    // Instead emit edges between systems based on known cross-domain imports
+  });
+});
+
+// Add curated cross-system edges based on known architecture
+const knownEdges = [
+  ['system-my-account-web', 'system-lib-session'],
+  ['system-my-account-web', 'system-lib-tracing'],
+  ['system-my-account-web', 'system-lib-apollo'],
+  ['system-smart-tips-api', 'system-lib-tracing'],
+  ['system-maw-server', 'system-lib-session'],
+  ['system-maw-server', 'system-lib-tracing'],
+  ['system-maw-pages', 'system-maw-lib'],
+  ['system-maw-pages', 'system-maw-components'],
+  ['system-domains', 'system-maw-lib'],
+  ['system-domains', 'system-maw-components'],
+];
+
+knownEdges.forEach(([src, tgt]) => {
+  const key = `${src}||${tgt}`;
+  if (edgeSet.has(key) || src === tgt) return;
+  edgeSet.add(key);
+  edges.push({ id: `edge-${src}-${tgt}`, source: src, target: tgt, type: 'imports' });
+});
+
+const graph = { nodes, edges };
+const outPath = (process.env.TMPDIR || '/tmp') + '/claudemap-enrichment.json';
+writeFileSync(outPath, JSON.stringify(graph, null, 2));
+console.log('Nodes:', nodes.length, '(systems:', systemDefs.length, ', files:', snap.files.length, ')');
+console.log('Edges:', edges.length);
+console.log('Written to:', outPath);

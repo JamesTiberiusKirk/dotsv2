@@ -1,0 +1,373 @@
+package consumer_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/utilitywarehouse/protoc-gen-protostrate/protostrate/message"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/services/account-gateway/pkg/protos/generated/v1/apis/accountgateway"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer"
+	mockConsumer "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer/mocks"
+	loanboxclient "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/loanbox"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+	"go.uber.org/mock/gomock"
+)
+
+var testContractUUID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+func TestConsumeMobileHandsetOrderedUpdatesContractStatus(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:     testContractUUID,
+			Status: models.ContractStatusApproved,
+		}, nil)
+
+	store.EXPECT().
+		UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+		Return(nil)
+
+	acked := false
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{
+			ServiceId:  "service-1",
+			CustomerId: "customer-1",
+			ContractId: testContractUUID.String(),
+			HandsetId:  "h-1",
+		},
+		func() error {
+			acked = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetOrdered returned error: %v", err)
+	}
+	if !acked {
+		t.Fatal("expected message to be acked")
+	}
+}
+
+func TestConsumeMobileHandsetOrderedSkipsAlreadyOrderedContract(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:     testContractUUID,
+			Status: models.ContractStatusHandsetOrdered,
+		}, nil)
+
+	acked := false
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{
+			ContractId: testContractUUID.String(),
+		},
+		func() error {
+			acked = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetOrdered returned error: %v", err)
+	}
+	if !acked {
+		t.Fatal("expected message to be acked")
+	}
+}
+
+func TestConsumeMobileHandsetOrderedWaitsForApprovedContract(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:     testContractUUID,
+			Status: models.ContractStatusEligibilityApproved,
+		}, nil)
+
+	acked := false
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{
+			ContractId: testContractUUID.String(),
+		},
+		func() error {
+			acked = true
+			return nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected error while contract is not approved")
+	}
+	if acked {
+		t.Fatal("did not expect message to be acked")
+	}
+}
+
+func TestConsumeMobileHandsetOrderedSetsExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	expectedExpiresAt := signedAt.AddDate(0, 24, 0)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:             testContractUUID,
+			Status:         models.ContractStatusApproved,
+			ContractMonths: "24",
+			SignedAt:       &signedAt,
+		}, nil)
+
+	store.EXPECT().
+		UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+		Return(nil)
+
+	store.EXPECT().
+		UpdateContractExpiresAt(gomock.Any(), testContractUUID, expectedExpiresAt).
+		Return(nil)
+
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{ContractId: testContractUUID.String()},
+		func() error { return nil },
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetOrdered returned error: %v", err)
+	}
+}
+
+func TestConsumeMobileHandsetOrderedSkipsExpiresAtWhenSignedAtNil(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:             testContractUUID,
+			Status:         models.ContractStatusApproved,
+			ContractMonths: "24",
+			SignedAt:       nil,
+		}, nil)
+
+	store.EXPECT().
+		UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+		Return(nil)
+
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{ContractId: testContractUUID.String()},
+		func() error { return nil },
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetOrdered returned error: %v", err)
+	}
+}
+
+func TestConsumeMobileHandsetOrderedReturnsErrorOnInvalidContractMonths(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:             testContractUUID,
+			Status:         models.ContractStatusApproved,
+			ContractMonths: "not-a-number",
+			SignedAt:       &signedAt,
+		}, nil)
+
+	store.EXPECT().
+		UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+		Return(nil)
+
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{ContractId: testContractUUID.String()},
+		func() error { return nil },
+	)
+	if err == nil {
+		t.Fatal("expected error for invalid contract_months")
+	}
+}
+
+func TestConsumeMobileHandsetOrderedReturnsErrorWhenExpiresAtUpdateFails(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:             testContractUUID,
+			Status:         models.ContractStatusApproved,
+			ContractMonths: "24",
+			SignedAt:       &signedAt,
+		}, nil)
+
+	store.EXPECT().
+		UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+		Return(nil)
+
+	store.EXPECT().
+		UpdateContractExpiresAt(gomock.Any(), testContractUUID, gomock.Any()).
+		Return(errors.New("db error"))
+
+	err := consumerSvc.ConsumeMobileHandsetOrdered(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetOrdered{ContractId: testContractUUID.String()},
+		func() error { return nil },
+	)
+	if err == nil {
+		t.Fatal("expected error when UpdateContractExpiresAt fails")
+	}
+}
+
+func TestConsumeMobileHandsetContractApprovedSkipsOrderedContract(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	consumerSvc := consumer.New(store, nil, nil)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:     testContractUUID,
+			Status: models.ContractStatusHandsetOrdered,
+		}, nil)
+
+	acked := false
+	err := consumerSvc.ConsumeMobileHandsetContractApproved(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetContractApproved{
+			ContractId: testContractUUID.String(),
+		},
+		func() error {
+			acked = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetContractApproved returned error: %v", err)
+	}
+	if !acked {
+		t.Fatal("expected message to be acked")
+	}
+}
+
+func TestConsumeMobileHandsetContractApprovedUsesApprovedEventLoanValues(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := mockConsumer.NewMockStorage(ctrl)
+	accountClient := mockConsumer.NewMockAccountClient(ctrl)
+	loanboxClient := mockConsumer.NewMockLoanboxClient(ctrl)
+	consumerSvc := consumer.New(store, accountClient, loanboxClient)
+
+	store.EXPECT().
+		GetContractByID(gomock.Any(), testContractUUID).
+		Return(&models.Contract{
+			ID:                testContractUUID,
+			RequestID:         "request-1",
+			Status:            models.ContractStatusEligibilityApproved,
+			BankAccountNumber: "12345678",
+			BankTitle:         "Barclays",
+		}, nil)
+
+	accountClient.EXPECT().
+		GetAccount(gomock.Any(), &accountgateway.GetAccountRequest{AccountId: "customer-1"}).
+		Return(&accountgateway.GetAccountResponse{Account: &accountgateway.Account{}}, nil)
+
+	loanboxClient.EXPECT().
+		CreateLoan(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req loanboxclient.CreateLoanRequest) (*loanboxclient.CreateLoanResponse, error) {
+			if req.AmountApproved != 950 {
+				t.Fatalf("expected approved event retail price, got %.2f", req.AmountApproved)
+			}
+			if req.TermMonths != 24 {
+				t.Fatalf("expected approved event contract months, got %d", req.TermMonths)
+			}
+			if req.BankAccountNumber != "12345678" {
+				t.Fatalf("expected contract bank account number, got %q", req.BankAccountNumber)
+			}
+			return &loanboxclient.CreateLoanResponse{LoanApplicationID: 123}, nil
+		})
+
+	store.EXPECT().
+		UpdateContractLoanReference(gomock.Any(), "request-1", "123").
+		Return(nil)
+
+	store.EXPECT().
+		UpdateContractStatus(gomock.Any(), "request-1", models.ContractStatusApproved).
+		Return(nil)
+
+	acked := false
+	err := consumerSvc.ConsumeMobileHandsetContractApproved(
+		context.Background(),
+		&message.Envelope{Id: "event-1"},
+		&serviceevents.MobileHandsetContractApproved{
+			ServiceId:      "service-1",
+			CustomerId:     "customer-1",
+			ContractId:     testContractUUID.String(),
+			HandsetId:      "h-1",
+			RetailPrice:    &serviceevents.Money{Amount: "950", Currency: "GBP"},
+			ContractMonths: "24",
+		},
+		func() error {
+			acked = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ConsumeMobileHandsetContractApproved returned error: %v", err)
+	}
+	if !acked {
+		t.Fatal("expected message to be acked")
+	}
+}

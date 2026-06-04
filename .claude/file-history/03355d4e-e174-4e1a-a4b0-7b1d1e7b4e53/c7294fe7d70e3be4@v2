@@ -1,0 +1,16 @@
+import { readFileSync } from 'fs';
+const g = JSON.parse(readFileSync(process.env.TMPDIR + '/claudemap-enrichment.json', 'utf8'));
+console.log('nodes:', g.nodes.length);
+console.log('edges:', g.edges.length);
+console.log('systems:', g.nodes.filter(n => n.type === 'system').length);
+console.log('files:', g.nodes.filter(n => n.type === 'file').length);
+let errors = 0;
+g.nodes.forEach(n => {
+  if (!n.id || !n.label || !n.type) { console.log('BAD node:', n.id); errors++; }
+  if (!('parentId' in n)) { console.log('Missing parentId:', n.id); errors++; }
+  if (!('filePath' in n)) { console.log('Missing filePath:', n.id); errors++; }
+});
+g.edges.forEach(e => {
+  if (!e.id || !e.source || !e.target || !e.type) { console.log('BAD edge:', e.id); errors++; }
+});
+console.log('Validation errors:', errors);

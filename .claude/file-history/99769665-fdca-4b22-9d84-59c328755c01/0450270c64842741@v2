@@ -1,0 +1,443 @@
+package grpc
+
+import (
+	"context"
+	"crypto/hmac"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/utilitywarehouse/uwos-go/telemetry/tracing"
+	"github.com/utilitywarehouse/uwos-go/telemetry/uwconv"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/terrors"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tlog"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/pkg/protos/generated/v1/apis/handset"
+)
+
+var (
+	requestCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "handset_api_requests_total",
+		Help: "Total number of handset API requests by method and status",
+	}, []string{"method", "status"})
+
+	callbackCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "handset_eligibility_callback_total",
+		Help: "Total number of eligibility callbacks by result",
+	}, []string{"result"})
+)
+
+const callbackSecretHeaderKey = "x-callback-secret" // nolint: gosec
+
+//go:generate mockgen -destination=./mocks/$GOFILE -source=./$GOFILE
+
+type Service interface {
+	GetActiveContractForService(ctx context.Context, serviceID string) (*models.Contract, error)
+	GetAvailableHandsets(ctx context.Context, customerID, serviceID string, includeOutOfStock bool) ([]models.Handset, error)
+	RequestHandsetForService(ctx context.Context, serviceID, customerID, handsetID string) (string, string, error)
+	EligibilityCallbackSuccess(ctx context.Context, requestID string, outcome models.EligibilityOutcome) error
+	EligibilityCallbackFailure(ctx context.Context, requestID string, outcome models.EligibilityFailureOutcome) error
+	EligibilityStatusUpdate(ctx context.Context, requestID, status string) error
+	GetRequest(ctx context.Context, requestID string) (*models.Contract, *models.Handset, error)
+}
+
+type Controller struct {
+	handset.UnimplementedHandsetAPIServer
+	service        Service
+	callbackSecret string
+}
+
+func NewController(service Service, callbackSecret string) *Controller {
+	return &Controller{
+		service:        service,
+		callbackSecret: callbackSecret,
+	}
+}
+
+func (c *Controller) GetAvailableHandsets(ctx context.Context, request *handset.GetAvailableHandsetsRequest) (*handset.GetAvailableHandsetsResponse, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "GetAvailableHandsets", trace.WithAttributes(
+		attribute.String("service_id", request.GetServiceId()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("GetAvailableHandsets", err)
+	}()
+
+	handsets, err := c.service.GetAvailableHandsets(ctx, request.GetCustomerId(), request.GetServiceId(), request.GetIncludeOutOfStock())
+	if err != nil {
+		return nil, toGRPCError(ctx, "GetAvailableHandsets", err)
+	}
+
+	var response []*handset.Handset
+	for _, h := range handsets {
+		handsetProto, termErr := handsetToProto(h)
+		if termErr != nil {
+			return nil, status.Errorf(codes.Internal, "failed to parse contract term: %v", termErr)
+		}
+		response = append(response, handsetProto)
+	}
+
+	return &handset.GetAvailableHandsetsResponse{Handsets: response}, nil
+}
+
+func (c *Controller) GetActiveContractForService(ctx context.Context, request *handset.GetActiveContractForServiceRequest) (*handset.GetActiveContractForServiceResponse, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "GetActiveContractForService", trace.WithAttributes(
+		attribute.String("service_id", request.GetServiceId()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("GetActiveContractForService", err)
+	}()
+
+	contract, err := c.service.GetActiveContractForService(ctx, request.GetServiceId())
+	if err != nil {
+		return nil, toGRPCError(ctx, "GetActiveContractForService", err)
+	}
+
+	return contractToProto(contract), nil
+}
+
+func (c *Controller) GetRequest(ctx context.Context, request *handset.GetRequestRequest) (*handset.GetRequestResponse, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "GetRequest", trace.WithAttributes(
+		attribute.String("request_id", request.GetRequestId()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("GetRequest", err)
+	}()
+
+	// Validate shared secret — this endpoint is for the third-party provider
+	if err = c.validateCallbackSecret(ctx); err != nil {
+		tlog.Warn(ctx, "GetRequest rejected: invalid secret")
+		return nil, err
+	}
+
+	contract, h, err := c.service.GetRequest(ctx, request.GetRequestId())
+	if err != nil {
+		return nil, toGRPCError(ctx, "GetRequest", err)
+	}
+
+	return &handset.GetRequestResponse{
+		RequestId:        contract.RequestID,
+		CustomerId:       contract.CustomerID,
+		ServiceId:        contract.ServiceID,
+		RequestedProduct: contractToProduct(contract, h),
+	}, nil
+}
+
+func (c *Controller) RequestHandsetForService(ctx context.Context, request *handset.RequestHandsetForServiceRequest) (*handset.RequestHandsetForServiceResponse, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "RequestHandsetForService", trace.WithAttributes(
+		attribute.String("service_id", request.GetServiceId()),
+		attribute.String("handset_id", request.GetHandsetId()),
+		uwconv.CustomerAccountID(request.GetCustomerId()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("RequestHandsetForService", err)
+	}()
+
+	requestID, redirectURL, err := c.service.RequestHandsetForService(ctx, request.GetServiceId(), request.GetCustomerId(), request.GetHandsetId())
+	if err != nil {
+		return nil, toGRPCError(ctx, "RequestHandsetForService", err)
+	}
+
+	span.SetAttributes(attribute.String("request_id", requestID))
+
+	return &handset.RequestHandsetForServiceResponse{
+		RequestId:   requestID,
+		HandsetId:   request.GetHandsetId(),
+		Status:      string(models.ContractStatusPendingEligibility),
+		RedirectUrl: redirectURL,
+	}, nil
+}
+
+func (c *Controller) EligibilityCallbackSuccess(ctx context.Context, request *handset.EligibilityCallbackSuccessRequest) (*emptypb.Empty, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "EligibilityCallbackSuccess", trace.WithAttributes(
+		attribute.String("request_id", request.GetRequestId()),
+		attribute.String("decision", request.GetDecision().String()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("EligibilityCallbackSuccess", err)
+	}()
+
+	if err = c.validateCallbackSecret(ctx); err != nil {
+		tlog.Warn(ctx, "eligibility callback success rejected: invalid secret")
+		callbackCounter.WithLabelValues("rejected").Inc()
+		return nil, err
+	}
+
+	outcome := models.EligibilityOutcome{
+		Decision:           request.GetDecision().String(),
+		AgreementID:        request.GetAgreementId(),
+		DocusignEnvelopeID: request.GetDocusignEnvelopeId(),
+		SignedAt:           protoTimestampToTime(request.GetSignedAt()),
+		CompletedAt:        protoTimestampToTime(request.GetCompletedAt()),
+	}
+	err = c.service.EligibilityCallbackSuccess(ctx, request.GetRequestId(), outcome)
+	if err != nil {
+		return nil, toGRPCError(ctx, "EligibilityCallbackSuccess", err)
+	}
+
+	callbackCounter.WithLabelValues("success").Inc()
+	return &emptypb.Empty{}, nil
+}
+
+func (c *Controller) EligibilityCallbackFailure(ctx context.Context, request *handset.EligibilityCallbackFailureRequest) (*emptypb.Empty, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "EligibilityCallbackFailure", trace.WithAttributes(
+		attribute.String("request_id", request.GetRequestId()),
+		attribute.String("failure_reason", request.GetFailureReason().String()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("EligibilityCallbackFailure", err)
+	}()
+
+	if err = c.validateCallbackSecret(ctx); err != nil {
+		tlog.Warn(ctx, "eligibility callback failure rejected: invalid secret")
+		callbackCounter.WithLabelValues("rejected").Inc()
+		return nil, err
+	}
+
+	failureOutcome := models.EligibilityFailureOutcome{
+		FailureReason:  request.GetFailureReason().String(),
+		FailureStage:   request.GetFailureStage().String(),
+		FailureMessage: request.GetFailureMessage(),
+		FailedAt:       protoTimestampToTime(request.GetFailedAt()),
+	}
+	err = c.service.EligibilityCallbackFailure(ctx, request.GetRequestId(), failureOutcome)
+	if err != nil {
+		return nil, toGRPCError(ctx, "EligibilityCallbackFailure", err)
+	}
+
+	callbackCounter.WithLabelValues("failure").Inc()
+	return &emptypb.Empty{}, nil
+}
+
+func (c *Controller) EligibilityStatusUpdate(ctx context.Context, request *handset.EligibilityStatusUpdateRequest) (*emptypb.Empty, error) {
+	ctx, span := tracing.Tracer().Start(ctx, "EligibilityStatusUpdate", trace.WithAttributes(
+		attribute.String("request_id", request.GetRequestId()),
+		attribute.String("status", request.GetStatus().String()),
+	))
+	var err error
+	defer func() {
+		_ = tracing.RecordSpanError(span, err)
+		span.End()
+		recordRequestMetric("EligibilityStatusUpdate", err)
+	}()
+
+	if err = c.validateCallbackSecret(ctx); err != nil {
+		tlog.Warn(ctx, "eligibility callback status update rejected: invalid secret")
+		callbackCounter.WithLabelValues("rejected").Inc()
+		return nil, err
+	}
+
+	err = c.service.EligibilityStatusUpdate(ctx, request.GetRequestId(), request.GetStatus().String())
+	if err != nil {
+		return nil, toGRPCError(ctx, "EligibilityStatusUpdate", err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (c *Controller) validateCallbackSecret(ctx context.Context) error {
+	if c.callbackSecret == "" {
+		return status.Error(codes.Unauthenticated, "callback secret is not configured")
+	}
+
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "missing metadata")
+	}
+
+	values := md.Get(callbackSecretHeaderKey)
+	if len(values) != 1 || !hmac.Equal([]byte(values[0]), []byte(c.callbackSecret)) {
+		return status.Error(codes.Unauthenticated, "invalid callback secret")
+	}
+
+	return nil
+}
+
+func toGRPCError(ctx context.Context, method string, err error) error {
+	switch {
+	case errors.Is(err, terrors.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, terrors.ErrBadRequest):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, terrors.ErrFailedValidation):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, terrors.ErrUnauthenticated):
+		return status.Error(codes.Unauthenticated, err.Error())
+	default:
+		tlog.Error(ctx, "%s failed: %v", method, err)
+		return status.Error(codes.Internal, "internal server error")
+	}
+}
+
+func contractToProto(contract *models.Contract) *handset.GetActiveContractForServiceResponse {
+	return &handset.GetActiveContractForServiceResponse{
+		Contract: &handset.Contract{
+			Id:        contract.ID,
+			CreatedAt: contract.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			Status:    string(contract.Status),
+		},
+	}
+}
+
+func contractToProduct(contract *models.Contract, h *models.Handset) *handset.ContractProduct {
+	name := contract.HandsetName
+	basePricePence := parsePenceOrZero(contract.RetailPricePence)
+	monthlyRepaymentPence := parsePenceOrZero(contract.ContractPricePence)
+	contractMonths := parsePenceOrZero(contract.ContractMonths)
+
+	if h != nil {
+		if name == "" {
+			name = h.CurrentProperties.Name
+		}
+		if basePricePence == 0 {
+			basePricePence = h.CurrentProperties.RRPPence
+		}
+		if monthlyRepaymentPence == 0 {
+			monthlyRepaymentPence = h.CurrentProperties.RentalPricePence
+		}
+		if contractMonths == 0 {
+			contractMonths = h.CurrentProperties.ContractTermMonths
+		}
+	}
+
+	// Avoid int->int32 wraparound on unexpected/corrupted data.
+	basePrice32 := int32(0)
+	if basePricePence >= math.MinInt32 && basePricePence <= math.MaxInt32 {
+		basePrice32 = int32(basePricePence) // nolint: gosec
+	}
+	monthlyRepayment32 := int32(0)
+	if monthlyRepaymentPence >= math.MinInt32 && monthlyRepaymentPence <= math.MaxInt32 {
+		monthlyRepayment32 = int32(monthlyRepaymentPence) // nolint: gosec
+	}
+
+	// @todo hardcoded APR for now, this is all for testing purposes and should be replaced with real calculations based on the contract and handset details
+	aprPercent := 5.0
+	interest := totalInterest(basePricePence, aprPercent/100, contractMonths)
+	totalFinance := int32(monthlyRepaymentPence*contractMonths) + interest
+
+	return &handset.ContractProduct{
+		Id:               contract.HandsetID,
+		Name:             name,
+		BasePrice:        basePrice32,
+		MonthlyRepayment: monthlyRepayment32,
+		TotalFinance:     totalFinance,
+		InterestTotal:    interest,
+		AprPercent:       float32(aprPercent),
+	}
+}
+
+func totalInterest(principalPence int, apr float64, months int) int32 {
+	principal := float64(principalPence)
+
+	r := apr / 12.0 // e.g. 12% APR => 0.12
+
+	payment := principal *
+		(r * math.Pow(1+r, float64(months))) /
+		(math.Pow(1+r, float64(months)) - 1)
+
+	interest := payment*float64(months) - principal
+
+	return int32(math.Round(interest))
+}
+
+func parsePenceOrZero(s string) int {
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func recordRequestMetric(method string, err error) {
+	if err != nil {
+		requestCounter.WithLabelValues(method, "error").Inc()
+	} else {
+		requestCounter.WithLabelValues(method, "ok").Inc()
+	}
+}
+
+func toContractTerm(h models.HandsetProperties) (int32, error) {
+	i := h.ContractTermMonths
+	if i < math.MinInt32 || i > math.MaxInt32 {
+		return 0, fmt.Errorf("contract term value %d overflows int32", i)
+	}
+	return int32(i), nil // nolint: gosec
+}
+
+func handsetToProto(h models.Handset) (*handset.Handset, error) {
+	term, err := toContractTerm(h.CurrentProperties)
+	if err != nil {
+		return nil, err
+	}
+
+	p := h.CurrentProperties
+	return &handset.Handset{
+		Id:                 h.ID,
+		Name:               p.Name,
+		RentalPrice:        toMoney(p.RentalPricePence),
+		Rrp:                toMoney(p.RRPPence),
+		ContractTermMonths: term,
+		Manufacturer:       p.Manufacturer,
+		Model:              p.Model,
+		Colours:            p.Colours,
+		Capacity:           p.Capacity,
+		ScreenSize:         p.ScreenSize,
+		Battery:            p.Battery,
+		SdCapacity:         p.SDCapacity,
+		WifiStandard:       p.WiFiStandard,
+		Esim:               p.ESim,
+		DualSim:            p.DualSim,
+		SaleStatus:         p.SaleStatus,
+		IsNew:              p.IsNew,
+		SpecificationsLink: p.SpecificationsLink,
+	}, nil
+}
+
+func protoTimestampToTime(ts *timestamppb.Timestamp) *time.Time {
+	if ts == nil {
+		return nil
+	}
+	t := ts.AsTime()
+	return &t
+}
+
+func toMoney(pence int) *serviceevents.Money {
+	pounds := float64(pence) / 100.0
+	return &serviceevents.Money{
+		Amount:   fmt.Sprintf("%.2f", pounds),
+		Currency: "GBP",
+	}
+}

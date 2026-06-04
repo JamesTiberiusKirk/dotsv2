@@ -1,0 +1,97 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type ContractStatus string
+
+const (
+	ContractStatusPendingEligibility  ContractStatus = "PENDING_ELIGIBILITY"
+	ContractStatusEligibilityApproved ContractStatus = "ELIGIBILITY_APPROVED"
+	ContractStatusApproved            ContractStatus = "APPROVED"
+	ContractStatusDeclined            ContractStatus = "DECLINED"
+	ContractStatusHandsetOrdered      ContractStatus = "HANDSET_ORDERED"
+	ContractStatusExpired             ContractStatus = "EXPIRED"
+)
+
+type Handset struct {
+	ID                uuid.UUID           `json:"id" bson:"id"`
+	BillID            string              `json:"billID" bson:"billID"`
+	Active            bool                `json:"active" bson:"active"`
+	QuantityInStock   int                 `json:"quantityInStock" bson:"quantityInStock"`
+	CurrentProperties HandsetProperties   `json:"currentProperties" bson:"currentProperties"`
+	Versions          []HandsetProperties `json:"versions" bson:"versions"`
+}
+
+type HandsetProperties struct {
+	Version            string    `bson:"version" json:"version"`
+	Name               string    `bson:"name" json:"name"`
+	RentalPricePence   int       `bson:"rentalPricePence" json:"rentalPricePence"`
+	RRPPence           int       `bson:"rrpPence" json:"rrpPence"`
+	ContractTermMonths int       `bson:"contractTermMonths" json:"contractTermMonths"`
+	Manufacturer       string    `bson:"manufacturer" json:"manufacturer"`
+	Model              string    `bson:"model" json:"model"`
+	Colours            string    `bson:"colours" json:"colours"`
+	Capacity           string    `bson:"capacity" json:"capacity"`
+	ScreenSize         string    `bson:"screenSize" json:"screenSize"`
+	Battery            string    `bson:"battery" json:"battery"`
+	SDCapacity         string    `bson:"sdCapacity" json:"sdCapacity"`
+	WiFiStandard       string    `bson:"wiFiStandard" json:"wiFiStandard"`
+	ESim               bool      `bson:"eSim" json:"eSim"`
+	DualSim            bool      `bson:"dualSim" json:"dualSim"`
+	SaleStatus         string    `bson:"saleStatus" json:"saleStatus"`
+	IsNew              bool      `bson:"isNew" json:"isNew"`
+	UWLaunchDate       time.Time `bson:"uwLaunchDate" json:"uwLaunchDate"`
+	PriceChange        bool      `bson:"priceChange" json:"priceChange"`
+	EndOfLife          bool      `bson:"endOfLife" json:"endOfLife"`
+	SpecificationsLink string    `bson:"specificationsLink" json:"specificationsLink"`
+	BillID             string    `bson:"billID" json:"billID"`
+}
+
+type Contract struct {
+	ID                 uuid.UUID  `bson:"id"`
+	ServiceID          string     `bson:"serviceId"`
+	CustomerID         string     `bson:"customerId"`
+	HandsetID          string     `bson:"handsetId"`
+	HandsetName        string     `bson:"handsetName"`
+	HandsetVersion     string     `bson:"handsetVersion"`
+	ContractPrice      string     `bson:"contractPrice"`
+	RetailPrice        string     `bson:"retailPrice"`
+	ContractMonths     string     `bson:"contractMonths"`
+	RequestID          string     `bson:"requestId"`
+	LoanReference      string     `bson:"loanReference,omitempty"`
+	BankAccountNumber  string     `bson:"bankAccountNumber,omitempty"`
+	BankTitle          string     `bson:"bankTitle,omitempty"`
+	Decision           string     `bson:"decision,omitempty"`
+	AgreementID        string     `bson:"agreementId,omitempty"`
+	DocusignEnvelopeID string     `bson:"docusignEnvelopeId,omitempty"`
+	SignedAt           *time.Time `bson:"signedAt,omitempty"`
+	ExpiresAt      *time.Time     `bson:"expiresAt,omitempty"`
+	CompletedAt    *time.Time     `bson:"completedAt,omitempty"`
+	FailureReason  string         `bson:"failureReason,omitempty"`
+	FailureStage   string         `bson:"failureStage,omitempty"`
+	FailureMessage string         `bson:"failureMessage,omitempty"`
+	FailedAt       *time.Time     `bson:"failedAt,omitempty"`
+	Status         ContractStatus `bson:"status"`
+	CreatedAt      time.Time      `bson:"createdAt"`
+	UpdatedAt      time.Time      `bson:"updatedAt"`
+}
+
+type EligibilityOutcome struct {
+	Decision           string
+	AgreementID        string
+	DocusignEnvelopeID string
+	ContractMonths     string
+	SignedAt           *time.Time
+	CompletedAt        *time.Time
+}
+
+type EligibilityFailureOutcome struct {
+	FailureReason  string
+	FailureStage   string
+	FailureMessage string
+	FailedAt       *time.Time
+}

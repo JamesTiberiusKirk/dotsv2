@@ -1,0 +1,186 @@
+# Handset Sales Platform — v1
+
+UW is reviving handset sales. **Priority: ASAP.** Small self-contained team. After delivery, folds into broader telecom/mobile org.
+
+## What We're Building
+
+1. **Handset API** (`services/handset`) — largely built by Matt Shimwell, needs finishing
+2. **Frontend** — new page/journey in `js-mono/apps/my-account-web/src/domains/mobile/pages/`. No product images for v1. Exact placement TBC — Matt will align with @mheald (UX)
+3. **Bill integration** — notify Bill about handset transactions via MP0123 comment code. Open questions remain, one team member will own it.
+
+## System Flow
+
+```
+Customer (Website/App)
+    → Handset API (api mode)
+        → my-services-api (verify service is LIVE + owned by customer)
+        → account-gateway (get customer details)
+        → returns redirect_url to customer
+    → Customer redirected to IEHub (third-party eligibility provider)
+        → IEHub does KYC, credit check, DocuSign
+        → IEHub calls back EligibilityCallback on approve/decline
+    → Handset API publishes MobileHandsetContractApproved to Kafka
+    → Handset Consumer (consumer mode) picks it up
+        → account-gateway (fetch customer details for loan)
+        → Loanbox LMS (POST ManageLoan — creates the actual loan)
+    → Bill Connector reacts to events → MP0123 comment code → Bill (Handset table)
+    → unicom-handset-comms-requester → Unicom /v1/sendMessage → SMS/Email
+```
+
+## Service Modes
+
+The `handset` binary has two subcommands:
+- **`api`** — gRPC server, handles browsing/requests, eligibility callbacks, syncs catalogue from EquinoxDB every 12h
+- **`consumer`** — consumes `MobileHandsetContractApproved` from Kafka, creates the Loanbox loan
+
+## Contract States
+
+```
+PENDING_ELIGIBILITY → ELIGIBILITY_APPROVED → APPROVED
+         └──────────────────────────────────→ DECLINED
+```
+
+| State | Meaning |
+|---|---|
+| `PENDING_ELIGIBILITY` | Contract created, customer redirected to IEHub |
+| `ELIGIBILITY_APPROVED` | IEHub approved, bank details stored, awaiting consumer to create loan |
+| `APPROVED` | Loan created in Loanbox, loan reference stored |
+| `DECLINED` | IEHub declined |
+
+Callbacks are idempotent — duplicates ignored once `ELIGIBILITY_APPROVED`, `APPROVED`, or `DECLINED`.
+
+## API Endpoints (gRPC)
+
+### `RequestHandsetForService`
+1. Verify service ownership + `LIVE` status via `my-services-api`
+2. Check no active contract exists for the service
+3. Verify handset exists, is active, is in stock
+4. Fetch account info from `account-gateway`
+5. Create contract in MongoDB as `PENDING_ELIGIBILITY`
+6. Produce `MobileHandsetContractRequested`
+7. Return `PENDING_ELIGIBILITY` + `redirect_url` pointing to IEHub with `request_id` as query param
+
+### `EligibilityCallback`
+Called by IEHub. Validated via `x-callback-secret` header.
+- **Declined**: update to `DECLINED`, produce `MobileHandsetContractDeclined`
+- **Approved**: store bank details, update to `ELIGIBILITY_APPROVED`, produce `MobileHandsetContractApproved`
+
+Loan creation happens in the consumer, not here.
+
+### `GetContractByRequestID`
+Used by IEHub to fetch contract details. Also authenticated via `x-callback-secret`.
+Returns: `contract_id`, `customer_id`, `service_id`, `request_id`, status, timestamps, handset details.
+
+### `GetAvailableHandsets`
+Returns active in-stock handsets. Empty if service already has an active contract.
+
+### `GetActiveContractForService`
+Returns active contract for a service if one exists.
+
+## Consumer Flow (`MobileHandsetContractApproved`)
+
+1. Load contract by `contract_id`
+2. If already `APPROVED`, ack + skip (idempotent)
+3. Fetch customer details from `account-gateway`
+4. Build Loanbox `ManageLoan` request using contract bank details + approved event price/term
+5. Call Loanbox
+6. Store loan reference
+7. Update contract to `APPROVED`
+
+Failures → protostrate deadletter interceptor retries → publishes to `<KAFKA_TOPIC_IN>-deadletters`.
+
+## Lifecycle Events
+
+| Event | When |
+|---|---|
+| `MobileHandsetContractRequested` | On `RequestHandsetForService` |
+| `MobileHandsetContractApproved` | On approved eligibility callback |
+| `MobileHandsetContractDeclined` | On declined eligibility callback |
+
+All carry: `service_id`, `customer_id`, `contract_id`, `handset_id`.
+`MobileHandsetContractApproved` also carries agreed price + term (used for Loanbox — locks values at approval time, not catalogue time).
+
+## Handset Catalogue
+
+- Source of truth: **EquinoxDB** (Postgres) — synced into MongoDB every 12h via a cron job in `internal/cron`
+- API reads use MongoDB only
+- `pkg/handsetdb` — YAML-based catalogue (older approach, may be superseded by EquinoxDB sync)
+
+## IEHub (Third-Party Eligibility Provider)
+
+IEHub handles the customer eligibility journey (KYC, credit check, DocuSign). UW does NOT own the loan agreement — Loanbox does.
+
+IEHub API contract is **draft / not final** — feedback has been given to IEHub. 4-page doc, only page 1 captured so far.
+
+| # | Direction | Endpoint | Trigger |
+|---|---|---|---|
+| 1 | UW → IEHub | `GET /api/handset-handover?customerId=&requestId=&sig=` | Customer goes to checkout |
+| 2 | IEHub → UW | `GET /requests/{requestId}` | IEHub validates requestId |
+| 3 | IEHub → UW | `GET /products/{id}` | IEHub fetches product details |
+| 4 | IEHub → UW | `POST /journey-completed` | Customer approved + signed |
+| 5 | IEHub → UW | `POST /journey-failed` | Decline, failure, or timeout |
+
+Handover request uses **HMAC-SHA256** signature over canonical query string (excluding `sig`).
+`requestId` is a single-use UUIDv4, 1-min validity.
+UAT base: `https://partner-uat.utilities.co.uk`
+
+IEHub is referenced in code only as `ELIGIBILITY_PROVIDER_URL`. Implementation in `services/handset/internal/eligibility/`.
+
+## Loanbox LMS
+
+IEHub integrates with Loanbox for the actual loan. UW also talks to Loanbox directly from the consumer via `POST /api/integration/v1/manage-loan` (`internal/loanbox` HTTP client).
+
+**Currently hardcoded**: `DefaultLoanProduct()` and `DefaultInterestRate` used for all handsets (noted as future work to make per-handset).
+
+## Bill Integration
+
+- Comment code: **MP0123** (handset transaction)
+- Bill needs to KNOW about the transaction for inventory/charging
+- Bill does NOT own the loan (Loanbox does)
+- Pattern: produce events → `bill-connector` reacts → comment code → Bill (Handset table)
+- Open questions on exact integration. Owner TBD.
+
+## Key Dependencies
+
+| Service | Protocol | Purpose |
+|---|---|---|
+| `my-services-api` | gRPC | Verify customer owns the mobile service and it's LIVE |
+| `account-gateway` | gRPC | Customer details for eligibility + loan creation |
+| IEHub | HTTP (redirect) | Customer eligibility, KYC, DocuSign |
+| Loanbox LMS | HTTP | Create the loan (`ManageLoan`) |
+| Kafka lifecycle topic | Kafka/protostrate | Publish + consume handset events |
+| MongoDB | MongoDB | Contracts + handset catalogue |
+| EquinoxDB | Postgres | Source handset catalogue data |
+
+## Configuration
+
+### Shared
+`MONGO_URL`, `MONGO_DB_NAME`, `KAFKA_BROKERS`, `KAFKA_VERSION`, `ACCOUNT_GATEWAY_ADDRESS`, `OPS_ADDRESS`
+
+### API mode
+`GRPC_SERVER_LISTEN_ADDRESS`, `SWAGGER_LISTEN_ADDRESS`, `EQUINOXDB_CONN_STR`, `ELIGIBILITY_CALLBACK_SECRET`, `ELIGIBILITY_PROVIDER_URL`, `KAFKA_TOPIC_OUT`, `MY_SERVICES_ADDRESS`, `MAX_GRPC_MESSAGE_SIZE_MB`
+
+### Consumer mode
+`KAFKA_TOPIC_IN`, `KAFKA_CONSUMER_GROUP`, `LOANBOX_BASE_URL`, `LOANBOX_AUTH_TOKEN`, `LOANBOX_TIMEOUT` (default 30s)
+
+## Frontend
+
+Lives in `js-mono/apps/my-account-web/src/domains/mobile/pages/` — a new page to add alongside existing mobile pages (Dashboard, AddSIMs, TopUp, etc.).
+Tech: Next.js, Apollo GraphQL (via `public-graphql`), TypeScript.
+Run: `yarn nx dev my-account-web`
+
+## Known Gaps / Future Work (from README)
+
+- Contract → active transition: consume dispatch/inventory events, add `ACTIVE` state
+- Contract expiry: `EXPIRED` state when term ends
+- Customer retry after decline
+- Eligibility timeout for `PENDING_ELIGIBILITY` with no callback
+- DLQ replay workflow for consumer deadletters
+- Loan cancellation workflow (when dispatch fails)
+- Per-handset loan product config (replace hardcoded defaults)
+
+## Key People
+
+- **Matt Shimwell** — line manager, built the initial service
+- **Stuart Dallas** — mentioned in Miro context of handset service
+- **@mheald** — UX, to align on frontend journey placement

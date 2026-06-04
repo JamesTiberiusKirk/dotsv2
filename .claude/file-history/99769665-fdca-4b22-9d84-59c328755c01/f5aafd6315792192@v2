@@ -1,0 +1,3 @@
+package protos
+
+//go:generate mockgen -package=handset_mocks -destination=./generated/v1/mocks/handset_grpc.pb.mock.go github.com/utilitywarehouse/telecom-mobile/services/handset/pkg/protos/generated/v1/apis/handset HandsetAPIClient,HandsetAPIServer

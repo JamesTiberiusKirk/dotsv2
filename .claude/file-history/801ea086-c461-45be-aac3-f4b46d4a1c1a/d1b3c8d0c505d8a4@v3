@@ -1,0 +1,169 @@
+package consumer_test
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
+
+	"github.com/google/uuid"
+	"github.com/utilitywarehouse/protoc-gen-protostrate/protostrate/message"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer"
+	mockConsumer "github.com/utilitywarehouse/telecom-mobile/services/handset/internal/consumer/mocks"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+)
+
+var testContractUUID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+var _ = Describe("ConsumeMobileHandsetOrdered", func() {
+	var (
+		ctrl        *gomock.Controller
+		store       *mockConsumer.MockStorage
+		consumerSvc *consumer.Consumer
+		ctx         context.Context
+		acked       bool
+		ack         func() error
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		store = mockConsumer.NewMockStorage(ctrl)
+		consumerSvc = consumer.New(store, nil, nil)
+		ctx = context.Background()
+		acked = false
+		ack = func() error {
+			acked = true
+			return nil
+		}
+	})
+
+	consume := func(contractID string) error {
+		return consumerSvc.ConsumeMobileHandsetOrdered(
+			ctx,
+			&message.Envelope{Id: "event-1"},
+			&serviceevents.MobileHandsetOrdered{ContractId: contractID},
+			ack,
+		)
+	}
+
+	When("contract is already HANDSET_ORDERED", func() {
+		It("skips and acks", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{ID: testContractUUID, Status: models.ContractStatusHandsetOrdered}, nil)
+
+			Expect(consume(testContractUUID.String())).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+
+	When("contract is not APPROVED", func() {
+		It("returns an error without acking", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{ID: testContractUUID, Status: models.ContractStatusEligibilityApproved}, nil)
+
+			Expect(consume(testContractUUID.String())).To(HaveOccurred())
+			Expect(acked).To(BeFalse())
+		})
+	})
+
+	When("contract is APPROVED with no signedAt", func() {
+		It("updates status and acks without setting expires_at", func() {
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:             testContractUUID,
+					Status:         models.ContractStatusApproved,
+					ContractMonths: "24",
+					SignedAt:       nil,
+				}, nil)
+
+			store.EXPECT().
+				UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+				Return(nil)
+
+			Expect(consume(testContractUUID.String())).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+
+	When("contract is APPROVED with signedAt set", func() {
+		It("updates status and sets expires_at", func() {
+			signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+			expectedExpiresAt := signedAt.AddDate(0, 24, 0)
+
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:             testContractUUID,
+					Status:         models.ContractStatusApproved,
+					ContractMonths: "24",
+					SignedAt:       &signedAt,
+				}, nil)
+
+			store.EXPECT().
+				UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+				Return(nil)
+
+			store.EXPECT().
+				UpdateContractExpiresAt(gomock.Any(), testContractUUID, expectedExpiresAt).
+				Return(nil)
+
+			Expect(consume(testContractUUID.String())).To(Succeed())
+			Expect(acked).To(BeTrue())
+		})
+	})
+
+	When("contract_months is not a valid number", func() {
+		It("returns an error", func() {
+			signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:             testContractUUID,
+					Status:         models.ContractStatusApproved,
+					ContractMonths: "not-a-number",
+					SignedAt:       &signedAt,
+				}, nil)
+
+			store.EXPECT().
+				UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+				Return(nil)
+
+			Expect(consume(testContractUUID.String())).To(HaveOccurred())
+			Expect(acked).To(BeFalse())
+		})
+	})
+
+	When("UpdateContractExpiresAt fails", func() {
+		It("returns an error", func() {
+			signedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+			store.EXPECT().
+				GetContractByID(gomock.Any(), testContractUUID).
+				Return(&models.Contract{
+					ID:             testContractUUID,
+					Status:         models.ContractStatusApproved,
+					ContractMonths: "24",
+					SignedAt:       &signedAt,
+				}, nil)
+
+			store.EXPECT().
+				UpdateContractStatusByID(gomock.Any(), testContractUUID, models.ContractStatusHandsetOrdered).
+				Return(nil)
+
+			store.EXPECT().
+				UpdateContractExpiresAt(gomock.Any(), testContractUUID, gomock.Any()).
+				Return(errors.New("db error"))
+
+			Expect(consume(testContractUUID.String())).To(HaveOccurred())
+			Expect(acked).To(BeFalse())
+		})
+	})
+})

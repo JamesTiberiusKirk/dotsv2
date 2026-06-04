@@ -1,0 +1,60 @@
+# Linux desktop - Deathstar
+
+# shell
+.profile
+.zshrc
+.zsh
+.xinitrc
+.Xresources
+
+# tmux
+.tmux.conf
+.tmux-osx.conf
+.tmux-linux.conf
+
+# tools
+bin
+
+# scripts
+.scripts/brightness-step
+.scripts/check-gpu.sh
+.scripts/extracttext.sh
+.scripts/gomodrename.sh
+.scripts/hypr-doc-gen
+.scripts/hyprx
+.scripts/i3-doc-gen
+.scripts/i3status-wrapper
+.scripts/imports
+.scripts/launch-waybar
+.scripts/pg_prettify.sh
+.scripts/ping-latency.sh
+.scripts/random-wallpaper.sh
+.scripts/redshift-toggle
+.scripts/screenshot.sh
+.scripts/sql-align-format
+.scripts/swap-workspaces.sh
+.scripts/theme-apply
+.scripts/theme-toggle
+.scripts/touchpad-fix
+.scripts/trackpoint-scroll
+.scripts/update-count.sh
+.scripts/waybar
+.scripts/x11_extracttext.sh
+.scripts/x11_screenshot.sh
+
+# config
+.config/alacritty
+.config/darkman
+.config/dunst
+.config/gtk-3.0
+.config/hypr
+.config/hyprland-autoname-workspaces
+.config/i3
+.config/i3status
+.config/installed_packages
+.config/keyd
+.config/nvim
+.config/picom
+.config/waybar
+.config/wezterm
+.config/workspacer

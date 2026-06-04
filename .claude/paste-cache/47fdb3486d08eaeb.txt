@@ -1,0 +1,98 @@
+```
+[
+  {
+    "name": "Apple",
+    "phones": [
+      {
+        "model": "iPhone 15",
+        "fromPrice": { "amount": "27.00", "currency": "GBP" },
+        "screenSize": "6.1\"",
+        "battery": "3349 mAh",
+        "wifiStandard": "Wi-Fi 6",
+        "eSim": true,
+        "dualSim": false,
+        "specificationsLink": "https://support.apple.com/en-gb/111850",
+        "optionTypes": [
+          { "key": "colour", "values": ["Black", "Blue"] },
+          { "key": "storage", "values": ["128GB", "256GB"] }
+        ],
+        "variants": [
+          {
+            "id": "iphone-15-128-black",
+            "attributes": [
+              { "key": "colour", "value": "Black" },
+              { "key": "storage", "value": "128GB" }
+            ],
+            "monthlyCharge": { "amount": "27.00", "currency": "GBP" },
+            "rrp": { "amount": "648.00", "currency": "GBP" },
+            "inStock": true
+          },
+          {
+            "id": "iphone-15-256-black",
+            "attributes": [
+              { "key": "colour", "value": "Black" },
+              { "key": "storage", "value": "256GB" }
+            ],
+            "monthlyCharge": { "amount": "30.00", "currency": "GBP" },
+            "rrp": { "amount": "720.00", "currency": "GBP" },
+            "inStock": true
+          },
+          {
+            "id": "iphone-15-128-blue",
+            "attributes": [
+              { "key": "colour", "value": "Blue" },
+              { "key": "storage", "value": "128GB" }
+            ],
+            "monthlyCharge": { "amount": "27.00", "currency":
+            "rrp": { "amount": "648.00", "currency": "GBP" },
+            "inStock": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Samsung",
+    "phones": [
+      {
+        "model": "Galaxy S25",
+        "fromPrice": { "amount": "32.00", "currency": "GBP" },
+        "screenSize": "6.2\"",
+        "battery": "4000 mAh",
+        "wifiStandard": "Wi-Fi 7",
+        "eSim": true,
+        "dualSim": true,
+        "specificationsLink": "https://www.samsung.com/uk/smartphones/galaxy-s25/specs/",
+        "optionTypes": [
+          { "key": "colour", "values": ["Silver", "Navy"] },
+          { "key": "storage", "values": ["128GB", "256GB"] }
+        ],
+        "variants": [
+          {
+            "id": "galaxy-s25-128-silver",
+            "attributes": [
+              { "key": "colour", "value": "Silver" },
+              { "key": "storage", "value": "128GB" }
+            ],
+            "monthlyCharge": { "amount": "32.00", "currency": "GBP" },
+            "rrp": { "amount": "768.00", "currency": "GBP" },
+            "inStock": true
+          },
+          {
+            "id": "galaxy-s25-256-navy",
+            "attributes": [
+              { "key": "colour", "value": "Navy" },
+              { "key": "storage", "value": "256GB" }
+            ],
+            "monthlyCharge": { "amount": "34.00", "currency": "GBP" },
+            "rrp": { "amount": "816.00", "currency": "GBP" },
+            "inStock": true
+          }
+        ]
+      }
+    ]
+  }
+]
+```
+
+This is an example response shape were looking at to return to the frontend

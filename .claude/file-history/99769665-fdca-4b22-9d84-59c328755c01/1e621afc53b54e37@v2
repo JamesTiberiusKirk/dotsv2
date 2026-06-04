@@ -1,0 +1,222 @@
+type kv {
+    key: String!
+    value: String!
+}
+
+type kList {
+    key: String!
+    value: [String]!
+}
+
+type MobilePagination @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/apis/common/mobileentities.Pagination") {
+    currentPage: Int!
+    itemsPerPage: Int!
+    totalItems: Int!
+}
+
+type MobileAddSimAvailableUpgrades @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimAvailableUpgrades") {
+    availableTariffs: [MobileServiceTariff!] # Upgrades: Unlimited, Value
+    mobileService: MobileService
+    budgetControl: Boolean! # This may not be needed when william will no longer consume this field
+}
+
+type MobileAddSimPendingService @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimPendingService") {
+    id: String!
+    tariff: MobileServiceTariff!
+    budgetControl: Boolean!
+    status: MobileServiceState!
+    simType: SimType
+}
+
+type MobileAddSimUpgradeQuotePortingSTAC @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimUpgradeQuotePortingSTAC") {
+    date: String
+    code: String!
+    cli: String!
+}
+
+type MobileAddSimUpgradeQuotePortingPAC @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimUpgradeQuotePortingPAC") {
+    cli: String!
+    code: String!
+}
+
+union MobileAddSimUpgradingPortingType = MobileAddSimUpgradeQuotePortingSTAC | MobileAddSimUpgradeQuotePortingPAC
+
+type MobileHandset  @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandset") {
+    id: String!
+    name: String!
+    description: String!
+    monthlyCharge: MobileMoney!
+    contractTerm: String!
+    active: Boolean!
+    outOfStock: Boolean!
+}
+
+type MobileAddSimUpgradeQuoteNewPlan @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimUpgradeQuoteNewPlan")  {
+    tariff: MobileServiceTariff #Unlimited
+    porting: MobileAddSimUpgradingPortingType
+    budgetControl: Boolean
+    id: String
+    handset: MobileHandset
+    simType: SimType
+}
+
+type MobileAddSimUpgradeQuotePlanUpgrade @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimUpgradeQuotePlanUpgrade") { # if both of these are null this element should be popped from the list
+    currentService: MobileService
+    newTariff: MobileServiceTariff # null if not changed, should not be populated if customer is only just toggling budget control
+    budgetControl: Boolean # null if not changed
+    backdate: Boolean # null if not changed
+    simType: SimType
+}
+
+type MobileServiceTariff @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceTariff") {
+    id: String!
+    name: String!
+    description: String
+    allowances: [MobileServiceAllowance!]
+    cost: MobileMoney!
+    discount: MobileServiceTariffDiscount
+    mustBackdate: Boolean
+    canBackdate: Boolean
+    canBackdateAtDate: String
+    canToggleBudgetControl: Boolean
+    features: [MobileServiceTariffFeature!]
+}
+
+type MobileServiceTariffDiscount @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceTariffDiscount") {
+    amount: String!
+    currency: String!
+}
+
+type MobileMoney @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileMoney") {
+    amount: String!
+    currency: String!
+}
+
+union MobileServiceAllowance = MobileServiceMinutesAllowance | MobileServiceSMSAllowance | MobileServiceDataAllowance |
+    MobileServiceRoamingDataAllowance
+
+type MobileServiceMinutesAllowance  @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceMinutesAllowance")  {
+    unlimited: Boolean
+    value: MobileBigInt
+    stringValue: String
+}
+type MobileServiceSMSAllowance @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceSMSAllowance")  {
+    unlimited: Boolean
+    value: MobileBigInt
+    stringValue: String
+}
+type MobileServiceDataAllowance @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceDataAllowance")  {
+    unlimited: Boolean
+    value: MobileBigInt
+    stringValue: String
+}
+type MobileServiceRoamingDataAllowance @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileServiceRoamingDataAllowance")  {
+    unlimited: Boolean
+    value: MobileBigInt
+    stringValue: String
+}
+
+type MobileAddSimUpgradeQuoteCost @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileAddSimUpgradeQuoteCost") {
+    currency: String!
+    cost: String!
+    discount: String!
+    total: String!
+    previousTotal: String!
+}
+
+type MobileBillCustomerAddress @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileBillCustomerAddress") {
+    addressLine1: String!
+    addressLine2: String!
+    addressLine3: String!
+    addressLine4: String!
+    county: String!
+    postCode: String!
+}
+
+type MobileSMSUsage @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileSMSUsage") {
+    consumed: String!
+    allowance: String!
+}
+
+type MobileDataUsage @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileDataUsage") {
+    consumed: String!
+    consumedUnit: String!
+    allowance: String!
+}
+
+type MobileVoiceUsage @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileVoiceUsage") {
+    consumed: String!
+    consumedUnit: String!
+    allowance: String!
+}
+
+type MobilePortingOutState @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobilePortingOutState") {
+    authCode: String
+    authCodeExpiry: String
+    authCodeStatus: MobilePortingOutAuthCodeStatus
+    businessUnit: MobileBusinessUnit
+    cli: String
+    correlationToken: String
+    etf: MobileMoney
+    id: String
+    prepayBalance: MobileMoney
+    rawCli: String
+    requestTime: String
+    time: String
+    type: MobilePortingType
+}
+
+type MobileService @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileService") {
+    id: String!
+    cli: String!
+    tariff: MobileServiceTariff!
+    name: String!
+    budgetControl: Boolean!
+    simNumber: String!
+    status: MobileServiceState!
+    tags: [MobileServiceTags!]!
+    simType: SimType
+    portingCli: String
+}
+
+type MobileHandsetBrand @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandsetBrand") {
+    name: String!
+    phones: [MobileHandsetPhone!]!
+}
+
+type MobileHandsetPhone @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandsetPhone") {
+    model: String!
+    fromPrice: MobileMoney!
+    screenSize: String!
+    battery: String!
+    wifiStandard: String!
+    eSim: Boolean!
+    dualSim: Boolean!
+    specificationsLink: String!
+    optionTypes: [MobileHandsetOptionType!]!
+    variants: [MobileHandsetVariant!]!
+}
+
+type MobileHandsetOptionType @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandsetOptionType") {
+    key: String!
+    values: [String!]!
+}
+
+type MobileHandsetVariant @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandsetVariant") {
+    id: String!
+    attributes: [MobileHandsetAttribute!]!
+    monthlyCharge: MobileMoney!
+    rrp: MobileMoney!
+    inStock: Boolean!
+}
+
+type MobileHandsetAttribute @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileHandsetAttribute") {
+    key: String!
+    value: String!
+}
+
+input MobileSimSetting @goModel(model: "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model.MobileSimSetting") {
+    enabled: Boolean!
+    value: Int
+    setting: MobileSimSettingType!
+}

@@ -1,0 +1,44 @@
+package jobs
+
+import (
+	"context"
+	"fmt"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/libdry/tlog"
+)
+
+func expireContractsRunner(store Storage, eventProducer Producer) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		contracts, err := store.FindAndUpdateExpiredContracts(ctx)
+		if err != nil {
+			// The function above returns any successful contracts before an error occurred
+			tlog.WithError(err).
+				WithAttribute("successful_count", fmt.Sprintf("%d", len(contracts))).
+				Error(ctx, "failed to find and update expired contracts")
+		}
+
+		for _, contract := range contracts {
+			if contract.ExpiresAt == nil {
+				// We should never ever get to the point where this happens
+				tlog.WithAttribute("contract_id", contract.ID).
+					Error(ctx, "expired contract has no expiresAt timestamp, skipping event")
+				continue
+			}
+
+			if err := eventProducer.ProduceMobileHandsetContractExpiredSync(ctx, &serviceevents.MobileHandsetContractExpired{
+				ServiceId:  contract.ServiceID,
+				CustomerId: contract.CustomerID,
+				ContractId: contract.ID,
+				HandsetId:  contract.HandsetID,
+				ExpiredAt:  timestamppb.New(*contract.ExpiresAt),
+			}); err != nil {
+				tlog.WithError(err).
+					WithAttribute("contract_id", contract.ID).
+					Error(ctx, "failed to produce MobileHandsetContractExpired event")
+			}
+		}
+	}
+}

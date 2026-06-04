@@ -1,8 +1,5 @@
 return {
   'kawre/leetcode.nvim',
-  build = function()
-    vim.cmd 'TSUpdate html'
-  end,
   dependencies = {
     'nvim-lua/plenary.nvim',
     'MunifTanjim/nui.nvim',

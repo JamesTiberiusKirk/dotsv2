@@ -1,0 +1,45 @@
+FROM golang:1.26 AS build-stage
+
+ARG services
+ENV GOPRIVATE=github.com/*
+
+WORKDIR /app
+
+RUN --mount=type=secret,id=gh_auth_token,env=TOKEN \
+    git config --global url."https://${TOKEN}@github.com/".insteadOf "https://github.com/"
+
+# install binaries, these will rarely change and so can be defined here rather than modules.yaml
+RUN go install github.com/utilitywarehouse/protoc-gen-protostrate@v0.2.3
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.54.0
+
+# add buf dir and generate dependencies
+ADD buf/src .
+ADD buf/modules.yaml .
+ADD buf/buf.lock .
+RUN go run main.go
+
+# print buf.yaml generated from modules.yaml
+RUN cat buf.yaml
+
+# clone git dependencies generated from modules.yaml
+RUN sh deps.sh
+
+# run
+#ADD protos protos/github.com/utilitywarehouse/telecom-mobile/protos
+ADD protos protos
+RUN cat buf.yaml
+RUN buf dep update
+RUN buf generate
+RUN bash swagger.sh \
+    "gen/openapi/mobile/v1/apis" \
+    "$services" \
+    "/app/swagger-gen"
+
+FROM scratch AS export-stage
+COPY --from=build-stage /app/gen/go/github.com/utilitywarehouse/telecom-mobile /
+COPY --from=build-stage /app/gen/openapi/mobile/v1/apis /services
+
+# Copy generated swagger over services directory (directory structure is the same).
+COPY --from=build-stage /app/swagger-gen/services /services
+COPY --from=build-stage /app/buf.yaml /buf/buf.yaml
+COPY --from=build-stage /app/buf.lock /buf/buf.lock

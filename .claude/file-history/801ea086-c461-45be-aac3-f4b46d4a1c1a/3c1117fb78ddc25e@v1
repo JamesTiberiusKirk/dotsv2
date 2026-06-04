@@ -1,0 +1,29 @@
+package events
+
+import (
+	"context"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+)
+
+// Producer wraps the protostrate-generated ProducerService to satisfy
+// the service layer's EventProducer interface.
+type Producer struct {
+	producer serviceevents.ProducerService
+}
+
+func NewProducer(producer serviceevents.ProducerService) *Producer {
+	return &Producer{producer: producer}
+}
+
+func (p *Producer) ProduceMobileHandsetContractRequestedSync(ctx context.Context, out *serviceevents.MobileHandsetContractRequested) error {
+	return p.producer.ProduceMobileHandsetContractRequestedSync(ctx, out)
+}
+
+func (p *Producer) ProduceMobileHandsetContractApprovedSync(ctx context.Context, out *serviceevents.MobileHandsetContractApproved) error {
+	return p.producer.ProduceMobileHandsetContractApprovedSync(ctx, out)
+}
+
+func (p *Producer) ProduceMobileHandsetContractDeclinedSync(ctx context.Context, out *serviceevents.MobileHandsetContractDeclined) error {
+	return p.producer.ProduceMobileHandsetContractDeclinedSync(ctx, out)
+}

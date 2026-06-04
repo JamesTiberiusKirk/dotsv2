@@ -1,11 +1,11 @@
 export EDITOR="nvim"
 
-# Hyprland's `source = ~/.config/hypr/hosts/$HOSTNAME.conf` needs this in env.
+# Hyprland's `source = ~/.config/hypr/hosts/$HOSTNAME.conf`  needs this in env.
 export HOSTNAME="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null)}"
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
-export PATH="$PATH:/home/darthvader/.local/bin"
+export PATH="$PATH:$HOME/.local/bin"
 
 export GO111MODULE=on
 export GOPATH="$HOME/go"
@@ -26,18 +26,24 @@ fpath=(~/.zsh/completion $fpath)
 alias ws="workspacer -W=ws"
 alias at="workspacer -W=at"
 alias ff="workspacer -W=ff"
+alias uw="workspacer -W=uw"
 alias notes="workspacer from-preset notes"
 alias dots="workspacer  from-preset dots"
 
 autoload -Uz compinit && compinit
 compdef ws=workspacer
+compdef aw=workspacer
+compdef ff=workspacer
+compdef uw=workspacer
 compdef notes=workspacer
 compdef dots=workspacer
 
 alias cls='clear'
-alias ls='ls --color=auto'
 alias grep='grep --color=auto'
-alias ll='ls -l --block-size=M  -aF'
+if [[ $(uname) != "Darwin" ]]; then
+	alias ls='ls --color=auto'
+	alias ll='ls -l --block-size=M -aF'
+fi
 
 # Aliases
 alias tx="tmux -u"
@@ -55,7 +61,17 @@ cfga() {
 	git --git-dir=$HOME/.cfg/ --work-tree=$HOME add "$@"
 }
 
-alias copy='xclip -selection clipboard'
+if [[ $(uname) = "Darwin" ]]; then
+	alias copy='pbcopy'
+
+	export NVM_DIR="$HOME/.nvm"
+	[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
+	[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+
+	source $HOME/.secrets
+else
+	alias copy='xclip -selection clipboard'
+fi
 
 alias cfgau='git --git-dir=$HOME/.cfg/ --work-tree=$HOME add -u'
 alias cfgc='git --git-dir=$HOME/.cfg/ --work-tree=$HOME commit -m'
@@ -173,6 +189,24 @@ dump_folder_contents() {
 alias vi="nvim"
 
 if [[ $(uname) = "Darwin" ]]; then
+	# Homebrew on Apple Silicon
+	if [[ -d /opt/homebrew ]]; then
+		eval "$(/opt/homebrew/bin/brew shellenv)"
+	fi
+	# Homebrew on Intel
+	if [[ -d /usr/local/Homebrew ]]; then
+		eval "$(/usr/local/bin/brew shellenv)"
+	fi
+
+	# macOS uses BSD ls/grep; different flags than GNU
+	alias ls='ls -G'
+	alias ll='ls -l -aF'
+	alias copy='pbcopy'
+
+	export BASH_SILENCE_DEPRECATION_WARNING=1
+
+	# macOS specific paths
+	export PATH="/Applications/WezTerm.app/Contents/MacOS:$PATH"
 fi
 if [[ $(uname) = "Linux" ]]; then
 	export XDG_DATA_DIRS=/usr/share:/usr/local/share

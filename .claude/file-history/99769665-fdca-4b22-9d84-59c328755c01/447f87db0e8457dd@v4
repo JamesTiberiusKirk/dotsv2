@@ -1,0 +1,226 @@
+package model
+
+type MobileAddSimAvailableUpgrades struct {
+	AvailableTariffs []*MobileServiceTariff `json:"availableTariffs,omitempty"`
+	MobileService    *MobileService         `json:"mobileService,omitempty"`
+	BudgetControl    bool                   `json:"budgetControl"`
+}
+
+type MobileServiceTariff struct {
+	ID                     string                       `json:"id"`
+	Name                   string                       `json:"name"`
+	Description            *string                      `json:"description,omitempty"`
+	Allowances             []MobileServiceAllowance     `json:"allowances,omitempty"`
+	Cost                   *MobileMoney                 `json:"cost"`
+	Discount               *MobileServiceTariffDiscount `json:"discount,omitempty"`
+	MustBackdate           *bool                        `json:"mustBackdate,omitempty"`
+	CanBackdate            *bool                        `json:"canBackdate,omitempty"`
+	CanBackdateAtDate      *string                      `json:"canBackdateAtDate,omitempty"`
+	CanToggleBudgetControl *bool                        `json:"canToggleBudgetControl,omitempty"`
+	Features               []MobileServiceTariffFeature `json:"features,omitempty"`
+}
+
+type MobileHandsetBrand struct {
+	Name   string               `json:"name"`
+	Phones []MobileHandsetPhone `json:"phones"`
+}
+
+type MobileHandsetPhone struct {
+	Model              string                    `json:"model"`
+	FromPrice          *MobileMoney              `json:"fromPrice"`
+	ScreenSize         string                    `json:"screenSize"`
+	Battery            string                    `json:"battery"`
+	WiFiStandard       string                    `json:"wifiStandard"`
+	ESim               bool                      `json:"eSim"`
+	DualSim            bool                      `json:"dualSim"`
+	SpecificationsLink string                    `json:"specificationsLink"`
+	OptionTypes        []MobileHandsetOptionType `json:"optionTypes"`
+	Variants           []MobileHandsetVariant    `json:"variants"`
+}
+
+type MobileHandsetOptionType struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+}
+
+type MobileHandsetVariant struct {
+	ID            string                   `json:"id"`
+	Attributes    []MobileHandsetAttribute `json:"attributes"`
+	MonthlyCharge *MobileMoney             `json:"monthlyCharge"`
+	Rrp           *MobileMoney             `json:"rrp"`
+	InStock       bool                     `json:"inStock"`
+}
+
+type MobileHandsetAttribute struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type MobileHandset struct {
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Description   string       `json:"description"`
+	MonthlyCharge *MobileMoney `json:"monthlyCharge"`
+	ContractTerm  string       `json:"contractTerm"`
+	Active        bool         `json:"active"`
+	OutOfStock    bool         `json:"outOfStock"`
+}
+
+type MobileAddSimUpgradeQuoteNewPlan struct {
+	Tariff        *MobileServiceTariff             `json:"tariff,omitempty"`
+	Porting       MobileAddSimUpgradingPortingType `json:"porting,omitempty"`
+	BudgetControl *bool                            `json:"budgetControl,omitempty"`
+	ID            *string                          `json:"id,omitempty"`
+	Handset       *MobileHandset                   `json:"handset,omitempty"`
+	SimType       *SimType                         `json:"simType,omitempty"`
+}
+
+type MobileAddSimUpgradeQuotePortingSTAC struct {
+	Date *string `json:"date,omitempty"`
+	Code string  `json:"code"`
+	Cli  *string `json:"cli,omitempty"`
+}
+
+type MobileAddSimUpgradeQuotePortingPAC struct {
+	Cli  string `json:"cli"`
+	Code string `json:"code"`
+}
+
+type MobileServiceMinutesAllowance struct {
+	Unlimited   *bool   `json:"unlimited,omitempty"`
+	Value       *int    `json:"value,omitempty"`
+	StringValue *string `json:"stringValue,omitempty"`
+}
+
+type MobileServiceSMSAllowance struct {
+	Unlimited   *bool   `json:"unlimited,omitempty"`
+	Value       *int    `json:"value,omitempty"`
+	StringValue *string `json:"stringValue,omitempty"`
+}
+
+type MobileServiceDataAllowance struct {
+	Unlimited   *bool   `json:"unlimited,omitempty"`
+	Value       *int    `json:"value,omitempty"`
+	StringValue *string `json:"stringValue,omitempty"`
+}
+
+type MobileServiceRoamingDataAllowance struct {
+	Unlimited   *bool   `json:"unlimited,omitempty"`
+	Value       *int    `json:"value,omitempty"`
+	StringValue *string `json:"stringValue,omitempty"`
+}
+
+type MobileSMSUsage struct {
+	Consumed  string `json:"consumed"`
+	Allowance string `json:"allowance"`
+}
+
+type MobileDataUsage struct {
+	Consumed     string `json:"consumed"`
+	ConsumedUnit string `json:"consumedUnit"`
+	Allowance    string `json:"allowance"`
+}
+
+type MobileVoiceUsage struct {
+	Consumed     string `json:"consumed"`
+	ConsumedUnit string `json:"consumedUnit"`
+	Allowance    string `json:"allowance"`
+}
+
+type MobilePortingOutState struct {
+	AuthCode         *string                         `json:"authCode,omitempty"`
+	AuthCodeExpiry   *string                         `json:"authCodeExpiry,omitempty"`
+	AuthCodeStatus   *MobilePortingOutAuthCodeStatus `json:"authCodeStatus,omitempty"`
+	BusinessUnit     *MobileBusinessUnit             `json:"businessUnit,omitempty"`
+	Cli              *string                         `json:"cli,omitempty"`
+	CorrelationToken *string                         `json:"correlationToken,omitempty"`
+	Etf              *MobileMoney                    `json:"etf,omitempty"`
+	ID               *string                         `json:"id,omitempty"`
+	PrepayBalance    *MobileMoney                    `json:"prepayBalance,omitempty"`
+	RawCli           *string                         `json:"rawCli,omitempty"`
+	RequestTime      *string                         `json:"requestTime,omitempty"`
+	Time             *string                         `json:"time,omitempty"`
+	Type             *MobilePortingType              `json:"type,omitempty"`
+}
+
+type MobileAddSimUpgradeQuoteCost struct {
+	Currency      string `json:"currency"`
+	Cost          string `json:"cost"`
+	Discount      string `json:"discount"`
+	Total         string `json:"total"`
+	PreviousTotal string `json:"previousTotal"`
+}
+
+type MobileBillCustomerAddress struct {
+	AddressLine1 string `json:"addressLine1"`
+	AddressLine2 string `json:"addressLine2"`
+	AddressLine3 string `json:"addressLine3"`
+	AddressLine4 string `json:"addressLine4"`
+	County       string `json:"county"`
+	PostCode     string `json:"postCode"`
+}
+
+type MobileAddSimPendingService struct {
+	ID            string               `json:"id"`
+	Tariff        *MobileServiceTariff `json:"tariff"`
+	BudgetControl bool                 `json:"budgetControl"`
+	Status        MobileServiceState   `json:"status"`
+	SimType       *SimType             `json:"simType,omitempty"`
+}
+
+type MobileMoney struct {
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+type MobileServiceTariffDiscount struct {
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+type MobileAddSimUpgradeQuotePlanUpgrade struct {
+	CurrentService *MobileService       `json:"currentService,omitempty"`
+	NewTariff      *MobileServiceTariff `json:"newTariff,omitempty"`
+	BudgetControl  *bool                `json:"budgetControl,omitempty"`
+	Backdate       *bool                `json:"backdate,omitempty"`
+	SimType        *SimType             `json:"simType,omitempty"`
+}
+
+type MobileService struct {
+	ID            string               `json:"id"`
+	Cli           string               `json:"cli"`
+	Tariff        *MobileServiceTariff `json:"tariff"`
+	Name          string               `json:"name"`
+	BudgetControl bool                 `json:"budgetControl"`
+	SimNumber     string               `json:"simNumber"`
+	Status        MobileServiceState   `json:"status"`
+	Tags          []MobileServiceTags  `json:"tags"`
+	SimType       *SimType             `json:"simType,omitempty"`
+	PortingCli    *string              `json:"portingCli,omitempty"`
+}
+
+type MobileSimSetting struct {
+	Enabled bool                 `json:"enabled"`
+	Value   *int                 `json:"value,omitempty"`
+	Setting MobileSimSettingType `json:"setting"`
+}
+
+// union types
+
+type MobileServiceAllowance interface {
+	IsMobileServiceAllowance()
+}
+
+func (MobileServiceDataAllowance) IsMobileServiceAllowance()        {}
+func (MobileServiceMinutesAllowance) IsMobileServiceAllowance()     {}
+func (MobileServiceRoamingDataAllowance) IsMobileServiceAllowance() {}
+func (MobileServiceSMSAllowance) IsMobileServiceAllowance()         {}
+
+type MobileAddSimUpgradingPortingType interface {
+	IsMobileAddSimUpgradingPortingType()
+}
+
+func (o MobileAddSimUpgradeQuotePortingPAC) IsMobileAddSimUpgradingPortingType() {
+
+}
+func (MobileAddSimUpgradeQuotePortingSTAC) IsMobileAddSimUpgradingPortingType() {}

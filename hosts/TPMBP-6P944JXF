@@ -1,0 +1,30 @@
+# macOS - MacBook Pro
+
+# shell
+.profile
+.zshrc
+.zsh
+
+# tmux
+.tmux.conf
+.tmux-osx.conf
+.tmux-linux.conf
+
+# tools
+bin
+
+# scripts
+.scripts/gomodrename.sh
+.scripts/imports
+.scripts/pg_prettify.sh
+.scripts/ping-latency.sh
+.scripts/sql-align-format
+.scripts/theme-apply
+.scripts/theme-toggle
+
+# config
+.config/installed_packages
+.config/linearmouse
+.config/nvim
+.config/wezterm
+.config/workspacer

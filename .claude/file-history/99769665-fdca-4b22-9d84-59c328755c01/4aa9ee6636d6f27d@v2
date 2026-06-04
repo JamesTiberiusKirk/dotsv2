@@ -1,0 +1,295 @@
+//go:generate go run github.com/99designs/gqlgen generate
+
+package graph
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	accountapi "github.com/utilitywarehouse/account-platform-protobuf-model/gen/go/account/api/v1"
+
+	"github.com/utilitywarehouse/telecom-fixed-line/pkg/graphql"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/auth"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/auth/cerbos"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/customer_events"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/porting_out_events"
+	sharedmodel "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/model"
+	graphqlshared "github.com/utilitywarehouse/telecom-mobile/pkg/graphql/shared"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset-blacklisting/pkg/protos/generated/v1/apis/handsetblacklisting"
+	handsetpb "github.com/utilitywarehouse/telecom-mobile/services/handset/pkg/protos/generated/v1/apis/handset"
+	lecpPb "github.com/utilitywarehouse/telecom-mobile/services/lifecycle-events-comms-processor/pkg/protos/generated/v1/apis/lifecycleeventscommsprocessor"
+	"github.com/utilitywarehouse/telecom-mobile/services/my-services-api/pkg/protos/generated/v1/apis/myservicesapi"
+	"github.com/utilitywarehouse/telecom-mobile/services/porting-out-service/pkg/protos/generated/v1/apis/portingoutservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/porting-service/pkg/protos/generated/v1/apis/portingservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/quoting-api/pkg/protos/generated/v1/apis/quotingapi"
+	"github.com/utilitywarehouse/telecom-mobile/services/roaming-limit-service/pkg/protos/generated/v1/apis/roaminglimit"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-activation-service/pkg/protos/generated/v1/apis/simactivationservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-barring-service/pkg/protos/generated/v1/apis/simbarringservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-replacement-service/pkg/protos/generated/v1/apis/simreplacementservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/sim-settings-service/pkg/protos/generated/v1/apis/simsettingsservice"
+	"github.com/utilitywarehouse/telecom-mobile/services/topup-api/pkg/protos/generated/v1/apis/topupapi"
+
+	"github.com/utilitywarehouse/telecom-mobile/pkg/utils"
+	"github.com/utilitywarehouse/telecom-mobile/services/public-graphql/internal/graph/model"
+	"github.com/utilitywarehouse/telecom-monorepo/pkg/generated/eecc_contract_request_api"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+// This file will not be regenerated automatically.
+//
+// It serves as dependency injection for your app, add any dependencies you require here.
+
+type Resolver struct {
+	Authorizer                            auth.Authorizer
+	SharedResolver                        graphqlshared.SharedResolver
+	EeccContractRequestApiClient          eecc_contract_request_api.ServiceClient
+	QuotingClient                         quotingapi.ServiceClient
+	MyServicesClient                      myservicesapi.ServiceClient
+	SimSettingsClient                     simsettingsservice.ServiceClient
+	SimReplacementClient                  simreplacementservice.ServiceClient
+	TopupApiClient                        topupapi.ServiceClient
+	PortingOutClient                      portingoutservice.ServiceClient
+	SimActivationApiClient                simactivationservice.ServiceClient
+	PortingServiceClient                  portingservice.ServiceClient
+	HandsetBlacklistingServiceClient      handsetblacklisting.HandsetBlacklistingApiClient
+	HandsetApiClient                      handsetpb.HandsetAPIClient
+	RoamingLimitServiceClient             roaminglimit.RoamingLimitApiClient
+	SimBarringServiceClient               simbarringservice.ServiceClient
+	LifecycleEventCommsProcessorApiClient lecpPb.LifecycleEventsCommsProcessorApiClient
+	AccountApiClient                      accountapi.AccountServiceClient
+}
+
+const (
+	resource     = "uw.mobile.v1.public_graphql"
+	resourceID   = "telecom_mobile_public_gql"
+	AuditChannel = "Web"
+)
+
+func (r *Resolver) authorize(ctx context.Context, action cerbos.Action) (*auth.AuthCustomerResponse, error) {
+	return r.Authorizer.AuthorizeCustomer(ctx, action, resource, resourceID)
+}
+
+func (r *Resolver) isServiceOwnedByCustomer(ctx context.Context, auth auth.AuthCustomerResponse, serviceID string) (bool, error) {
+	resp, err := r.MyServicesClient.GetServices(ctx, &myservicesapi.GetServicesRequest{
+		CustomerId: auth.AccountNumber,
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("unable to verify service ownership")
+	}
+
+	for _, svc := range resp.GetServices() {
+		if serviceID == svc.GetMobileService().GetServiceId() {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (r *Resolver) toDomainMobilePortingRequest(details *sharedmodel.MobilePortingOutInput) (*porting_out_events.MobilePortingRequest, error) {
+	if details == nil {
+		return nil, errors.New("pac request cannot be nil")
+	}
+	timestamp := timestamppb.Now()
+	if details.Time != nil {
+		var err error
+		timestamp, err = graphql.UnmarshalDateTimeRFC3339(details.Time)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal time: %w", err)
+		}
+	}
+
+	toModelSource := func(val sharedmodel.MobilePortingOutSource) porting_out_events.Source {
+		switch val {
+		case sharedmodel.MobilePortingOutSourceSource1p:
+			return porting_out_events.Source_SOURCE_1P
+		case sharedmodel.MobilePortingOutSourceSourceClubhouse:
+			return porting_out_events.Source_SOURCE_CLUBHOUSE
+		case sharedmodel.MobilePortingOutSourceSourceCrm:
+			return porting_out_events.Source_SOURCE_CRM
+		case sharedmodel.MobilePortingOutSourceSourceSmpp:
+			return porting_out_events.Source_SOURCE_SMPP
+		case sharedmodel.MobilePortingOutSourceSourceUnknown:
+			return porting_out_events.Source_SOURCE_UNKNOWN
+		default:
+			return porting_out_events.Source_SOURCE_UNKNOWN
+		}
+	}
+
+	toPortingType := func(portType sharedmodel.MobilePortingType) porting_out_events.Type {
+		switch portType {
+		case sharedmodel.MobilePortingTypePortTypeStac:
+			return porting_out_events.Type_TYPE_STAC
+		case sharedmodel.MobilePortingTypePortTypePac:
+			return porting_out_events.Type_TYPE_PAC
+		case sharedmodel.MobilePortingTypePortTypeInfo:
+			return porting_out_events.Type_TYPE_INFO
+		case sharedmodel.MobilePortingTypePortTypeUnknown:
+			return porting_out_events.Type_TYPE_UNKNOWN
+		default:
+			return porting_out_events.Type_TYPE_UNKNOWN
+		}
+	}
+
+	ID := ""
+	if details.ID != nil {
+		ID = *details.ID
+	}
+	correlationToken := ""
+	if details.CorrelationToken != nil {
+		correlationToken = *details.CorrelationToken
+	}
+	source := sharedmodel.MobilePortingOutSourceSourceUnknown
+	if details.Source != nil {
+		source = *details.Source
+	}
+
+	return &porting_out_events.MobilePortingRequest{
+		Id:               ID,
+		Cli:              details.Cli,
+		Type:             toPortingType(details.Type),
+		Source:           toModelSource(source),
+		Time:             timestamp,
+		CorrelationToken: correlationToken,
+	}, nil
+}
+
+func (r *Resolver) toPacResponse(res *porting_out_events.MobilePortingResponse) *sharedmodel.MobilePortingOutState {
+	authCodeExpiry := utils.TimestampbbToString(res.GetAuthCodeExpiry())
+	requestTime := utils.TimestampbbToString(res.GetRequestTime())
+	time := utils.TimestampbbToString(res.GetTime())
+
+	toModelStatus := func(val porting_out_events.AuthCodeStatus) *sharedmodel.MobilePortingOutAuthCodeStatus {
+		switch val {
+		case porting_out_events.AuthCodeStatus_AUTH_CODE_STATUS_GENERATED:
+			st := sharedmodel.MobilePortingOutAuthCodeStatusAuthCodeStatusGenerated
+			return &st
+		case porting_out_events.AuthCodeStatus_AUTH_CODE_STATUS_UNKNOWN:
+			st := sharedmodel.MobilePortingOutAuthCodeStatusAuthCodeStatusUnknown
+			return &st
+		case porting_out_events.AuthCodeStatus_AUTH_CODE_STATUS_CONFLICT:
+			st := sharedmodel.MobilePortingOutAuthCodeStatusAuthCodeStatusUw // not entirely sure about this one
+			return &st
+		case porting_out_events.AuthCodeStatus_AUTH_CODE_STATUS_RETRIEVED:
+			st := sharedmodel.MobilePortingOutAuthCodeStatusAuthCodeStatusRetrieved
+			return &st
+		default:
+			st := sharedmodel.MobilePortingOutAuthCodeStatusAuthCodeStatusUnknown
+			return &st
+		}
+	}
+
+	toModelBusinessUnit := func(bu porting_out_events.BusinessUnit) *sharedmodel.MobileBusinessUnit {
+		switch bu {
+		case porting_out_events.BusinessUnit_BUSINESS_UNIT_UNKNOWN:
+			b := sharedmodel.MobileBusinessUnitBusinessUnitUnknown
+			return &b
+		case porting_out_events.BusinessUnit_BUSINESS_UNIT_1P:
+			b := sharedmodel.MobileBusinessUnitBusinessUnit1p
+			return &b
+		case porting_out_events.BusinessUnit_BUSINESS_UNIT_UW:
+			b := sharedmodel.MobileBusinessUnitBusinessUnitUw
+			return &b
+		default:
+			b := sharedmodel.MobileBusinessUnitBusinessUnitUnknown
+			return &b
+		}
+	}
+
+	etfAmount := res.GetEtf().GetAmount()
+	etfCurrencyCode := res.GetEtf().GetCurrencyCode()
+	authCode := res.GetAuthCode()
+	cli := res.GetCli()
+	correlationToken := res.GetCorrelationToken()
+	id := res.GetId()
+	rawCli := res.GetRawCli()
+
+	toModelType := func(portType porting_out_events.Type) *sharedmodel.MobilePortingType {
+		switch portType {
+		case porting_out_events.Type_TYPE_STAC:
+			pt := sharedmodel.MobilePortingTypePortTypeStac
+			return &pt
+		case porting_out_events.Type_TYPE_PAC:
+			pt := sharedmodel.MobilePortingTypePortTypePac
+			return &pt
+		case porting_out_events.Type_TYPE_UNKNOWN:
+			pt := sharedmodel.MobilePortingTypePortTypeUnknown
+			return &pt
+		default:
+			pt := sharedmodel.MobilePortingTypePortTypeUnknown
+			return &pt
+		}
+	}
+
+	return &sharedmodel.MobilePortingOutState{
+		AuthCode:         &authCode,
+		AuthCodeExpiry:   &authCodeExpiry,
+		AuthCodeStatus:   toModelStatus(res.GetAuthCodeStatus()),
+		BusinessUnit:     toModelBusinessUnit(res.GetBusinessUnit()),
+		Cli:              &cli,
+		CorrelationToken: &correlationToken,
+		Etf: &sharedmodel.MobileMoney{
+			Amount:   etfAmount,
+			Currency: etfCurrencyCode,
+		},
+		ID: &id,
+		PrepayBalance: &sharedmodel.MobileMoney{
+			Amount:   res.GetEtf().GetAmount(),
+			Currency: res.GetEtf().GetCurrencyCode(),
+		},
+		RawCli:      &rawCli,
+		RequestTime: &requestTime,
+		Time:        &time,
+		Type:        toModelType(res.GetType()),
+	}
+}
+
+func (r *Resolver) map3DSActionResponse(action *topupapi.RequiredAction) *model.MobileTopupRequiredAction {
+	if action == nil {
+		return nil
+	}
+
+	return &model.MobileTopupRequiredAction{
+		TransactionData:          new(string(action.GetTransactionData()[:])),
+		ExternalTransactionToken: action.GetExternalTransactionToken(),
+	}
+}
+func (r *Resolver) mapTopupFailureCode(failureCode *topupapi.FailureCode) *string {
+	var output *string
+
+	failureMessage := map[topupapi.FailureCode]string{
+		topupapi.FailureCode_FAILURE_PAYMENT_REFUSED:            "Payment failed. For more information please contact your bank.",
+		topupapi.FailureCode_FAILURE_PAYMENT_METHOD_NOT_ALLOWED: "Invalid payment method. Please try a different card.",
+		topupapi.FailureCode_FAILURE_ADDRESS_CHECK_FAILED:       "Error: Payment details do not match.",
+		topupapi.FailureCode_FAILURE_3DS_REFUSED:                "Authentication failed. Please try again.",
+		topupapi.FailureCode_FAILURE_INVALID_PAYMENT_METHOD:     "Invalid card. Please check your details or try a different card.",
+	}
+
+	if failureCode != nil {
+		msg := failureMessage[*failureCode]
+		output = &msg
+	}
+	return output
+}
+
+func (r *Resolver) getOverrideAddress(req model.MobileSimReplacementRequest) *customer_events.BillCustomerAddress {
+	if req.OverrideAddressLine1 == nil &&
+		req.OverrideAddressLine2 == nil &&
+		req.OverrideAddressLine3 == nil &&
+		req.OverrideAddressLine4 == nil &&
+		req.OverrideCounty == nil &&
+		req.OverridePostCode == nil {
+		return nil
+	}
+
+	return &customer_events.BillCustomerAddress{
+		AddressLine_1: utils.PtrToString(req.OverrideAddressLine1),
+		AddressLine_2: utils.PtrToString(req.OverrideAddressLine2),
+		AddressLine_3: utils.PtrToString(req.OverrideAddressLine3),
+		AddressLine_4: utils.PtrToString(req.OverrideAddressLine4),
+		County:        utils.PtrToString(req.OverrideCounty),
+		PostCode:      utils.PtrToString(req.OverridePostCode),
+	}
+}

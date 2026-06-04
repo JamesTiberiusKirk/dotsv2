@@ -1,0 +1,386 @@
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { join, extname, relative, basename } from 'path';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function fileSlug(rel) { return 'file-' + slugify(rel); }
+
+function fileHealth(lineCount, importCount) {
+  if (lineCount > 500) return ['red', `${lineCount} lines — too large`];
+  if (lineCount > 300) return ['yellow', `${lineCount} lines — large`];
+  if (importCount > 12) return ['yellow', `${importCount} imports`];
+  return ['green', null];
+}
+function systemHealth(files) {
+  const max = Math.max(0, ...files.map(f => f.lineCount));
+  if (max > 500) return ['red', 'contains 500+ line files'];
+  if (max > 300) return ['yellow', 'contains large files'];
+  return ['green', null];
+}
+
+// ── walk all files in a dir ──────────────────────────────────────────────────
+
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'vendor', '__pycache__', '.core']);
+const SKIP_EXTS = new Set(['.sum', '.png', '.jpg', '.svg', '.woff', '.woff2', '.ttf', '.ico',
+  '.lock', '.map', '.min.js', '.snap', '.pdf', '.zip', '.gz', '.tar']);
+const LANG_BY_EXT = {
+  '.go': 'go', '.ts': 'typescript', '.tsx': 'typescript', '.js': 'javascript',
+  '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+  '.mts': 'typescript', '.cts': 'typescript', '.py': 'python',
+  '.proto': 'protobuf', '.graphql': 'graphql', '.gql': 'graphql',
+  '.yaml': 'yaml', '.yml': 'yaml', '.sh': 'shell', '.md': 'markdown',
+};
+
+function walkFiles(dir, rootDir) {
+  const results = [];
+  function walk(current) {
+    let entries;
+    try { entries = readdirSync(current, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (SKIP_DIRS.has(e.name)) continue;
+      const full = join(current, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      const ext = extname(e.name).toLowerCase();
+      if (SKIP_EXTS.has(ext)) continue;
+      const lang = LANG_BY_EXT[ext];
+      if (!lang) continue;
+      let content = '', lineCount = 0, importCount = 0;
+      try {
+        content = readFileSync(full, 'utf8');
+        lineCount = content.split('\n').length;
+        // count imports for Go
+        if (lang === 'go') importCount = (content.match(/^\s+"[^"]+"/gm) || []).length;
+      } catch { continue; }
+      results.push({
+        relativePath: relative(rootDir, full).replace(/\\/g, '/'),
+        name: e.name,
+        lineCount,
+        importCount,
+        language: lang,
+      });
+    }
+  }
+  walk(dir);
+  return results;
+}
+
+// ── JS/TS snapshot (existing) ────────────────────────────────────────────────
+
+let jsContent = readFileSync(process.env.TMPDIR + '/repo-snapshot-clean.json', 'utf8');
+jsContent = jsContent.replace(/\n\[INFO\].*$/m, '');
+const jsSnap = JSON.parse(jsContent);
+const jsFiles = jsSnap.files.map(f => ({
+  relativePath: f.relativePath,
+  name: f.name,
+  lineCount: f.lineCount,
+  importCount: (f.imports || []).length,
+  language: f.language,
+}));
+
+// ── Go/proto snapshot (telecom-mobile) ──────────────────────────────────────
+
+const repoRoot = '/Users/dumitruvulpe/uw';
+const goFiles = walkFiles(join(repoRoot, 'telecom-mobile'), repoRoot)
+  .filter(f => !f.relativePath.includes('telecom-mobile/pkg/generated/'));
+
+console.log(`JS/TS files: ${jsFiles.length}`);
+console.log(`Go/proto files (telecom-mobile, excl. generated): ${goFiles.length}`);
+
+const allFiles = [...jsFiles, ...goFiles];
+
+// ── service domain grouping ──────────────────────────────────────────────────
+// Group the 66 services into domain clusters
+
+const SIM_SERVICES = new Set(['sim-activation-service','sim-activation-bill-connector',
+  'sim-replacement-service','sim-requested-service','sim-barring-service',
+  'sim-settings-service','esim-stock-service','mock-sim-swap-api']);
+
+const PORTING_SERVICES = new Set(['porting-service','porting-out-service',
+  'porting-out-staging-connector','porting-smpp-gateway','porting-ee-smpp-events-staging-connector',
+  'smpp-porting-out-requests-listener','onep-mobile-porting-response-notifier',
+  'proximo2kafka','syniverse-gateway']);
+
+const TARIFF_SERVICES = new Set(['tariff-catalogue','tariff-translator',
+  'quoting-api','quoting-platform-api','topup-api']);
+
+const ROAMING_SERVICES = new Set(['roaming-billing','roaming-limit-service',
+  'roaming-cli-aggregator','usage-summary-service']);
+
+const LIFECYCLE_SERVICES = new Set(['lifecycle-sink','lifecycle-events-comms-processor',
+  'service-lifecycle-projector','service-lifecycle-event-fabricator',
+  'service-equipment-bridge','termination-service','ordering-platform']);
+
+const HANDSET_SERVICES = new Set(['handset','handset-blacklisting','handset-yaml-updater',
+  'mock-handset-eligibility-api','eecc-product-adapter']);
+
+const EE_GATEWAY_SERVICES = new Set(['mso-connector','unicom-gateway','ee-cdr-splitter',
+  'ee-cdr-audit','ee-udr-events-fabricator','ee-premium-rate-sender',
+  'ee-sftp-file-watcher','ee-smpp-porting-events-connector','dpsc-ee-custlist',
+  'data-staged-producer','kafka-to-kafka']);
+
+const CRM_SERVICES = new Set(['crm-actions','crm-projector','crm-important-status-applier',
+  'account-gateway','address-service','iam-proxy-gateway','fraud-detection-ee-sms',
+  'event-hold']);
+
+const GRAPHQL_SERVICES = new Set(['public-graphql','internal-graphql','my-services-api',
+  'my-services-api-projector']);
+
+const WHOLESALE_SERVICES = new Set(['wholesale-state-api','wholesale-state-projector',
+  'bill-connector','feature-flags-service']);
+
+function serviceGroup(name) {
+  if (SIM_SERVICES.has(name)) return 'system-tm-sim';
+  if (PORTING_SERVICES.has(name)) return 'system-tm-porting';
+  if (TARIFF_SERVICES.has(name)) return 'system-tm-tariff';
+  if (ROAMING_SERVICES.has(name)) return 'system-tm-roaming';
+  if (LIFECYCLE_SERVICES.has(name)) return 'system-tm-lifecycle';
+  if (HANDSET_SERVICES.has(name)) return 'system-tm-handset';
+  if (EE_GATEWAY_SERVICES.has(name)) return 'system-tm-ee-gateway';
+  if (CRM_SERVICES.has(name)) return 'system-tm-crm';
+  if (GRAPHQL_SERVICES.has(name)) return 'system-tm-graphql';
+  if (WHOLESALE_SERVICES.has(name)) return 'system-tm-wholesale';
+  return 'system-tm-services-other';
+}
+
+// ── getSystemId ──────────────────────────────────────────────────────────────
+
+function getSystemId(rel) {
+  // kubernetes
+  if (rel.startsWith('kubernetes-manifests/')) return 'system-kubernetes';
+  // telecom-mobile-manifests
+  if (rel.startsWith('telecom-mobile-manifests/')) return 'system-kubernetes';
+  // documentation
+  if (rel.startsWith('documentation/')) return 'system-tooling';
+
+  // telecom-mobile
+  if (rel.startsWith('telecom-mobile/')) {
+    const rest = rel.slice('telecom-mobile/'.length);
+    // protos
+    if (rest.startsWith('protos/')) return 'system-tm-protos';
+    if (rest.startsWith('buf/')) return 'system-tm-protos';
+    // pkg
+    if (rest.startsWith('pkg/')) {
+      const pkg = rest.split('/')[1];
+      const billing = new Set(['bill','billtariffs','retailcharge','transactionlogs','promocode']);
+      const network = new Set(['nexus','nexus_gateway','unicomconnectormodels','mccmnc','location']);
+      const infra = new Set(['auth','clioption','libdry','retrier','scheduler','testutils',
+        'jtcutils','utils','s3fetcher','s3uploader','temporalstore','integration_sdk','eventhold']);
+      const domain = new Set(['esim','handsetdb','handseteligibility','imeiutil','ordering',
+        'quoting','simactivationapi','simsettings','tariffcat','tariffdb','featureflags',
+        'graphql','deprecated']);
+      if (billing.has(pkg)) return 'system-tm-pkg-billing';
+      if (network.has(pkg)) return 'system-tm-pkg-network';
+      if (infra.has(pkg)) return 'system-tm-pkg-infra';
+      if (domain.has(pkg)) return 'system-tm-pkg-domain';
+      return 'system-tm-pkg-infra';
+    }
+    // cmd
+    if (rest.startsWith('cmd/')) return 'system-tm-cmd';
+    // docker/scripts/config
+    if (rest.startsWith('docker/') || rest.startsWith('.github/') || rest.startsWith('.core/')) return 'system-tm-infra';
+    // services
+    if (rest.startsWith('services/')) {
+      const svcName = rest.split('/')[1];
+      return serviceGroup(svcName);
+    }
+    // root files (go.mod, generate.go, docker-compose, etc.)
+    return 'system-tm-infra';
+  }
+
+  // js-mono libs
+  if (rel.startsWith('js-mono/libs/fastify-uw-session-plugin/')) return 'system-lib-session';
+  if (rel.startsWith('js-mono/libs/tracing/')) return 'system-lib-tracing';
+  if (rel.startsWith('js-mono/libs/apollo/')) return 'system-lib-apollo';
+  if (rel.startsWith('js-mono/libs/')) return 'system-tooling';
+  if (rel.startsWith('js-mono/tools/') || rel.startsWith('js-mono/scripts/')) return 'system-tooling';
+  if (rel === 'js-mono/.prettierrc.js') return 'system-tooling';
+
+  // js-mono apps
+  if (rel.startsWith('js-mono/apps/smart-tips-graphql/')) return 'system-smart-tips-api';
+  if (rel.startsWith('js-mono/apps/game-of-thrones-api/')) return 'system-got-api';
+  if (rel.startsWith('js-mono/apps/my-account-web-e2e/')) return 'system-e2e';
+
+  // my-account-web domains
+  const maw = 'js-mono/apps/my-account-web/src/domains/';
+  if (rel.startsWith(maw + 'auth/')) return 'system-domain-auth';
+  if (rel.startsWith(maw + 'account/')) return 'system-domain-account';
+  if (rel.startsWith(maw + 'billing/')) return 'system-domain-billing';
+  if (rel.startsWith(maw + 'payments/')) return 'system-domain-payments';
+  if (rel.startsWith(maw + 'cashback/')) return 'system-domain-cashback';
+  if (rel.startsWith(maw + 'insurance/')) return 'system-domain-insurance';
+  if (rel.startsWith(maw + 'energy/smart-booking/')) return 'system-domain-energy-smartbooking';
+  if (rel.startsWith(maw + 'energy/meter-reads/')) return 'system-domain-energy-meterreads';
+  if (rel.startsWith(maw + 'energy/ev-switch/')) return 'system-domain-energy-evswitch';
+  if (rel.startsWith(maw + 'energy/')) return 'system-domain-energy';
+  if (rel.startsWith(maw + 'mobile/')) return 'system-domain-mobile';
+  if (rel.startsWith(maw + 'fixed-line/')) return 'system-domain-fixedline';
+  if (rel.startsWith(maw + 'home/')) return 'system-domain-home';
+  if (rel.startsWith(maw + 'debt/')) return 'system-domain-debt';
+  if (rel.startsWith(maw)) return 'system-domain-other';
+
+  if (rel.startsWith('js-mono/apps/my-account-web/server/')) return 'system-maw-server';
+  if (rel.startsWith('js-mono/apps/my-account-web/src/components/')) return 'system-maw-components';
+  if (rel.startsWith('js-mono/apps/my-account-web/src/pages/')) return 'system-maw-pages';
+  if (rel.startsWith('js-mono/apps/my-account-web/src/')) return 'system-maw-lib';
+  if (rel.startsWith('js-mono/apps/my-account-web/')) return 'system-maw-config';
+
+  return 'system-tooling';
+}
+
+// ── system definitions ───────────────────────────────────────────────────────
+
+const systemDefs = [
+  // ── My Account Web ──────────────────────────────────────────────────────
+  { id: 'system-my-account-web', label: 'My Account Web', parentId: null, filePath: 'js-mono/apps/my-account-web/', icon: 'globe', summary: 'Customer portal Next.js app' },
+  { id: 'system-domains', label: 'Product Domains', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/domains/', icon: 'layers', summary: 'Feature domains by product line' },
+  { id: 'system-domain-auth', label: 'Auth', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/auth/', icon: 'lock', summary: 'Authentication flows' },
+  { id: 'system-domain-account', label: 'Account', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/account/', icon: 'shield', summary: 'Account management' },
+  { id: 'system-domain-billing', label: 'Billing', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/billing/', icon: 'database', summary: 'Billing & statements' },
+  { id: 'system-domain-payments', label: 'Payments', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/payments/', icon: 'zap', summary: 'Payment processing' },
+  { id: 'system-domain-cashback', label: 'Cashback', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/cashback/', icon: 'database', summary: 'Cashback rewards' },
+  { id: 'system-domain-insurance', label: 'Insurance', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/insurance/', icon: 'shield', summary: 'Insurance products' },
+  { id: 'system-domain-energy', label: 'Energy', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/energy/', icon: 'zap', summary: 'Energy services' },
+  { id: 'system-domain-energy-smartbooking', label: 'Smart Booking', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/smart-booking/', icon: 'clock', summary: 'Smart meter booking flow' },
+  { id: 'system-domain-energy-meterreads', label: 'Meter Reads', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/meter-reads/', icon: 'gear', summary: 'Meter reading submission' },
+  { id: 'system-domain-energy-evswitch', label: 'EV Switch', parentId: 'system-domain-energy', filePath: 'js-mono/apps/my-account-web/src/domains/energy/ev-switch/', icon: 'zap', summary: 'EV tariff switching' },
+  { id: 'system-domain-mobile', label: 'Mobile', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/mobile/', icon: 'envelope', summary: 'Mobile service management' },
+  { id: 'system-domain-fixedline', label: 'Fixed Line', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/fixed-line/', icon: 'route', summary: 'Broadband & fixed line' },
+  { id: 'system-domain-home', label: 'Home', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/home/', icon: 'globe', summary: 'Home dashboard' },
+  { id: 'system-domain-debt', label: 'Debt', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/debt/', icon: 'database', summary: 'Debt management' },
+  { id: 'system-domain-other', label: 'Other Domains', parentId: 'system-domains', filePath: 'js-mono/apps/my-account-web/src/domains/', icon: 'puzzle', summary: 'Misc domain pages' },
+  { id: 'system-maw-components', label: 'Shared Components', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/components/', icon: 'puzzle', summary: 'Reusable UI components' },
+  { id: 'system-maw-pages', label: 'Pages', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/pages/', icon: 'file', summary: 'Next.js page routes' },
+  { id: 'system-maw-lib', label: 'Shared Lib', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/src/', icon: 'gear', summary: 'Hooks, utils, contexts, graphql' },
+  { id: 'system-maw-server', label: 'Server', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/server/', icon: 'server', summary: 'Fastify server layer' },
+  { id: 'system-maw-config', label: 'Config & Root', parentId: 'system-my-account-web', filePath: 'js-mono/apps/my-account-web/', icon: 'gear', summary: 'App config, mocks, scripts' },
+
+  // ── Telecom Mobile ──────────────────────────────────────────────────────
+  { id: 'system-telecom-mobile', label: 'Telecom Mobile', parentId: null, filePath: 'telecom-mobile/', icon: 'server', summary: 'Go microservices for mobile network' },
+  { id: 'system-tm-sim', label: 'SIM Services', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'zap', summary: 'SIM activation, replacement, barring, eSIM' },
+  { id: 'system-tm-porting', label: 'Porting', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'route', summary: 'Number porting in/out & SMPP gateway' },
+  { id: 'system-tm-tariff', label: 'Tariff & Billing', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'database', summary: 'Tariff catalogue, quoting, top-ups' },
+  { id: 'system-tm-roaming', label: 'Roaming', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'globe', summary: 'Roaming billing, limits, CDR' },
+  { id: 'system-tm-lifecycle', label: 'Lifecycle', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'clock', summary: 'Service lifecycle events & ordering' },
+  { id: 'system-tm-handset', label: 'Handset', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'puzzle', summary: 'Handset DB, eligibility, blacklisting' },
+  { id: 'system-tm-ee-gateway', label: 'EE Gateway', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'layers', summary: 'EE/MSO connectors & CDR pipeline' },
+  { id: 'system-tm-crm', label: 'CRM & Account', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'shield', summary: 'Account gateway, CRM, fraud, IAM' },
+  { id: 'system-tm-graphql', label: 'GraphQL APIs', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'route', summary: 'Public/internal GraphQL + my-services' },
+  { id: 'system-tm-wholesale', label: 'Wholesale & Billing', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'database', summary: 'Wholesale state, bill connector' },
+  { id: 'system-tm-services-other', label: 'Other Services', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/services/', icon: 'gear', summary: 'Misc services' },
+  { id: 'system-tm-pkg-domain', label: 'Domain Packages', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/pkg/', icon: 'layers', summary: 'Tariff, SIM, ordering, handset libs' },
+  { id: 'system-tm-pkg-billing', label: 'Billing Packages', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/pkg/', icon: 'database', summary: 'Bill, tariffs, retail charge libs' },
+  { id: 'system-tm-pkg-network', label: 'Network Packages', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/pkg/', icon: 'globe', summary: 'Nexus, Unicom, MCC/MNC, location' },
+  { id: 'system-tm-pkg-infra', label: 'Infra Packages', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/pkg/', icon: 'gear', summary: 'Auth, retry, scheduler, S3, utils' },
+  { id: 'system-tm-protos', label: 'Protos', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/protos/', icon: 'code', summary: 'Protobuf & GraphQL schema definitions' },
+  { id: 'system-tm-cmd', label: 'CLI Tools', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/cmd/', icon: 'code', summary: 'Admin CLIs and batch tools' },
+  { id: 'system-tm-infra', label: 'Infra & Config', parentId: 'system-telecom-mobile', filePath: 'telecom-mobile/', icon: 'server', summary: 'Docker, CI, go.mod, root config' },
+
+  // ── Other apps & libs ───────────────────────────────────────────────────
+  { id: 'system-smart-tips-api', label: 'Smart Tips API', parentId: null, filePath: 'js-mono/apps/smart-tips-graphql/', icon: 'route', summary: 'GraphQL API for smart tips' },
+  { id: 'system-got-api', label: 'GoT API', parentId: null, filePath: 'js-mono/apps/game-of-thrones-api/', icon: 'server', summary: 'Demo Game of Thrones API' },
+  { id: 'system-e2e', label: 'E2E Tests', parentId: null, filePath: 'js-mono/apps/my-account-web-e2e/', icon: 'code', summary: 'End-to-end test suite' },
+  { id: 'system-lib-session', label: 'Session Plugin', parentId: null, filePath: 'js-mono/libs/fastify-uw-session-plugin/', icon: 'lock', summary: 'Fastify session management plugin' },
+  { id: 'system-lib-tracing', label: 'Tracing', parentId: null, filePath: 'js-mono/libs/tracing/', icon: 'layers', summary: 'OpenTelemetry tracing lib' },
+  { id: 'system-lib-apollo', label: 'Apollo', parentId: null, filePath: 'js-mono/libs/apollo/', icon: 'route', summary: 'Apollo GraphQL client config' },
+  { id: 'system-kubernetes', label: 'Kubernetes', parentId: null, filePath: 'kubernetes-manifests/', icon: 'server', summary: 'K8s deployment manifests' },
+  { id: 'system-tooling', label: 'Tooling', parentId: null, filePath: 'js-mono/', icon: 'gear', summary: 'ESLint, Prettier, build tools' },
+];
+
+// ── build nodes & edges ──────────────────────────────────────────────────────
+
+const nodes = [];
+const edges = [];
+const edgeSet = new Set();
+
+// Accumulate line counts per system (including ancestors)
+const systemLineCounts = {};
+systemDefs.forEach(s => { systemLineCounts[s.id] = 0; });
+
+function getAncestors(sysId) {
+  const sys = systemDefs.find(s => s.id === sysId);
+  if (!sys || !sys.parentId) return [];
+  return [sys.parentId, ...getAncestors(sys.parentId)];
+}
+
+allFiles.forEach(f => {
+  const sysId = getSystemId(f.relativePath);
+  systemLineCounts[sysId] = (systemLineCounts[sysId] || 0) + f.lineCount;
+  getAncestors(sysId).forEach(a => {
+    systemLineCounts[a] = (systemLineCounts[a] || 0) + f.lineCount;
+  });
+});
+
+// Collect files per system for health checks
+const filesBySystem = {};
+allFiles.forEach(f => {
+  const id = getSystemId(f.relativePath);
+  if (!filesBySystem[id]) filesBySystem[id] = [];
+  filesBySystem[id].push(f);
+});
+
+// System nodes
+systemDefs.forEach(s => {
+  const directFiles = filesBySystem[s.id] || [];
+  const [health, healthReason] = directFiles.length > 0
+    ? systemHealth(directFiles)
+    : ['green', null];
+  const node = {
+    id: s.id, label: s.label, type: 'system', icon: s.icon,
+    parentId: s.parentId, filePath: s.filePath,
+    lineCount: systemLineCounts[s.id] || 0, health,
+  };
+  if (s.summary) node.summary = s.summary;
+  if (healthReason) node.healthReason = healthReason;
+  nodes.push(node);
+});
+
+// File nodes
+allFiles.forEach(f => {
+  const sysId = getSystemId(f.relativePath);
+  const [health, healthReason] = fileHealth(f.lineCount, f.importCount);
+  const node = {
+    id: fileSlug(f.relativePath), label: f.name, type: 'file', icon: 'file',
+    parentId: sysId, filePath: f.relativePath, lineCount: f.lineCount, health,
+  };
+  if (healthReason) node.healthReason = healthReason;
+  nodes.push(node);
+});
+
+// Cross-system edges
+const knownEdges = [
+  ['system-my-account-web', 'system-lib-session'],
+  ['system-my-account-web', 'system-lib-tracing'],
+  ['system-my-account-web', 'system-lib-apollo'],
+  ['system-maw-server', 'system-lib-session'],
+  ['system-maw-server', 'system-lib-tracing'],
+  ['system-maw-pages', 'system-maw-lib'],
+  ['system-maw-pages', 'system-maw-components'],
+  ['system-domains', 'system-maw-lib'],
+  ['system-domains', 'system-maw-components'],
+  ['system-tm-sim', 'system-tm-pkg-domain'],
+  ['system-tm-porting', 'system-tm-pkg-network'],
+  ['system-tm-tariff', 'system-tm-pkg-billing'],
+  ['system-tm-tariff', 'system-tm-pkg-domain'],
+  ['system-tm-roaming', 'system-tm-pkg-billing'],
+  ['system-tm-lifecycle', 'system-tm-pkg-domain'],
+  ['system-tm-graphql', 'system-tm-pkg-domain'],
+  ['system-tm-graphql', 'system-tm-protos'],
+  ['system-tm-ee-gateway', 'system-tm-pkg-network'],
+  ['system-tm-crm', 'system-tm-pkg-infra'],
+];
+knownEdges.forEach(([src, tgt]) => {
+  const key = `${src}||${tgt}`;
+  if (edgeSet.has(key)) return;
+  edgeSet.add(key);
+  edges.push({ id: `edge-${src}-${tgt}`, source: src, target: tgt, type: 'imports' });
+});
+
+const graph = { nodes, edges };
+const outPath = (process.env.TMPDIR || '/tmp') + '/claudemap-enrichment.json';
+writeFileSync(outPath, JSON.stringify(graph));
+console.log(`Nodes: ${nodes.length} (${systemDefs.length} systems, ${allFiles.length} files)`);
+console.log(`Edges: ${edges.length}`);
+console.log(`Written to: ${outPath}`);

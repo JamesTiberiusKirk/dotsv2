@@ -1,0 +1,44 @@
+package jobs
+
+import (
+	"context"
+	"time"
+
+	"github.com/utilitywarehouse/telecom-mobile/internal/shared/scheduler"
+	"github.com/utilitywarehouse/telecom-mobile/pkg/generated/protos/mobile/v1/events/serviceevents"
+	"github.com/utilitywarehouse/telecom-mobile/services/handset/internal/models"
+)
+
+type Storage interface {
+	FindAndUpdateExpiredContracts(ctx context.Context) ([]models.Contract, error)
+}
+
+type Producer interface {
+	ProduceMobileHandsetContractExpiredSync(ctx context.Context, out *serviceevents.MobileHandsetContractExpired) error
+}
+
+type Jobs struct {
+	scheules []*scheduler.Scheduler
+}
+
+func New(ctx context.Context, store Storage, eventProducer Producer) *Jobs {
+	res := &Jobs{
+		scheules: []*scheduler.Scheduler{},
+	}
+
+	res.scheules = append(res.scheules, scheduler.NewScheduler(ctx, expireContractsRunner(store, eventProducer), time.Hour*6))
+
+	return res
+}
+
+func (j *Jobs) Start() {
+	for _, job := range j.scheules {
+		job.Start()
+	}
+}
+
+func (j *Jobs) Stop() {
+	for _, job := range j.scheules {
+		job.Stop()
+	}
+}
