@@ -140,9 +140,7 @@ bindkey '^F^F' edit-command-line
 # Make sure it uses your preferred editor
 export VISUAL="${EDITOR}"
 
-
-
-
+fcopy() { echo -n "file://$(realpath "$1")" | wl-copy --type text/uri-list; }
 
 
 # Codex desktop notifications wrapper.

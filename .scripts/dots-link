@@ -4,7 +4,7 @@ set -euo pipefail
 DOTS_DIR="$HOME/.dots"
 HOSTS_DIR="$DOTS_DIR/hosts"
 TARGET="$HOME"
-HOSTNAME_SHORT="$(hostname -s)"
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || uname -n | cut -d. -f1)"
 MANIFEST="$HOSTS_DIR/$HOSTNAME_SHORT"
 
 usage() {

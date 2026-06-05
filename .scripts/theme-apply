@@ -37,7 +37,7 @@ dunstctl reload >/dev/null 2>&1 || { pkill -x dunst >/dev/null 2>&1 || true; set
 # Push the theme into running Neovim instances instead of waiting for portal polling.
 for server in /run/user/"$(id -u)"/nvim.*; do
     [ -S "$server" ] || continue
-    nvim --server "$server" --remote-expr "execute('ThemeSync $MODE')" >/dev/null 2>&1 || true
+    timeout 3 nvim --server "$server" --remote-expr "execute('ThemeSync $MODE')" >/dev/null 2>&1 || true
 done
 
 # GTK apps + nvim auto-dark-mode
