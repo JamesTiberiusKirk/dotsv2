@@ -20,8 +20,10 @@ bin
 .scripts/sql-align-format
 
 # config
+.config/aerospace
 .config/installed_packages
 .config/linearmouse
 .config/nvim
+.config/skhd
 .config/wezterm
 .config/workspacer

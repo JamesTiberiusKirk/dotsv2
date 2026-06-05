@@ -24,6 +24,15 @@ config.keys = {
     mods = 'SHIFT',
     action = wezterm.action.SendString '\x1b\r',
   },
+  { key = '1', mods = 'CTRL', action = wezterm.action.SendString '\x1b[49;5u' },
+  { key = '2', mods = 'CTRL', action = wezterm.action.SendString '\x1b[50;5u' },
+  { key = '3', mods = 'CTRL', action = wezterm.action.SendString '\x1b[51;5u' },
+  { key = '4', mods = 'CTRL', action = wezterm.action.SendString '\x1b[52;5u' },
+  { key = '5', mods = 'CTRL', action = wezterm.action.SendString '\x1b[53;5u' },
+  { key = '6', mods = 'CTRL', action = wezterm.action.SendString '\x1b[54;5u' },
+  { key = '7', mods = 'CTRL', action = wezterm.action.SendString '\x1b[55;5u' },
+  { key = '8', mods = 'CTRL', action = wezterm.action.SendString '\x1b[56;5u' },
+  { key = '9', mods = 'CTRL', action = wezterm.action.SendString '\x1b[57;5u' },
 }
 
 local theme_mode_file = os.getenv 'HOME' .. '/.theme-mode'

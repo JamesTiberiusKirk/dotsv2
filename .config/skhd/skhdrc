@@ -1,0 +1,6 @@
+# Alt + vim keys → arrow keys (built-in keyboard navigation layer)
+# Caps Lock → Ctrl: set per-device in System Settings > Keyboard > Modifier Keys
+alt - h : skhd -k "left"
+alt - l : skhd -k "right"
+alt - k : skhd -k "up"
+alt - j : skhd -k "down"
