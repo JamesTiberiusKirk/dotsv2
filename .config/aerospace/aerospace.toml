@@ -18,13 +18,11 @@ outer.bottom     = 5
 
 [mode.main.binding]
 # --- Apps ---
-cmd-enter   = 'exec-and-forget open -na WezTerm'
 cmd-shift-q = 'close'
 cmd-shift-c = 'reload-config'
 
 # --- Layout ---
-cmd-v = 'layout floating tiling'
-cmd-f = 'fullscreen'
+cmd-shift-f = 'fullscreen'
 
 # --- Focus (vim) ---
 cmd-h = 'focus left'

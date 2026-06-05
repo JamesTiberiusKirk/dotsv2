@@ -4,3 +4,6 @@ alt - h : skhd -k "left"
 alt - l : skhd -k "right"
 alt - k : skhd -k "up"
 alt - j : skhd -k "down"
+
+# Swap workspaces between monitors (suppresses macOS app switcher)
+cmd - tab : ~/.scripts/swap-workspaces-mac.sh

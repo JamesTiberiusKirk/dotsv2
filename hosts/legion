@@ -13,7 +13,8 @@
 .tmux-linux.conf
 
 # tools
-bin
+.scripts/dots-link
+.scripts/rquickshare
 
 # scripts
 .scripts/brightness-step
