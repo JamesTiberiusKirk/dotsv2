@@ -4,7 +4,10 @@
       "Bash(git commit *)",
       "Bash(git push *)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "default",
+    "additionalDirectories": [
+      "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
+    ]
   },
   "hooks": {
     "Stop": [
@@ -49,5 +52,13 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "theme": "auto",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "advisorModel": "opus",
+  "sandbox": {
+    "filesystem": {
+      "allowRead": [
+        "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
+      ]
+    }
+  }
 }

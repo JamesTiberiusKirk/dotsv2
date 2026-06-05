@@ -8,7 +8,6 @@
 # tmux
 .tmux.conf
 .tmux-osx.conf
-.tmux-linux.conf
 
 # tools
 bin
@@ -19,8 +18,6 @@ bin
 .scripts/pg_prettify.sh
 .scripts/ping-latency.sh
 .scripts/sql-align-format
-.scripts/theme-apply
-.scripts/theme-toggle
 
 # config
 .config/installed_packages
