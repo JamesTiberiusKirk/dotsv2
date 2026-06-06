@@ -1,32 +1,59 @@
-#!/bin/sh
-# Workaround for waybar 0.15.0 battery module: it inotify-watches every
-# /sys/class/power_supply entry and aborts when an HID/BT peripheral battery
-# disappears across suspend. This reads only BAT0/BAT1.
+#!/usr/bin/env bash
 
-bat=
-for d in /sys/class/power_supply/BAT0 /sys/class/power_supply/BAT1; do
-    [ -d "$d" ] && { bat=$d; break; }
-done
+set -eu
 
-if [ -z "$bat" ]; then
-    echo '{"text": ""}'
+find_battery() {
+    for supply in /sys/class/power_supply/*; do
+        [ -d "$supply" ] || continue
+        [ -r "$supply/type" ] || continue
+        if [ "$(cat "$supply/type")" = "Battery" ]; then
+            printf '%s\n' "$supply"
+            return 0
+        fi
+    done
+    return 1
+}
+
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+if ! battery_dir="$(find_battery)"; then
+    printf '{"text":"","tooltip":"","class":"hidden"}\n'
     exit 0
 fi
 
-cap=$(cat "$bat/capacity" 2>/dev/null || echo 0)
-status=$(cat "$bat/status" 2>/dev/null || echo Unknown)
+status="$(cat "$battery_dir/status" 2>/dev/null || printf 'Unknown')"
+capacity="$(cat "$battery_dir/capacity" 2>/dev/null || printf '0')"
+
+class="discharging"
+icon=" "
 
 case "$status" in
-    Charging)            icon="⚡" ; alt=charging ;;
-    Full|"Not charging") icon="☻" ; alt=full ;;
-    *)                   icon="🔋" ; alt=discharging ;;
+    Charging)
+        class="charging"
+        icon=" "
+        ;;
+    Full)
+        class="full"
+        icon=" "
+        ;;
+    "Not charging")
+        class="plugged"
+        icon=" "
+        ;;
 esac
 
-class=
-[ "$alt" = discharging ] && [ "$cap" -le 30 ] && class=critical
-
-if [ -n "$class" ]; then
-    printf '{"text": "%s %s%%", "alt": "%s", "class": "%s", "percentage": %s}\n' "$icon" "$cap" "$alt" "$class" "$cap"
-else
-    printf '{"text": "%s %s%%", "alt": "%s", "percentage": %s}\n' "$icon" "$cap" "$alt" "$cap"
+if [ "$capacity" -le 15 ]; then
+    class="$class critical"
+elif [ "$capacity" -le 30 ]; then
+    class="$class warning"
 fi
+
+text="${icon}${capacity}%"
+tooltip="Battery: ${capacity}% (${status})"
+
+printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' \
+    "$(json_escape "$text")" \
+    "$(json_escape "$tooltip")" \
+    "$(json_escape "$class")"

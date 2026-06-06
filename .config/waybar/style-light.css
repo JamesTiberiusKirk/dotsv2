@@ -49,6 +49,15 @@ window#waybar {
     background-color: transparent;
 }
 
+#custom-battery.hidden {
+    padding: 0;
+    min-width: 0;
+}
+
+#custom-battery.warning:not(.charging):not(.full) {
+    color: #b57614;
+}
+
 #custom-battery.critical:not(.charging):not(.full) {
     color: #cc241d;
 }

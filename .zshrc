@@ -30,18 +30,6 @@ precmd() {
 
     PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
 
-    # Dotfiles bare repo (-uno skips untracked since work-tree is $HOME)
-    if [[ -d "$HOME/.cfg" ]]; then
-        _git_counts git --git-dir="$HOME/.cfg/" --work-tree="$HOME" -c status.showUntrackedFiles=no
-        if (( _modified + _staged + _ahead > 0 )); then
-            PROMPT+="%F{cyan}.{%f"
-            (( _modified > 0 )) && PROMPT+="%F{yellow}!${_modified}%f"
-            (( _staged > 0 )) && PROMPT+="%F{green}+${_staged}%f"
-            (( _ahead > 0 )) && PROMPT+="%F{magenta}↑${_ahead}%f"
-            PROMPT+="%F{cyan}}%f "
-        fi
-    fi
-
     PROMPT+='%F{blue}%~%f '
 
     # Regular git repo (vcs_info detects branch)

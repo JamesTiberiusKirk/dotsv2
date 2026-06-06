@@ -58,6 +58,7 @@ graphviz
 grim
 gruvbox-material-gtk-theme-git
 gtk-engine-murrine
+helium-browser-bin
 helm
 hicolor-icon-theme
 htop

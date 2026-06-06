@@ -49,18 +49,6 @@ fi
 alias tx="tmux -u"
 alias txa="tmux -u a"
 
-# Git bare repo for the dotconfigs
-
-# alias cfg='git --git-dir=$HOME/.cfg/ --work-tree=$HOME'
-cfg() {
-	git --git-dir=$HOME/.cfg/ --work-tree=$HOME "$@"
-}
-
-# alias cfga='git --git-dir=$HOME/.cfg/ --work-tree=$HOME add'
-cfga() {
-	git --git-dir=$HOME/.cfg/ --work-tree=$HOME add "$@"
-}
-
 if [[ $(uname) = "Darwin" ]]; then
 	alias copy='pbcopy'
 
@@ -72,11 +60,6 @@ if [[ $(uname) = "Darwin" ]]; then
 else
 	alias copy='xclip -selection clipboard'
 fi
-
-alias cfgau='git --git-dir=$HOME/.cfg/ --work-tree=$HOME add -u'
-alias cfgc='git --git-dir=$HOME/.cfg/ --work-tree=$HOME commit -m'
-alias cfgp='git --git-dir=$HOME/.cfg/ --work-tree=$HOME push'
-alias cfgs='git --git-dir=$HOME/.cfg/ --work-tree=$HOME status'
 
 # Git aliases alias g="git" alias gaa="git add --all" alias ga="git add " alias gc="git commit -m"
 alias ga="git add "

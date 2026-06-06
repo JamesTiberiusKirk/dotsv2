@@ -1,17 +1,3 @@
-escape                                   submap reset
-h                                        exec ~/.config/hypr/scripts/swap-workspaces.sh left
-h                                        resizeactive -50 0
-h                                        submap reset
-j                                        exec ~/.config/hypr/scripts/swap-workspaces.sh down
-j                                        resizeactive 0 50
-j                                        submap reset
-k                                        exec ~/.config/hypr/scripts/swap-workspaces.sh up
-k                                        resizeactive 0 -50
-k                                        submap reset
-l                                        exec ~/.config/hypr/scripts/swap-workspaces.sh right
-l                                        resizeactive 50 0
-l                                        submap reset
-return                                   submap reset
 SHIFT + h                                resizeactive -100 0
 SHIFT + j                                resizeactive 0 100
 SHIFT + k                                resizeactive 0 -100
@@ -26,10 +12,6 @@ Super + 6                                workspace 6
 Super + 7                                workspace 7
 Super + 8                                workspace 8
 Super + 9                                workspace 9
-Super + bracketleft                      changegroupactive b
-Super + bracketright                     changegroupactive f
-Super CTRL + L                           exec ~/.scripts/layout-switcher.sh
-Super CTRL + Q                           exec systemctl suspend
 Super + D                                exec dunstctl close
 Super + E                                exec $fileManager
 Super + F                                fullscreen 0
@@ -38,13 +20,21 @@ Super + H                                movefocus l
 Super + J                                movefocus d
 Super + K                                movefocus u
 Super + L                                movefocus r
+Super + P                                pseudo
+Super + R                                exec $menu
+Super + RETURN                           exec $terminal
+Super + Tab                              submap swap
+Super + V                                togglefloating
+Super + W                                togglegroup
+Super + bracketleft                      changegroupactive b
+Super + bracketright                     changegroupactive f
 Super + mouse:272                        movewindow
 Super + mouse:273                        resizewindow
 Super + mouse_down                       workspace e+1
 Super + mouse_up                         workspace e-1
-Super + P                                pseudo
-Super + RETURN                           exec $terminal
-Super + R                                exec $menu
+Super + slash                            exec ~/.scripts/hypr-doc-gen >/dev/null 2>&1; wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600 < ~/.config/hypr/bindings.txt
+Super CTRL + L                           exec ~/.scripts/layout-switcher.sh
+Super CTRL + Q                           exec systemctl suspend
 Super SHIFT + 0                          movetoworkspacesilent 10
 Super SHIFT + 1                          movetoworkspacesilent 1
 Super SHIFT + 2                          movetoworkspacesilent 2
@@ -57,7 +47,6 @@ Super SHIFT + 8                          movetoworkspacesilent 8
 Super SHIFT + 9                          movetoworkspacesilent 9
 Super SHIFT + A                          exec ~/.scripts/extracttext.sh
 Super SHIFT + C                          exec hyprctl reload && pkill -USR2 -x waybar
-Super SHIFT + comma                      movecurrentworkspacetomonitor l
 Super SHIFT + D                          exec dunstctl close-all
 Super SHIFT + F                          fullscreenstate 2
 Super SHIFT + G                          moveoutofgroup
@@ -67,15 +56,12 @@ Super SHIFT + K                          movewindow u
 Super SHIFT + L                          movewindow r
 Super SHIFT + M                          exec zenity --question --title="Exit Hyprland" --text="Really exit Hyprland?" && hyprctl dispatch exit
 Super SHIFT + N                          exec ~/.config/hypr/scripts/nightlight-toggle.sh
-Super SHIFT + period                     movecurrentworkspacetomonitor r
 Super SHIFT + Q                          killactive
 Super SHIFT + R                          submap resize
 Super SHIFT + S                          exec ~/.scripts/screenshot.sh
 Super SHIFT + T                          exec ~/.scripts/theme-toggle
-Super + slash                            exec ~/.scripts/hypr-doc-gen >/dev/null 2>&1; wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600 < ~/.config/hypr/bindings.txt
-Super + Tab                              submap swap
-Super + V                                togglefloating
-Super + W                                togglegroup
+Super SHIFT + comma                      movecurrentworkspacetomonitor l
+Super SHIFT + period                     movecurrentworkspacetomonitor r
 XF86AudioLowerVolume                     exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
 XF86AudioMicMute                         exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 XF86AudioMute                            exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
@@ -86,3 +72,17 @@ XF86AudioPrev                            exec playerctl previous
 XF86AudioRaiseVolume                     exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
 XF86MonBrightnessDown                    exec brightnessctl s 5%-
 XF86MonBrightnessUp                      exec brightnessctl s 5%+
+escape                                   submap reset
+h                                        exec ~/.config/hypr/scripts/swap-workspaces.sh left
+h                                        resizeactive -50 0
+h                                        submap reset
+j                                        exec ~/.config/hypr/scripts/swap-workspaces.sh down
+j                                        resizeactive 0 50
+j                                        submap reset
+k                                        exec ~/.config/hypr/scripts/swap-workspaces.sh up
+k                                        resizeactive 0 -50
+k                                        submap reset
+l                                        exec ~/.config/hypr/scripts/swap-workspaces.sh right
+l                                        resizeactive 50 0
+l                                        submap reset
+return                                   submap reset
