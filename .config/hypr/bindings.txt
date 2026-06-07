@@ -1,88 +1,71 @@
-SHIFT + h                                resizeactive -100 0
-SHIFT + j                                resizeactive 0 100
-SHIFT + k                                resizeactive 0 -100
-SHIFT + l                                resizeactive 100 0
-Super + 0                                workspace 10
-Super + 1                                workspace 1
-Super + 2                                workspace 2
-Super + 3                                workspace 3
-Super + 4                                workspace 4
-Super + 5                                workspace 5
-Super + 6                                workspace 6
-Super + 7                                workspace 7
-Super + 8                                workspace 8
-Super + 9                                workspace 9
-Super + D                                exec dunstctl close
-Super + E                                exec $fileManager
-Super + F                                fullscreen 0
-Super + G                                lockactivegroup toggle
-Super + H                                movefocus l
-Super + J                                movefocus d
-Super + K                                movefocus u
-Super + L                                movefocus r
-Super + P                                pseudo
-Super + R                                exec $menu
-Super + RETURN                           exec $terminal
-Super + Tab                              submap swap
-Super + V                                togglefloating
-Super + W                                togglegroup
-Super + bracketleft                      changegroupactive b
-Super + bracketright                     changegroupactive f
-Super + mouse:272                        movewindow
-Super + mouse:273                        resizewindow
-Super + mouse_down                       workspace e+1
-Super + mouse_up                         workspace e-1
-Super + slash                            exec ~/.scripts/hypr-doc-gen >/dev/null 2>&1; wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600 < ~/.config/hypr/bindings.txt
-Super CTRL + L                           exec ~/.scripts/layout-switcher.sh
-Super CTRL + Q                           exec systemctl suspend
-Super SHIFT + 0                          movetoworkspacesilent 10
-Super SHIFT + 1                          movetoworkspacesilent 1
-Super SHIFT + 2                          movetoworkspacesilent 2
-Super SHIFT + 3                          movetoworkspacesilent 3
-Super SHIFT + 4                          movetoworkspacesilent 4
-Super SHIFT + 5                          movetoworkspacesilent 5
-Super SHIFT + 6                          movetoworkspacesilent 6
-Super SHIFT + 7                          movetoworkspacesilent 7
-Super SHIFT + 8                          movetoworkspacesilent 8
-Super SHIFT + 9                          movetoworkspacesilent 9
-Super SHIFT + A                          exec ~/.scripts/extracttext.sh
-Super SHIFT + C                          exec hyprctl reload && pkill -USR2 -x waybar
-Super SHIFT + D                          exec dunstctl close-all
-Super SHIFT + F                          fullscreenstate 2
-Super SHIFT + G                          moveoutofgroup
-Super SHIFT + H                          movewindow l
-Super SHIFT + J                          movewindow d
-Super SHIFT + K                          movewindow u
-Super SHIFT + L                          movewindow r
-Super SHIFT + M                          exec zenity --question --title="Exit Hyprland" --text="Really exit Hyprland?" && hyprctl dispatch exit
-Super SHIFT + N                          exec ~/.config/hypr/scripts/nightlight-toggle.sh
-Super SHIFT + Q                          killactive
-Super SHIFT + R                          submap resize
-Super SHIFT + S                          exec ~/.scripts/screenshot.sh
-Super SHIFT + T                          exec ~/.scripts/theme-toggle
-Super SHIFT + comma                      movecurrentworkspacetomonitor l
-Super SHIFT + period                     movecurrentworkspacetomonitor r
-XF86AudioLowerVolume                     exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-XF86AudioMicMute                         exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
-XF86AudioMute                            exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
-XF86AudioNext                            exec playerctl next
-XF86AudioPause                           exec playerctl play-pause
-XF86AudioPlay                            exec playerctl play-pause
-XF86AudioPrev                            exec playerctl previous
-XF86AudioRaiseVolume                     exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
-XF86MonBrightnessDown                    exec brightnessctl s 5%-
-XF86MonBrightnessUp                      exec brightnessctl s 5%+
-escape                                   submap reset
-h                                        exec ~/.config/hypr/scripts/swap-workspaces.sh left
-h                                        resizeactive -50 0
-h                                        submap reset
-j                                        exec ~/.config/hypr/scripts/swap-workspaces.sh down
-j                                        resizeactive 0 50
-j                                        submap reset
-k                                        exec ~/.config/hypr/scripts/swap-workspaces.sh up
-k                                        resizeactive 0 -50
-k                                        submap reset
-l                                        exec ~/.config/hypr/scripts/swap-workspaces.sh right
-l                                        resizeactive 50 0
-l                                        submap reset
-return                                   submap reset
+SUPER + 0                                Workspace 10
+SUPER + 1                                Workspace 1
+SUPER + 2                                Workspace 2
+SUPER + 3                                Workspace 3
+SUPER + 4                                Workspace 4
+SUPER + 5                                Workspace 5
+SUPER + 6                                Workspace 6
+SUPER + 7                                Workspace 7
+SUPER + 8                                Workspace 8
+SUPER + 9                                Workspace 9
+SUPER + CTRL + L                         Layout switcher
+SUPER + CTRL + Q                         Suspend
+SUPER + D                                Dismiss notification
+SUPER + E                                Open file manager
+SUPER + F                                Fullscreen
+SUPER + G                                Lock active group
+SUPER + H                                Focus left
+SUPER + J                                Focus down
+SUPER + K                                Focus up
+SUPER + L                                Focus right
+SUPER + P                                Pseudotile
+SUPER + R                                App launcher
+SUPER + RETURN                           Open terminal
+SUPER + SHIFT + 0                        Move window to workspace 10
+SUPER + SHIFT + 1                        Move window to workspace 1
+SUPER + SHIFT + 2                        Move window to workspace 2
+SUPER + SHIFT + 3                        Move window to workspace 3
+SUPER + SHIFT + 4                        Move window to workspace 4
+SUPER + SHIFT + 5                        Move window to workspace 5
+SUPER + SHIFT + 6                        Move window to workspace 6
+SUPER + SHIFT + 7                        Move window to workspace 7
+SUPER + SHIFT + 8                        Move window to workspace 8
+SUPER + SHIFT + 9                        Move window to workspace 9
+SUPER + SHIFT + A                        OCR extract text
+SUPER + SHIFT + C                        Reload config
+SUPER + SHIFT + D                        Dismiss all notifications
+SUPER + SHIFT + F                        Fake fullscreen
+SUPER + SHIFT + H                        Move window left
+SUPER + SHIFT + J                        Move window down
+SUPER + SHIFT + K                        Move window up
+SUPER + SHIFT + L                        Move window right
+SUPER + SHIFT + M                        Exit Hyprland (confirm)
+SUPER + SHIFT + N                        Toggle night light
+SUPER + SHIFT + Q                        Close window
+SUPER + SHIFT + R                        Resize mode
+SUPER + SHIFT + S                        Screenshot
+SUPER + SHIFT + T                        Toggle theme
+SUPER + SHIFT + comma                    Move workspace to left monitor
+SUPER + SHIFT + period                   Move workspace to right monitor
+SUPER + Tab                              Swap workspaces mode
+SUPER + V                                Toggle floating
+SUPER + W                                Toggle group
+SUPER + bracketleft                      Previous in group
+SUPER + bracketright                     Next in group
+SUPER + mouse:272                        Move window (drag)
+SUPER + mouse:273                        Resize window (drag)
+SUPER + mouse_down                       Next workspace (scroll)
+SUPER + mouse_up                         Previous workspace (scroll)
+SUPER + slash                            Show keybindings
+XF86AudioLowerVolume                     Volume down
+XF86AudioMicMute                         Mute mic
+XF86AudioMute                            Mute
+XF86AudioNext                            Next track
+XF86AudioPause                           Play/pause
+XF86AudioPlay                            Play/pause
+XF86AudioPrev                            Previous track
+XF86AudioRaiseVolume                     Volume up
+XF86MonBrightnessDown                    Brightness down
+XF86MonBrightnessUp                      Brightness up
+[resize] h/j/k/l (+SHIFT)                Resize active window; Esc/Enter to exit
+[swap] h/j/k/l                           Swap visible workspace with adjacent monitor; Esc/Enter to exit

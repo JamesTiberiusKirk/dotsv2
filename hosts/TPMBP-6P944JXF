@@ -10,7 +10,6 @@
 .tmux-osx.conf
 
 # tools
-.scripts/dots-link
 
 # scripts
 .scripts/gomodrename.sh
