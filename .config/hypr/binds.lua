@@ -22,12 +22,24 @@ local function reg(prefix, list)
     end
 end
 
+-- Live keybind cheatsheet: build the list from `doc` at press-time and pipe it
+-- straight into wofi. No file on disk; always in sync with the table.
+local function show_binds()
+    table.sort(doc, function(a, b) return a.keys < b.keys end)
+    local lines = {}
+    for _, d in ipairs(doc) do
+        lines[#lines + 1] = string.format("%-40s %s", d.keys, d.desc or "")
+    end
+    local data = (table.concat(lines, "\n"):gsub("'", "'\\''"))
+    hl.dispatch(hl.dsp.exec_cmd("printf '%s' '" .. data .. "' | wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600"))
+end
+
 -- ---- Apps (SUPER) ----
 reg("SUPER + ", {
     { "RETURN", dsp.exec_cmd(terminal),    "Open terminal" },
     { "E",      dsp.exec_cmd(fileManager), "Open file manager" },
     { "R",      dsp.exec_cmd(menu),        "App launcher" },
-    { "slash",  dsp.exec_cmd("wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600 < ~/.config/hypr/bindings.txt"), "Show keybindings" },
+    { "slash",  show_binds, "Show keybindings" },
 })
 
 -- ---- Session (SUPER SHIFT / SUPER CTRL) ----
@@ -48,7 +60,7 @@ reg("SUPER + ", {
 })
 reg("SUPER + SHIFT + ", {
     -- TODO(verify): fullscreenstate mapping; was `fullscreenstate, 2` (fake fullscreen)
-    { "F", dsp.window.fullscreen_state({ internal = "fullscreen", action = "toggle" }), "Fake fullscreen" },
+    { "F", dsp.window.fullscreen_state({ internal = 2, client = 0, action = "toggle" }), "Fake fullscreen" },
 })
 
 -- ---- Focus (vim) ----
@@ -163,15 +175,3 @@ hl.define_submap("swap", function()
 end)
 doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with adjacent monitor; Esc/Enter to exit" }
 
--- ==================== Write the cheatsheet ====================
-local ok = pcall(function()
-    local path = os.getenv("HOME") .. "/.config/hypr/bindings.txt"
-    local f = io.open(path, "w")
-    if not f then return end
-    table.sort(doc, function(a, b) return a.keys < b.keys end)
-    for _, d in ipairs(doc) do
-        f:write(string.format("%-40s %s\n", d.keys, d.desc or ""))
-    end
-    f:close()
-end)
-local _ = ok
