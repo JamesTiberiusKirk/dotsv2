@@ -8,30 +8,13 @@ session_presets:
                 - command: nvim
                 - {}
     dots:
-        path: ~/
+        path: ~/.dots
         screens:
             - name: profile
-              panes:
-                - command: nvim ~/.profile ~/.zshrc ~/.tmux.conf
-            - name: hypr
-              path: ~/.config/hypr
+              layout: main-vertical
               panes:
                 - command: nvim 
-            - name: config
-              path: ~/.config/
-              layout: main-vertical
-              panes:
-                - command: nvim
-            - name: nvim
-              path: ~/.config/nvim
-              layout: main-vertical
-              panes:
-                - command: nvim
-            - name: workspacer
-              path: ~/.config/workspacer
-              layout: main-vertical
-              panes:
-                - command: nvim
+                - {}
     notes:
         path: ~/Documents/notes/
         screens:

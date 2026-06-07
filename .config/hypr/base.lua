@@ -7,10 +7,10 @@
 -------------------------------
 ---- ENVIRONMENT VARIABLES ----
 -------------------------------
-hl.env("XCURSOR_SIZE", "24")
-hl.env("HYPRCURSOR_SIZE", "24")
-hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
-hl.env("QT_QPA_PLATFORM", "wayland")
+hl.env("XCURSOR_SIZE",         "24")
+hl.env("HYPRCURSOR_SIZE",      "24")
+hl.env("XDG_CURRENT_DESKTOP",  "Hyprland")
+hl.env("QT_QPA_PLATFORM",      "wayland")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 
 -----------------------
@@ -112,7 +112,7 @@ hl.config({
 
         touchpad = {
             middle_button_emulation = 0,
-            tap_to_click        = false,
+            tap_to_click            = false,
             scroll_factor           = 0.2,
             natural_scroll          = true,
             clickfinger_behavior    = true,
@@ -145,7 +145,7 @@ hl.device({
     sensitivity          = 0.5,
     natural_scroll       = true,
     clickfinger_behavior = true,
-    tap_to_click     = false,
+    tap_to_click         = false,
 })
 
 -------------------

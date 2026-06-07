@@ -13,7 +13,6 @@
 .tmux-linux.conf
 
 # tools
-.scripts/dots-link
 .scripts/rquickshare
 
 # scripts

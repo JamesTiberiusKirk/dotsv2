@@ -1,0 +1,2 @@
+# local `make build` artifact; the real install goes to $GOBIN via `make install`
+/dots-link

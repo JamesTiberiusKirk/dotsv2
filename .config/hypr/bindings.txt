@@ -1,0 +1,71 @@
+SUPER + 0                                Workspace 10
+SUPER + 1                                Workspace 1
+SUPER + 2                                Workspace 2
+SUPER + 3                                Workspace 3
+SUPER + 4                                Workspace 4
+SUPER + 5                                Workspace 5
+SUPER + 6                                Workspace 6
+SUPER + 7                                Workspace 7
+SUPER + 8                                Workspace 8
+SUPER + 9                                Workspace 9
+SUPER + CTRL + L                         Layout switcher
+SUPER + CTRL + Q                         Suspend
+SUPER + D                                Dismiss notification
+SUPER + E                                Open file manager
+SUPER + F                                Fullscreen
+SUPER + G                                Lock active group
+SUPER + H                                Focus left
+SUPER + J                                Focus down
+SUPER + K                                Focus up
+SUPER + L                                Focus right
+SUPER + P                                Pseudotile
+SUPER + R                                App launcher
+SUPER + RETURN                           Open terminal
+SUPER + SHIFT + 0                        Move window to workspace 10
+SUPER + SHIFT + 1                        Move window to workspace 1
+SUPER + SHIFT + 2                        Move window to workspace 2
+SUPER + SHIFT + 3                        Move window to workspace 3
+SUPER + SHIFT + 4                        Move window to workspace 4
+SUPER + SHIFT + 5                        Move window to workspace 5
+SUPER + SHIFT + 6                        Move window to workspace 6
+SUPER + SHIFT + 7                        Move window to workspace 7
+SUPER + SHIFT + 8                        Move window to workspace 8
+SUPER + SHIFT + 9                        Move window to workspace 9
+SUPER + SHIFT + A                        OCR extract text
+SUPER + SHIFT + C                        Reload config
+SUPER + SHIFT + D                        Dismiss all notifications
+SUPER + SHIFT + F                        Fake fullscreen
+SUPER + SHIFT + H                        Move window left
+SUPER + SHIFT + J                        Move window down
+SUPER + SHIFT + K                        Move window up
+SUPER + SHIFT + L                        Move window right
+SUPER + SHIFT + M                        Exit Hyprland (confirm)
+SUPER + SHIFT + N                        Toggle night light
+SUPER + SHIFT + Q                        Close window
+SUPER + SHIFT + R                        Resize mode
+SUPER + SHIFT + S                        Screenshot
+SUPER + SHIFT + T                        Toggle theme
+SUPER + SHIFT + comma                    Move workspace to left monitor
+SUPER + SHIFT + period                   Move workspace to right monitor
+SUPER + Tab                              Swap workspaces mode
+SUPER + V                                Toggle floating
+SUPER + W                                Toggle group
+SUPER + bracketleft                      Previous in group
+SUPER + bracketright                     Next in group
+SUPER + mouse:272                        Move window (drag)
+SUPER + mouse:273                        Resize window (drag)
+SUPER + mouse_down                       Next workspace (scroll)
+SUPER + mouse_up                         Previous workspace (scroll)
+SUPER + slash                            Show keybindings
+XF86AudioLowerVolume                     Volume down
+XF86AudioMicMute                         Mute mic
+XF86AudioMute                            Mute
+XF86AudioNext                            Next track
+XF86AudioPause                           Play/pause
+XF86AudioPlay                            Play/pause
+XF86AudioPrev                            Previous track
+XF86AudioRaiseVolume                     Volume up
+XF86MonBrightnessDown                    Brightness down
+XF86MonBrightnessUp                      Brightness up
+[resize] h/j/k/l (+SHIFT)                Resize active window; Esc/Enter to exit
+[swap] h/j/k/l                           Swap visible workspace with adjacent monitor; Esc/Enter to exit
