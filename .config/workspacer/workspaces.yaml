@@ -23,6 +23,27 @@ session_presets:
               panes:
                 - command: nvim
 workspaces:
+    notes:
+        name: Notes
+        path: ~/Documents/notes/
+        prefix: notes
+        session_preset: notes
+
+    ws:
+        show_archived_repos: false
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        name: Projects
+        org_github: JamesTiberiusKirk
+        path: ~/Projects/
+        prefix: ws
+        recent_access_window: 50
+        session_preset: default
+
     at:
         active_projects_first: true
         enable_cache: true
@@ -37,6 +58,22 @@ workspaces:
         prefix: at
         recent_access_window: 50
         session_preset: default
+
+    sf:
+        active_projects_first: true
+        enable_cache: true
+        enable_git_info: true
+        enable_remote_repos: true
+        enable_usage_tracking: true
+        github_backend: api
+        is_org: true
+        name: SportFreelancers
+        org_github: SportFreelancers
+        path: ~/SportFreelancers/
+        prefix: sf
+        recent_access_window: 50
+        session_preset: default
+
     ff:
         active_projects_first: true
         enable_cache: true
@@ -56,11 +93,7 @@ workspaces:
               sister_repos:
                 - name: framiworks-docs
                   label: docs
-    notes:
-        name: Notes
-        path: ~/Documents/notes/
-        prefix: notes
-        session_preset: notes
+
     uw:
         active_projects_first: true
         enable_cache: true
@@ -80,17 +113,3 @@ workspaces:
               sister_repos:
                 - name: telecom-mobile-manifests
                   label: manifests
-    ws:
-        show_archived_repos: false
-        active_projects_first: true
-        enable_cache: true
-        enable_git_info: true
-        enable_remote_repos: true
-        enable_usage_tracking: true
-        github_backend: api
-        name: Projects
-        org_github: JamesTiberiusKirk
-        path: ~/Projects/
-        prefix: ws
-        recent_access_window: 50
-        session_preset: default

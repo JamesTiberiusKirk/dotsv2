@@ -1,7 +1,10 @@
 local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
-config.font = wezterm.font 'Hack Nerd Font Mono'
+config.font = wezterm.font_with_fallback {
+  'Noto Sans Mono',
+  'Hack Nerd Font Mono',
+}
 config.font_size = 13.0
 config.line_height = 1.0
 
@@ -15,7 +18,7 @@ config.window_decorations = 'TITLE | RESIZE'
 config.window_background_opacity = 1.0
 config.macos_window_background_blur = 0
 
-config.default_cursor_style = 'BlinkingBar'
+config.default_cursor_style = 'BlinkingBlock'
 config.cursor_blink_rate = 500
 
 config.keys = {

@@ -152,8 +152,8 @@ hl.device({
 ---- WINDOWRULES --
 -------------------
 hl.window_rule({
-    name    = "alacritty-opacity",
-    match   = { class = "^(Alacritty)$" },
+    name    = "wezterm-opacity",
+    match   = { class = "^(org\\.wezfurlong\\.wezterm)$" },
     opacity = "0.90 0.85",
 })
 hl.window_rule({

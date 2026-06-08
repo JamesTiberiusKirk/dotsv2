@@ -25,6 +25,7 @@ fpath=(~/.zsh/completion $fpath)
 
 alias ws="workspacer -W=ws"
 alias at="workspacer -W=at"
+alias sf="workspacer -W=sf"
 alias ff="workspacer -W=ff"
 alias uw="workspacer -W=uw"
 alias notes="workspacer from-preset notes"
@@ -34,6 +35,7 @@ autoload -Uz compinit && compinit
 compdef ws=workspacer
 compdef aw=workspacer
 compdef ff=workspacer
+compdef sf=workspacer
 compdef uw=workspacer
 compdef notes=workspacer
 compdef dots=workspacer

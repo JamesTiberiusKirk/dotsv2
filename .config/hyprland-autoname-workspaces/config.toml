@@ -13,7 +13,7 @@ firefox = ""
 code = "󰨞"
 discord = ""
 vesktop = ""
-Alacritty = ""
+"org.wezfurlong.wezterm" = ""
 
 [class_active]
 

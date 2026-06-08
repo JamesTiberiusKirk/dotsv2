@@ -4,7 +4,7 @@
 -- (the Super+/ cheatsheet), replacing the old awk-based hypr-doc-gen.
 -- ============================================================================
 
-local terminal    = "alacritty"
+local terminal    = "wezterm"
 local fileManager = "thunar"
 local menu        = "wofi --show drun"
 local dsp         = hl.dsp
