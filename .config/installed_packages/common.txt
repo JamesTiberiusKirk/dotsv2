@@ -168,6 +168,7 @@ tree
 tree-sitter-cli
 ttf-arimo-nerd
 ttf-hack-nerd
+ttf-material-symbols-variable
 ttf-nerd-fonts-symbols
 typst
 ueberzugpp
