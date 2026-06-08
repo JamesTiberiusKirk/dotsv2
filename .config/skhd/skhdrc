@@ -7,3 +7,6 @@ alt - j : skhd -k "down"
 
 # Swap workspaces between monitors (suppresses macOS app switcher)
 cmd - tab : ~/.scripts/swap-workspaces-mac.sh
+
+# Screenshot selection → clipboard (remaps Cmd+Shift+4 behaviour)
+cmd + shift - s : screencapture -i -u ~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png

@@ -6,7 +6,9 @@
     ],
     "defaultMode": "default",
     "additionalDirectories": [
-      "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
+      "/Users/dumitruvulpe/uw",
+      "/Users/dumitruvulpe/uw/js-mono",
+      "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
   "hooks": {
@@ -49,16 +51,17 @@
     "clangd-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true
   },
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "theme": "auto",
-  "voiceEnabled": true,
-  "advisorModel": "opus",
   "sandbox": {
     "filesystem": {
       "allowRead": [
+        "/Users/dumitruvulpe/uw",
         "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
       ]
     }
-  }
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "advisorModel": "opus",
+  "theme": "auto",
+  "voiceEnabled": true
 }

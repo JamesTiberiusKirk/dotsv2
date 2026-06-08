@@ -94,7 +94,7 @@ workspaces:
                 - name: framiworks-docs
                   label: docs
 
-    uw:
+    uww:
         active_projects_first: true
         enable_cache: true
         enable_git_info: true
@@ -105,7 +105,7 @@ workspaces:
         name: Utility Warehouse
         org_github: utilitywarehouse
         path: ~/uw
-        prefix: uw
+        prefix: uww
         recent_access_window: 50
         session_preset: default
         projects:

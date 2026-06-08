@@ -4,7 +4,7 @@ export EDITOR="nvim"
 export HOSTNAME="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null)}"
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
-export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
+# export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 export PATH="$PATH:$HOME/.local/bin"
 
 export GO111MODULE=on
@@ -23,11 +23,13 @@ export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$HOME/.
 
 fpath=(~/.zsh/completion $fpath)
 
+# Aliases
+
 alias ws="workspacer -W=ws"
 alias at="workspacer -W=at"
 alias sf="workspacer -W=sf"
 alias ff="workspacer -W=ff"
-alias uw="workspacer -W=uw"
+alias uww="workspacer -W=uww"
 alias notes="workspacer from-preset notes"
 alias dots="workspacer  from-preset dots"
 
@@ -36,9 +38,10 @@ compdef ws=workspacer
 compdef aw=workspacer
 compdef ff=workspacer
 compdef sf=workspacer
-compdef uw=workspacer
+compdef uww=workspacer
 compdef notes=workspacer
 compdef dots=workspacer
+
 
 alias cls='clear'
 alias grep='grep --color=auto'
@@ -47,9 +50,29 @@ if [[ $(uname) != "Darwin" ]]; then
 	alias ll='ls -l --block-size=M -aF'
 fi
 
-# Aliases
 alias tx="tmux -u"
 alias txa="tmux -u a"
+
+# kubernetes aliases
+
+alias k=kubectl
+function kns() {
+        kubectl get namespaces | awk 'NR!=1 {print $1}' | fzf -0 -1 --tac -q "${1:-""}" --prompt $(kubectl config get-contexts | grep $(kubectl config current-context) | awk '{print $5}') --preview 'kubectl get pods --namespace {}' | xargs -i kubectl config set-context --current --namespace={}
+}
+
+function kcx() {
+        kubectl config get-contexts | awk 'NR!=1 {print $2}'| fzf -0 -1 --tac -q "${1:-""}" --prompt $(kubectl config current-context) --preview 'kubectl get namespaces --context {}' | xargs -n 1 kubectl config use-context
+}
+
+alias whichctx="kubectl config current-context"
+alias kpf="kubectl port-forward"
+alias kgp="kubectl get pods | grep"
+alias kdev="kcx dev-merit && kubectl config view --minify | grep namespace:"
+alias kprod="kcx prod-aws && kubectl config view --minify | grep namespace:"
+alias km="kubectl config set-context --current --namespace=telecom-mobile && kubectl config view --minify | grep namespace:"
+alias kt="kubectl config set-context --current --namespace=telecom && kubectl config view --minify | grep namespace:"
+alias kpfkafka='kpf $(kgp kafka-ui | awk '"'"'{print $1}'"'"') 8080'
+
 
 if [[ $(uname) = "Darwin" ]]; then
 	alias copy='pbcopy'
@@ -132,44 +155,6 @@ source ~/.scripts/imports/arduino_cmpletion.sh
 
 #################################################################
 
-dump_folder_contents() {
-    local folder="."
-    local ignore_patterns=()
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --ignore)
-                ignore_patterns+=("$2")
-                shift 2
-                ;;
-            *)
-                folder="$1"
-                shift
-                ;;
-        esac
-    done
-
-    echo "Dumping all files inside $folder/ with contents..."
-
-    # Build prune expression
-    local find_expr=()
-    for pattern in "${ignore_patterns[@]}"; do
-        find_expr+=( -name "$pattern" -prune -o )
-    done
-    find_expr+=( -type f -print )
-
-    # shellcheck disable=SC2068
-    find "$folder" ${find_expr[@]} 2>/dev/null | while read -r file; do
-        if ! file --mime-type "$file" | grep -q 'text'; then
-            continue
-        fi
-        echo -e "\nFile: $file"
-        echo "-----------------------------------------------"
-        cat "$file"
-        echo -e "\n"
-    done
-}
-
 # swapping vi for nvim
 alias vi="nvim"
 
@@ -244,5 +229,4 @@ if [[ $(uname) = "Linux" ]]; then
 		return $exit_status
 	}
 fi
-
 
