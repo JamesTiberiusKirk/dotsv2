@@ -6,6 +6,7 @@ find_battery() {
     for supply in /sys/class/power_supply/*; do
         [ -d "$supply" ] || continue
         [ -r "$supply/type" ] || continue
+        case "$(basename "$supply")" in BAT*) ;; *) continue ;; esac
         if [ "$(cat "$supply/type")" = "Battery" ]; then
             printf '%s\n' "$supply"
             return 0
