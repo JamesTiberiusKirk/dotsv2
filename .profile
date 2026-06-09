@@ -53,26 +53,6 @@ fi
 alias tx="tmux -u"
 alias txa="tmux -u a"
 
-# kubernetes aliases
-
-alias k=kubectl
-function kns() {
-        kubectl get namespaces | awk 'NR!=1 {print $1}' | fzf -0 -1 --tac -q "${1:-""}" --prompt $(kubectl config get-contexts | grep $(kubectl config current-context) | awk '{print $5}') --preview 'kubectl get pods --namespace {}' | xargs -i kubectl config set-context --current --namespace={}
-}
-
-function kcx() {
-        kubectl config get-contexts | awk 'NR!=1 {print $2}'| fzf -0 -1 --tac -q "${1:-""}" --prompt $(kubectl config current-context) --preview 'kubectl get namespaces --context {}' | xargs -n 1 kubectl config use-context
-}
-
-alias whichctx="kubectl config current-context"
-alias kpf="kubectl port-forward"
-alias kgp="kubectl get pods | grep"
-alias kdev="kcx dev-merit && kubectl config view --minify | grep namespace:"
-alias kprod="kcx prod-aws && kubectl config view --minify | grep namespace:"
-alias km="kubectl config set-context --current --namespace=telecom-mobile && kubectl config view --minify | grep namespace:"
-alias kt="kubectl config set-context --current --namespace=telecom && kubectl config view --minify | grep namespace:"
-alias kpfkafka='kpf $(kgp kafka-ui | awk '"'"'{print $1}'"'"') 8080'
-
 
 if [[ $(uname) = "Darwin" ]]; then
 	alias copy='pbcopy'

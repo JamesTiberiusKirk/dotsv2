@@ -141,3 +141,9 @@ fi
 
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
+
+# fzf (Ctrl-R history, Ctrl-T files, Alt-C cd)
+source <(fzf --zsh)
+
+# Local overrides (not tracked in dots repo)
+[[ -f ~/.profile.local ]] && source ~/.profile.local
