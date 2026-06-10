@@ -619,7 +619,24 @@ local servers = {
       usePlaceholders = true,
     },
   },
-  ts_ls = {},
+  vtsls = {
+    typescript = {
+      tsserver = {
+        maxTsServerMemory = 8192,
+      },
+      preferences = {
+        importModuleSpecifier = 'non-relative',
+      },
+    },
+    vtsls = {
+      experimental = {
+        completion = { enableServerSideFuzzyMatch = true },
+      },
+      tsserver = {
+        globalPlugins = {},
+      },
+    },
+  },
   jdtls = {},
   dartls = {},
   -- pyright = {},
@@ -676,7 +693,7 @@ for server_name, server_settings in pairs(servers) do
     settings = server_settings,
     filetypes = server_settings.filetypes,
   }
-  if server_name == 'ts_ls' then
+  if server_name == 'vtsls' then
     cfg.handlers = {
       ["textDocument/publishDiagnostics"] = function(_, result, ctx, config)
         if result.diagnostics == nil then return end
@@ -743,7 +760,17 @@ vim.lsp.config('htmx', {
 
 -- Enable all configured servers
 vim.lsp.enable(vim.tbl_keys(servers))
-vim.lsp.enable({ 'tailwindcss', 'templ', 'html', 'htmx' })
+local optional_servers = {
+  tailwindcss = 'tailwindcss-language-server',
+  templ       = 'templ',
+  html        = 'vscode-html-language-server',
+  htmx        = 'htmx-lsp',
+}
+for name, bin in pairs(optional_servers) do
+  if vim.fn.executable(bin) == 1 then
+    vim.lsp.enable(name)
+  end
+end
 
 -- Templ stuff
 local templ_format = function()
