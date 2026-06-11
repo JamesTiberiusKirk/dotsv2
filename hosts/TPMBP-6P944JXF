@@ -19,6 +19,11 @@
 .scripts/sql-align-format
 .scripts/swap-workspaces-mac.sh
 
+# claude
+.claude/statusline-usage.sh
+.claude/settings.json
+.claude/CLAUDE.md
+
 # config
 .config/aerospace
 .config/installed_packages

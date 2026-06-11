@@ -42,6 +42,11 @@
 .scripts/x11_extracttext.sh
 .scripts/x11_screenshot.sh
 
+# claude
+.claude/statusline-usage.sh
+.claude/settings.json
+.claude/CLAUDE.md
+
 # config
 .config/alacritty
 .config/darkman
