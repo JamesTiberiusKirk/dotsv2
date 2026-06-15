@@ -159,18 +159,19 @@ doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active wind
 
 -- Swap-visible-workspaces mode (i3-style). Enter with SUPER Tab.
 reg("SUPER + ", { { "Tab", dsp.submap("swap"), "Swap workspaces mode" } })
-local function swap_then_reset(dir)
-    return function()
-        hl.dispatch(dsp.exec_cmd("~/.config/hypr/scripts/swap-workspaces.sh " .. dir))
-        hl.dispatch(dsp.submap("reset"))
-    end
-end
-
+-- Each key swaps then exits the submap. Two descriptor binds per key: a
+-- function-action inside a submap is silently dropped on Hyprland 0.55, so we
+-- bind the exec and the submap-reset as separate dispatchers (same as resize).
+local swap_script = "~/.config/hypr/scripts/swap-workspaces.sh "
 hl.define_submap("swap", function()
-    hl.bind("h",        swap_then_reset("left"))
-    hl.bind("l",        swap_then_reset("right"))
-    hl.bind("k",        swap_then_reset("up"))
-    hl.bind("j",        swap_then_reset("down"))
+    hl.bind("h",        dsp.exec_cmd(swap_script .. "left"))
+    hl.bind("h",        dsp.submap("reset"))
+    hl.bind("l",        dsp.exec_cmd(swap_script .. "right"))
+    hl.bind("l",        dsp.submap("reset"))
+    hl.bind("k",        dsp.exec_cmd(swap_script .. "up"))
+    hl.bind("k",        dsp.submap("reset"))
+    hl.bind("j",        dsp.exec_cmd(swap_script .. "down"))
+    hl.bind("j",        dsp.submap("reset"))
     hl.bind("escape",   dsp.submap("reset"))
     hl.bind("return",   dsp.submap("reset"))
 end)

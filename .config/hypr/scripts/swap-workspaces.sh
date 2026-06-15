@@ -41,4 +41,7 @@ done < <(printf '%s' "$MONS" | jq -r '.[].name')
 
 [ -z "$target" ] && exit 0
 
-hyprctl dispatch swapactiveworkspaces "$focused" "$target" >/dev/null
+# Hyprland 0.55 lua config reinterprets `dispatch <classic>` as Lua, so the old
+# `dispatch swapactiveworkspaces a b` syntax errors out (silently, rc=0). Use the
+# Lua dispatcher form.
+hyprctl dispatch "hl.dsp.workspace.swap_monitors({monitor1=\"$focused\", monitor2=\"$target\"})" >/dev/null
