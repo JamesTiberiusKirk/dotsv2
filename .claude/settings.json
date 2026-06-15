@@ -46,6 +46,10 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline-usage.sh"
+  },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true,
@@ -58,10 +62,6 @@
         "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
       ]
     }
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline-usage.sh"
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
