@@ -50,6 +50,7 @@ reg("SUPER + SHIFT + ", {
 reg("SUPER + CTRL + ", {
     { "Q", dsp.exec_cmd("systemctl suspend"),             "Suspend" }, -- NOTE: runit host; verify suspend cmd
     { "L", dsp.exec_cmd("~/.scripts/layout-switcher.sh"), "Layout switcher" },
+    { "R", dsp.exec_cmd("~/.scripts/script-menu.sh"),     "Script menu" },
 })
 
 -- ---- Window (SUPER) ----

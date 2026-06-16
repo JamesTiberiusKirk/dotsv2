@@ -42,6 +42,11 @@
 .scripts/x11_extracttext.sh
 .scripts/x11_screenshot.sh
 
+# script menu (SUPER+CTRL+R)
+.scripts/script-menu.sh
+.scripts/menu/common
+.scripts/menu/deathstar
+
 # claude
 .claude/statusline-usage.sh
 .claude/settings.json
