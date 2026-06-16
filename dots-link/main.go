@@ -34,6 +34,7 @@ func main() {
 			Args:  cobra.NoArgs,
 			RunE:  func(_ *cobra.Command, _ []string) error { return runRemove(env) },
 		},
+		adoptCmd(env),
 		archiveCmd(env),
 		syncCmd(env),
 	)
@@ -42,6 +43,18 @@ func main() {
 		errLine("%v", err)
 		os.Exit(1)
 	}
+}
+
+func adoptCmd(env *Env) *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "adopt <path>",
+		Short: "Move a live file/dir into the repo and add it to this host's manifest",
+		Args:  cobra.ExactArgs(1),
+		RunE:  func(_ *cobra.Command, args []string) error { return runAdopt(env, args[0], yes) },
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
 }
 
 func archiveCmd(env *Env) *cobra.Command {
