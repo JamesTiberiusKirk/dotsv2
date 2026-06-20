@@ -11,12 +11,14 @@
 window#waybar {
     background-color: #0d0818;
     color: #f0e8ff;
+    border: 1px solid #4a3870;
 }
 
 #workspaces button {
     padding: 0 8px;
     color: #5a3a7a;
     background-color: transparent;
+    border-right: 1px solid #4a3870;
 }
 
 #workspaces button.active {
@@ -47,6 +49,16 @@ window#waybar {
     padding: 0 8px;
     color: #d0b8f0;
     background-color: transparent;
+    border-right: 1px solid #4a3870;
+}
+
+#clock,
+#custom-activewindow {
+    border-right: none;
+}
+
+#network {
+    border-left: 1px solid #4a3870;
 }
 
 #custom-layout.layout-master {

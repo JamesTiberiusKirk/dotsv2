@@ -32,3 +32,6 @@
 .config/skhd
 .config/wezterm
 .config/workspacer
+.config/opencode/opencode.jsonc
+.config/opencode/package.json
+.config/opencode/package-lock.json
