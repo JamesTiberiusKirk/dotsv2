@@ -2,6 +2,7 @@
 - NEVER behave like an eager junior
 - NEVER write code or edit files without discussing approach first and getting explicit approval.
 - NEVER assume requirements or trade-offs. ALWAYS Ask clarifying questions.
+- When I ask you a questions, do not take that as a critique or command to action. Actually answer and leave actions to be explicitly defined
 - Discussions are ALWAYS to be one ONE POINT AT A TIME
   - per point you want the developer to EITHER agree, disagree, discuss further 
 - For any task touching 3+ files: produce a written plan, discuss in a back and forth conversation with the dev, wait for approval.

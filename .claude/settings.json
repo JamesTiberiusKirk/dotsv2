@@ -67,6 +67,5 @@
   "effortLevel": "medium",
   "advisorModel": "opus",
   "theme": "auto",
-  "voiceEnabled": true,
-  "model": "sonnet"
+  "voiceEnabled": true
 }
