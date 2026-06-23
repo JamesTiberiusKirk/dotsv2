@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -33,6 +34,7 @@ func main() {
 			Args:  cobra.NoArgs,
 			RunE:  func(_ *cobra.Command, _ []string) error { return runRemove(env) },
 		},
+		adoptCmd(env),
 		archiveCmd(env),
 		syncCmd(env),
 	)
@@ -41,6 +43,18 @@ func main() {
 		errLine("%v", err)
 		os.Exit(1)
 	}
+}
+
+func adoptCmd(env *Env) *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "adopt <path>",
+		Short: "Move a live file/dir into the repo and add it to this host's manifest",
+		Args:  cobra.ExactArgs(1),
+		RunE:  func(_ *cobra.Command, args []string) error { return runAdopt(env, args[0], yes) },
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
 }
 
 func archiveCmd(env *Env) *cobra.Command {
@@ -57,14 +71,48 @@ func archiveCmd(env *Env) *cobra.Command {
 
 func syncCmd(env *Env) *cobra.Command {
 	var opts syncOpts
+	var local, remote, interactive bool
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Pull remote changes and converge symlinks safely",
 		Args:  cobra.NoArgs,
-		RunE:  func(_ *cobra.Command, _ []string) error { return runSync(env, opts) },
+		RunE: func(_ *cobra.Command, _ []string) error {
+			res, err := resolutionFromFlags(local, remote, interactive)
+			if err != nil {
+				return err
+			}
+			opts.resolution = res
+			return runSync(env, opts)
+		},
 	}
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "print the plan and exit; no changes")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "skip the confirmation prompt")
-	cmd.Flags().BoolVar(&opts.adopt, "adopt", false, "absorb real files in the way into the repo and link them")
+	cmd.Flags().BoolVar(&local, "local", false, "on conflict, local wins: absorb live files/links into the repo, then link")
+	cmd.Flags().BoolVar(&remote, "remote", false, "on conflict, repo wins: replace live files/links with a repo link")
+	cmd.Flags().BoolVar(&interactive, "it", false, "resolve each conflict interactively (local/remote/skip)")
 	return cmd
+}
+
+// resolutionFromFlags turns the mutually-exclusive conflict flags into a single
+// strategy, erroring if more than one is set.
+func resolutionFromFlags(local, remote, interactive bool) (resolution, error) {
+	n := 0
+	for _, b := range []bool{local, remote, interactive} {
+		if b {
+			n++
+		}
+	}
+	if n > 1 {
+		return resReport, fmt.Errorf("use only one of --local, --remote, --it")
+	}
+	switch {
+	case local:
+		return resLocal, nil
+	case remote:
+		return resRemote, nil
+	case interactive:
+		return resInteractive, nil
+	default:
+		return resReport, nil
+	}
 }

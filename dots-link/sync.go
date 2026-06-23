@@ -8,9 +8,9 @@ import (
 )
 
 type syncOpts struct {
-	dryRun bool
-	yes    bool
-	adopt  bool
+	dryRun     bool
+	yes        bool
+	resolution resolution
 }
 
 func runSync(env *Env, opts syncOpts) error {
@@ -73,7 +73,7 @@ func runSync(env *Env, opts syncOpts) error {
 	inspect := func(e string) dstInfo {
 		s, target, _ := inspectDst(env, e)
 		ours := target != "" && pointsIntoRepo(env, env.dst(e), target)
-		return dstInfo{state: s, target: target, ours: ours}
+		return dstInfo{state: s, target: target, ours: ours, targetExists: linkTargetExists(env, e, s, target)}
 	}
 	srcRemote := func(e string) bool {
 		if local {
@@ -81,9 +81,18 @@ func runSync(env *Env, opts syncOpts) error {
 		}
 		return pathExistsAtRef(dir, desiredRef, e)
 	}
-	acts := computeActions(localEntries, remoteEntries, inspect, srcRemote, opts.adopt)
+	acts := computeActions(localEntries, remoteEntries, inspect, srcRemote, opts.resolution)
 
-	// 6. Render.
+	// 6a. Interactive resolution turns each reported conflict into a concrete
+	// action (or drops it on skip). Skip when dry-running — show conflicts as-is.
+	if opts.resolution == resInteractive && !opts.dryRun {
+		acts, err = resolveInteractive(acts, inspect, srcRemote)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 6b. Render.
 	renderSyncPlan(env, acts)
 
 	if len(acts) == 0 && st != mergeFastForward && st != mergeClean {
@@ -135,11 +144,18 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action) error {
 	// Links / adopts after the merge, when source files are present.
 	for _, a := range acts {
 		switch a.kind {
-		case actLink:
+		case actLink, actReplace:
 			// Never create a dangling link: the source must really be present
 			// post-merge (a local uncommitted move can defeat the ref check).
 			if !exists(env.src(a.entry)) {
 				fmt.Println("  " + label(styWarn, "skipped", a.entry, "source missing in repo"))
+				continue
+			}
+			if a.kind == actReplace {
+				if err := replaceWithLink(env, a.entry); err != nil {
+					return err
+				}
+				fmt.Println("  " + label(styAdd, "replaced", a.entry, ""))
 				continue
 			}
 			if err := makeLink(env, a.entry); err != nil {
@@ -151,6 +167,11 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action) error {
 				return err
 			}
 			fmt.Println("  " + label(styAdd, "adopted", a.entry, ""))
+		case actAdoptLink:
+			if err := adoptLink(env, a.entry); err != nil {
+				return err
+			}
+			fmt.Println("  " + label(styAdd, "adopted-link", a.entry, ""))
 		}
 	}
 
@@ -185,6 +206,114 @@ func adoptFile(env *Env, entry string) error {
 		return fmt.Errorf("adopt %s: %w", entry, err)
 	}
 	return makeLink(env, entry)
+}
+
+// adoptLink absorbs a wrong symlink: it copies the link target's content into
+// the repo source (uncommitted, for review), removes the link, and re-links the
+// entry at the repo source.
+func adoptLink(env *Env, entry string) error {
+	dst := env.dst(entry)
+	target, err := os.Readlink(dst)
+	if err != nil {
+		return fmt.Errorf("adopt-link %s: %w", entry, err)
+	}
+	abs := target
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(filepath.Dir(dst), abs)
+	}
+	src := env.src(entry)
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		return err
+	}
+	if exists(src) {
+		if err := os.RemoveAll(src); err != nil {
+			return fmt.Errorf("adopt-link %s: %w", entry, err)
+		}
+	}
+	if err := copyTree(abs, src); err != nil {
+		return fmt.Errorf("adopt-link %s: %w", entry, err)
+	}
+	if err := os.Remove(dst); err != nil {
+		return fmt.Errorf("adopt-link %s: %w", entry, err)
+	}
+	return makeLink(env, entry)
+}
+
+// replaceWithLink removes whatever real file or symlink occupies the entry's
+// live path and creates a fresh link into the repo (repo wins).
+func replaceWithLink(env *Env, entry string) error {
+	if err := os.RemoveAll(env.dst(entry)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("replace %s: %w", entry, err)
+	}
+	return makeLink(env, entry)
+}
+
+// copyTree recursively copies src to dst, following symlinks to their content.
+func copyTree(src, dst string) error {
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if fi.IsDir() {
+		if err := os.MkdirAll(dst, 0o755); err != nil {
+			return err
+		}
+		ents, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range ents {
+			if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, fi.Mode().Perm())
+}
+
+// linkTargetExists reports whether a wrong link's target path exists (so there
+// is content to adopt). It is meaningful only for stateWrongLink.
+func linkTargetExists(env *Env, entry string, st linkState, target string) bool {
+	if st != stateWrongLink {
+		return false
+	}
+	abs := target
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(filepath.Dir(env.dst(entry)), abs)
+	}
+	return exists(abs)
+}
+
+// resolveInteractive prompts for each reported conflict and rewrites it into a
+// concrete local/remote action, or drops it when skipped.
+func resolveInteractive(acts []action, inspect func(string) dstInfo, srcRemote func(string) bool) ([]action, error) {
+	var out []action
+	for _, a := range acts {
+		if a.kind != actConflict {
+			out = append(out, a)
+			continue
+		}
+		choice, err := promptConflict(a.entry, a.note)
+		if err != nil {
+			return nil, err
+		}
+		switch choice {
+		case choiceLocal:
+			k, note := conflictResolve(resLocal, inspect(a.entry), srcRemote(a.entry))
+			out = append(out, action{k, a.entry, note})
+		case choiceRemote:
+			k, note := conflictResolve(resRemote, inspect(a.entry), srcRemote(a.entry))
+			out = append(out, action{k, a.entry, note})
+		case choiceSkip:
+			// drop: leave the conflict untouched
+		}
+	}
+	return out, nil
 }
 
 // gatherLocalEntries = manifest entries ∪ stray repo-pointing links in scope.
@@ -250,6 +379,8 @@ func renderSyncPlan(env *Env, acts []action) {
 	}{
 		{actLink, "link", func(t, e, n string) string { return label(styAdd, t, e, n) }},
 		{actAdopt, "adopt", func(t, e, n string) string { return label(styAdd, t, e, n) }},
+		{actAdoptLink, "adopt-link", func(t, e, n string) string { return label(styAdd, t, e, n) }},
+		{actReplace, "replace", func(t, e, n string) string { return label(styAdd, t, e, n) }},
 		{actUnlink, "unlink", func(t, e, n string) string { return label(styRemove, t, e, n) }},
 		{actConflict, "conflict", func(t, e, n string) string { return label(styConflict, t, e, n) }},
 		{actWarn, "warning", func(t, e, n string) string { return label(styWarn, t, e, n) }},
@@ -266,6 +397,6 @@ func renderSyncPlan(env *Env, acts []action) {
 		}
 	}
 	c := counts(acts)
-	info("%d link · %d unlink · %d adopt · %d conflict · %d warning",
-		c[actLink], c[actUnlink], c[actAdopt], c[actConflict], c[actWarn])
+	info("%d link · %d replace · %d unlink · %d adopt · %d adopt-link · %d conflict · %d warning",
+		c[actLink], c[actReplace], c[actUnlink], c[actAdopt], c[actAdoptLink], c[actConflict], c[actWarn])
 }

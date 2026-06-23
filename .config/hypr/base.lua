@@ -142,7 +142,8 @@ hl.device({
 })
 hl.device({
     name                 = "apple-inc.-magic-trackpad",
-    sensitivity          = 0.5,
+    sensitivity          = -0.2,
+    scroll_factor        = 0.15,
     natural_scroll       = true,
     clickfinger_behavior = true,
     tap_to_click         = false,

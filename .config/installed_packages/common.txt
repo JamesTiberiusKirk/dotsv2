@@ -111,6 +111,7 @@ nodejs
 noto-fonts
 noto-fonts-emoji
 npm
+nvidia-container-toolkit
 nvidia-open-dkms
 otf-font-awesome
 owncloud-client

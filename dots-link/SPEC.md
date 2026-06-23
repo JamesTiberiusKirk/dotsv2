@@ -194,8 +194,9 @@ dots-link sync -y
 |---|---|
 | Symlink already correct | no-op |
 | Symlink missing though entry exists | **link** (drift) |
-| Real file where a link should go | **conflict** → report; `--adopt` absorbs it into the repo + links |
-| Foreign symlink (points outside repo) in the way | **conflict** → never touched |
+| Dangling link into the repo | source present upstream → left (merge restores it); source gone → **removed** (never leave a dangling link) |
+| Real file where a link should go | **conflict** → report; resolved by `--local`/`--remote`/`--it` |
+| Foreign symlink (points outside repo) in the way | **conflict** → report; resolved by `--local`/`--remote`/`--it` |
 
 **Git-level safety (gate before any apply)**
 
@@ -207,9 +208,19 @@ dots-link sync -y
 | Local uncommitted edits that would conflict | **bail**, change nothing |
 | Already up to date / local ahead | no merge; still reconcile FS drift |
 
-**`--adopt`** (flag on `sync`): for the "real file where a link should go" case,
-move the real file into the repo and replace it with a symlink, instead of just
-reporting the conflict.
+**Conflict resolution** (mutually-exclusive flags on `sync`; default reports
+conflicts and changes nothing):
+
+- **`--local`** — local wins. A real file is absorbed into the repo (moved in,
+  uncommitted, for review) and linked. A foreign symlink is dereferenced: its
+  target's content is copied into the repo, then linked. A broken foreign link
+  has nothing to adopt → falls back to the dangling rule (relink if the repo has
+  the source, else remove).
+- **`--remote`** — repo wins. The live file or foreign symlink is removed and
+  replaced with a symlink into the repo. If the repo has no source for the entry,
+  it can't link → reported as a warning instead.
+- **`--it`** — interactive. Prompts per conflict: `[l]ocal / [r]emote / [s]kip`.
+  Skip leaves that conflict untouched. Needs a TTY.
 
 ---
 
