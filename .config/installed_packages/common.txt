@@ -162,7 +162,6 @@ texlive-latex
 texlive-latexextra
 thunar
 tig
-tinygo
 tmux
 transmission-gtk
 tree
