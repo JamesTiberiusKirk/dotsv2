@@ -662,7 +662,12 @@ local servers = {
       -- diagnostics = { disable = { 'missing-fields' } },
     },
   },
+  buf_ls = {
+    filetypes = { 'proto' },
+  },
 }
+
+require('custom.symbol-index').setup()
 
 
 
