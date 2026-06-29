@@ -16,6 +16,19 @@ hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 -----------------------
 ---- LOOK AND FEEL ----
 -----------------------
+-- Global tiling layout, read from ~/.config/hypr/.layout (default dwindle).
+-- hyprctl keyword no-ops under the lua config, so layout-switcher.sh writes this
+-- file and runs `hyprctl reload`; require() re-runs on reload (same as theme).
+local function layout_mode()
+    local f = io.open(os.getenv("HOME") .. "/.config/hypr/.layout")
+    if f then
+        local s = f:read("l")
+        f:close()
+        if s == "master" then return "master" end
+    end
+    return "dwindle"
+end
+
 hl.config({
     general = {
         gaps_in          = 5,
@@ -23,7 +36,7 @@ hl.config({
         border_size      = 2,
         resize_on_border = false,
         allow_tearing    = false,
-        layout           = "dwindle",
+        layout           = layout_mode(),
         -- border colors are set in colors-{dark,light}.lua
     },
 
@@ -56,7 +69,8 @@ hl.config({
     },
 
     master = {
-        new_status = "master",
+        new_status  = "master",
+        orientation = "center", -- master centered, stack splits left/right => 3 cols
     },
 
     misc = {

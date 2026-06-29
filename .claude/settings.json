@@ -11,6 +11,7 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
+  "model": "sonnet",
   "hooks": {
     "Stop": [
       {
@@ -72,9 +73,12 @@
       ]
     }
   },
+  "enabledMcpjsonServers": ["hamr-dev"],
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
   "advisorModel": "opus",
+  "tui": "fullscreen",
   "theme": "auto",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "skipWorkflowUsageWarning": true
 }
