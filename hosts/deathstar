@@ -52,6 +52,9 @@
 .claude/settings.json
 .claude/CLAUDE.md
 
+# xfce helpers
+.local/share/xfce4/helpers/wezterm.desktop
+
 # config
 .config/alacritty
 .config/darkman

@@ -95,6 +95,7 @@ reg("SUPER + ", {
 reg("SUPER + SHIFT + ", {
     { "period", dsp.workspace.move({ monitor = "r" }), "Move workspace to right monitor" },
     { "comma",  dsp.workspace.move({ monitor = "l" }), "Move workspace to left monitor" },
+    { "slash",  dsp.exec_cmd("~/.config/hypr/scripts/move-workspace-vertical.sh"), "Move workspace to vertical monitor" },
 })
 
 -- ---- Tabs (groups) ----

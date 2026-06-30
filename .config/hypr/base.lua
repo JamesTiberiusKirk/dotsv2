@@ -12,6 +12,7 @@ hl.env("HYPRCURSOR_SIZE",      "24")
 hl.env("XDG_CURRENT_DESKTOP",  "Hyprland")
 hl.env("QT_QPA_PLATFORM",      "wayland")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+hl.env("TERMINAL",             "wezterm")
 
 -----------------------
 ---- LOOK AND FEEL ----
