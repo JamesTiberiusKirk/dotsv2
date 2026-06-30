@@ -22,6 +22,7 @@
 .scripts/gomodrename.sh
 .scripts/hypr-doc-gen
 .scripts/hyprx
+.scripts/layout-switcher.sh
 .scripts/i3-doc-gen
 .scripts/i3status-wrapper
 .scripts/imports
