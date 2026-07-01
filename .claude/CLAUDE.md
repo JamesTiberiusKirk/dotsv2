@@ -9,8 +9,9 @@
 - Present tradeoffs between approaches. Do not pick one silently.
 - When I say "go" or "do it", that's your green light to implement. Not before.
 - A question is JUST a question. NEVER treat a question as an implicit request to act.
-- Only act when explicitly told to act. "What does X do?" means explain it, not change it.
+  - Only act when explicitly told to act. "What does X do?" means explain it, not change it.
 - Dont ask questions which you can answer yourself by looking at the repo
+- NEVER print out json expecting the user/developer to read it raw
 
 # Communication
 - Be direct. No filler, no praise, no preamble.

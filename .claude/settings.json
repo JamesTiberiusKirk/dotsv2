@@ -11,6 +11,10 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
+  "model": "opus[1m]",
+  "enabledMcpjsonServers": [
+    "hamr-dev"
+  ],
   "hooks": {
     "Stop": [
       {
@@ -75,6 +79,8 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
   "advisorModel": "opus",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "voiceEnabled": true
 }
