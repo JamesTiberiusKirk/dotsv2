@@ -2,8 +2,8 @@
     border: none;
     border-radius: 0;
     font-family: "JetBrainsMono Nerd Font", "FiraCode Nerd Font", sans-serif;
-    font-size: 9px;
-    min-height: 11px;
+    font-size: 12px;
+    min-height: 15px;
     padding: 0;
     margin: 0;
 }
@@ -11,12 +11,14 @@
 window#waybar {
     background-color: #ebdbb2;
     color: #3c3836;
+    border: 1px solid #d5c4a1;
 }
 
 #workspaces button {
     padding: 0 8px;
     color: #bdae93;
     background-color: transparent;
+    border-right: 1px solid #d5c4a1;
 }
 
 #workspaces button.active {
@@ -47,6 +49,20 @@ window#waybar {
     padding: 0 8px;
     color: #504945;
     background-color: transparent;
+    border-right: 1px solid #d5c4a1;
+}
+
+#clock,
+#custom-activewindow {
+    border-right: none;
+}
+
+#network {
+    border-left: 1px solid #d5c4a1;
+}
+
+#custom-layout.layout-master {
+    color: #b57614;
 }
 
 #custom-battery.hidden {
@@ -69,6 +85,15 @@ window#waybar {
 #custom-submap {
     padding: 0;
     background-color: transparent;
+}
+
+#custom-corne-layer.unknown {
+    opacity: 0.5;
+    font-style: italic;
+}
+
+#custom-corne-layer.submap {
+    color: #8f3f71;
 }
 
 #custom-submap.active {

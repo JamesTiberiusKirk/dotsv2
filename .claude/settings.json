@@ -67,5 +67,6 @@
   "effortLevel": "medium",
   "advisorModel": "opus",
   "theme": "auto",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "tui": "fullscreen"
 }
