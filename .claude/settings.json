@@ -11,6 +11,10 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
+  "model": "sonnet",
+  "enabledMcpjsonServers": [
+    "hamr-dev"
+  ],
   "hooks": {
     "Stop": [
       {
@@ -53,7 +57,16 @@
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true
+    "frontend-design@claude-plugins-official": true,
+    "ponytail@ponytail": true
+  },
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    }
   },
   "sandbox": {
     "filesystem": {
@@ -66,6 +79,8 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
   "advisorModel": "opus",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "voiceEnabled": true,
   "tui": "fullscreen"
