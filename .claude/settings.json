@@ -13,7 +13,8 @@
   },
   "model": "sonnet",
   "enabledMcpjsonServers": [
-    "hamr-dev"
+    "hamr-dev",
+    "playwright"
   ],
   "hooks": {
     "Stop": [
