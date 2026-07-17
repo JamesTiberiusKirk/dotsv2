@@ -11,7 +11,7 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "sonnet",
+  "model": "claude-fable-5[1m]",
   "enabledMcpjsonServers": [
     "hamr-dev"
   ],
@@ -83,5 +83,5 @@
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "voiceEnabled": true,
-  "tui": "fullscreen"
+  "agentPushNotifEnabled": true
 }
