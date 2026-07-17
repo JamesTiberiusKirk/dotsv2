@@ -13,7 +13,8 @@
   },
   "model": "claude-fable-5[1m]",
   "enabledMcpjsonServers": [
-    "hamr-dev"
+    "hamr-dev",
+    "playwright"
   ],
   "hooks": {
     "Stop": [

@@ -1,6 +1,53 @@
 -- Unless you are still migrating, remove the deprecated commands from v1.x
 vim.cmd [[ let g:neo_tree_remove_legacy_commands = 1 ]]
 
+-- ponytail: nowrap clips long names off-screen but the full path is still
+-- known to neo-tree's tree state; float it next to the tree on demand (K,
+-- matching the LSP hover keymap) instead of widening the window
+local hover_win = nil
+local function close_hover()
+  if hover_win and vim.api.nvim_win_is_valid(hover_win) then
+    vim.api.nvim_win_close(hover_win, true)
+  end
+  hover_win = nil
+end
+
+local function show_hover(state)
+  close_hover()
+  local node = state.tree:get_node()
+  local text = node and node.path and vim.fn.fnamemodify(node.path, ":.")
+  if not text or text == "" then
+    return
+  end
+  local win = state.winid
+  local win_width = vim.api.nvim_win_get_width(win)
+  local win_pos = vim.api.nvim_win_get_position(win)
+  local row = win_pos[1] + vim.fn.winline() - 1
+  local col = win_pos[2] + win_width
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
+  hover_win = vim.api.nvim_open_win(buf, false, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = vim.fn.strdisplaywidth(text) + 2,
+    height = 1,
+    style = "minimal",
+    border = "rounded",
+    focusable = false,
+  })
+end
+
+local function yank_relative_path(state)
+  local node = state.tree:get_node()
+  local text = node and node.path and vim.fn.fnamemodify(node.path, ":.")
+  if not text or text == "" then
+    return
+  end
+  vim.fn.setreg("+", text)
+end
+
 return {
   {
     dependencies = {
@@ -26,6 +73,12 @@ return {
           require("neo-tree")
         end
       end
+
+      local group = vim.api.nvim_create_augroup("neo_tree_hover", { clear = true })
+      vim.api.nvim_create_autocmd({ "CursorMoved", "BufLeave", "WinLeave" }, {
+        group = group,
+        callback = close_hover,
+      })
     end,
     opts = {
       buffers = {
@@ -50,6 +103,8 @@ return {
         window = {
           mappings = {
             ["<space>"] = "none",
+            ["K"] = show_hover,
+            ["Y"] = yank_relative_path,
           },
         },
       },
