@@ -102,6 +102,7 @@ mkdocs-material
 mpv
 mullvad-vpn-bin
 mumble
+neovide
 netcat
 networkmanager
 network-manager-applet
