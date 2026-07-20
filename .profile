@@ -31,7 +31,7 @@ alias sf="workspacer -W=sf"
 alias ff="workspacer -W=ff"
 alias uww="workspacer -W=uww"
 alias notes="workspacer from-preset notes"
-alias dots="workspacer  from-preset dots"
+alias dots="WORKSPACER_MUX=gtmux workspacer  from-preset dots"
 
 autoload -Uz compinit && compinit
 compdef ws=workspacer

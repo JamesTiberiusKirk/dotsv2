@@ -1,0 +1,17 @@
+#!/bin/sh
+exec 2>&1
+set -e
+
+[ -r /etc/default/tailscaled ] && . /etc/default/tailscaled
+
+: "${PORT:=41641}"
+: "${FLAGS:=}"
+
+install -d -m 0755 /var/run/tailscale
+install -d -m 0700 /var/lib/tailscale
+
+exec /usr/bin/tailscaled \
+  --state=/var/lib/tailscale/tailscaled.state \
+  --socket=/var/run/tailscale/tailscaled.sock \
+  --port="${PORT}" \
+  ${FLAGS}

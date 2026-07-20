@@ -141,7 +141,7 @@ gtmux.bind_root("C-\\", function() gtmux.select_pane_vim("last") end)
 -- SESSIONS list (current highlighted, click to switch) and a CLAUDE section
 -- (every pane running `claude` across all sessions). Click any row naming a
 -- session to jump there.
-gtmux.widget{ dock = "left", size = 22, fg = "white", bg = "black", interval = 1,
+gtmux.widget{ dock = "left", size = 15, fg = "white", bg = "black", interval = 1,
   draw = function(c)
     c:box(0, 0, c.w, c.h, "fg=cyan,rounded")
     c:text(2, 0, " gtmux ", "fg=cyan,bold")
@@ -156,7 +156,7 @@ gtmux.widget{ dock = "left", size = 22, fg = "white", bg = "black", interval = 1
     end
 
     c:hline(y, "fg=dark_grey"); y = y + 1
-    c:text(2, y, "CLAUDE", "fg=magenta,bold"); y = y + 1
+    c:text(2, y, "Clanker", "fg=magenta,bold"); y = y + 1
     local hits = gtmux.find_panes({ command = "claude" })
     if #hits == 0 then
       c:text(2, y, "(none)", "fg=dark_grey")
