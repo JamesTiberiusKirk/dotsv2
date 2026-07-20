@@ -35,7 +35,7 @@ return {
     { "<leader>gr", function() require('telescope.builtin').lsp_references() end, desc = "LSP references" },
     -- find
     { "<leader>fb", function() require('telescope.builtin').buffers({ sort_mru = true, sort_lastused = true }) end, desc = "Buffers" },
-    { "<leader>ff", function() require('telescope.builtin').find_files() end, desc = "Find Files (root dir)" },
+    { "<leader>ff", function() require('telescope.builtin').find_files({ hidden = true, find_command = { 'rg', '--files', '--hidden', '--glob', '!.git' } }) end, desc = "Find Files (root dir)" },
     { "<leader>fr", function() require('telescope.builtin').oldfiles() end, desc = "Recent" },
     -- git
     { "<leader>gc", function() require('telescope.builtin').git_commits() end, desc = "commits" },

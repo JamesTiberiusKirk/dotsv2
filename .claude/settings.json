@@ -11,9 +11,10 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5[1m]",
   "enabledMcpjsonServers": [
-    "hamr-dev"
+    "hamr-dev",
+    "playwright"
   ],
   "hooks": {
     "Stop": [
@@ -82,5 +83,6 @@
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "agentPushNotifEnabled": true
 }
