@@ -26,13 +26,19 @@ gtmux.set_option("status_left_length", "150")
 gtmux.set_option("copy_wheel_lines", "5")
 gtmux.set_option("copy_drag_finish", "false")
 
+-- Pane borders: "simple" (straight │/─, tmux-faithful), "joined" (box-drawing
+-- junctions where dividers cross), "framed" (every pane enclosed, content
+-- shrinks 1 cell per side). rounded → ╭╮╰╯ corners.
+gtmux.options.pane_borders = "framed"
+gtmux.options.pane_border_rounded = true
+
 gtmux.options.status_fg = "white"
 gtmux.options.status_bg = "dark_grey"
 
 gtmux.options.active_window_fg = "black"
 gtmux.options.active_window_bg = "green"
 
-gtmux.options.active_border_fg = "green"
+gtmux.options.active_border_fg = "magenta"
 gtmux.options.marked_border_fg = "magenta"
 gtmux.options.fill_fg = "dark_grey"
 
@@ -143,26 +149,30 @@ gtmux.bind_root("C-\\", function() gtmux.select_pane_vim("last") end)
 -- session to jump there.
 gtmux.widget{ dock = "left", size = 15, fg = "white", bg = "black", interval = 1,
   draw = function(c)
-    c:box(0, 0, c.w, c.h, "fg=cyan,rounded")
+    -- box returns its interior as a clipped child: text drawn through `inner`
+    -- is truncated at the border instead of overwriting it. The title and the
+    -- hline stay on `c` on purpose — the title sits ON the top border row, and
+    -- hline spans the full width so it merges into the sides as tees.
+    local inner = c:box(0, 0, c.w, c.h, "fg=cyan,rounded")
     c:text(2, 0, " gtmux ", "fg=cyan,bold")
 
-    c:text(2, 1, "SESSIONS", "fg=cyan,bold")
-    local cur, y = gtmux.context().session, 2
+    inner:text(1, 0, "SESSIONS", "fg=cyan,bold")
+    local cur, y = gtmux.context().session, 2   -- y stays in PARENT coords
     for _, s in ipairs(gtmux.sessions()) do
       local here = (s.name == cur)
-      c:text(2, y, (here and "> " or "  ") .. s.name .. "(" .. s.windows .. ")",
+      inner:text(1, y - 1, (here and "> " or "  ") .. s.name .. "(" .. s.windows .. ")",
              here and "fg=green,bold" or "fg=white")
       y = y + 1
     end
 
     c:hline(y, "fg=dark_grey"); y = y + 1
-    c:text(2, y, "Clanker", "fg=magenta,bold"); y = y + 1
+    inner:text(1, y - 1, "Clanker", "fg=magenta,bold"); y = y + 1
     local hits = gtmux.find_panes({ command = "claude" })
     if #hits == 0 then
-      c:text(2, y, "(none)", "fg=dark_grey")
+      inner:text(1, y - 1, "(none)", "fg=dark_grey")
     else
       for _, p in ipairs(hits) do
-        c:text(2, y, p.session .. ":" .. p.window .. "." .. p.number, "fg=magenta")
+        inner:text(1, y - 1, p.session .. ":" .. p.window .. "." .. p.number, "fg=magenta")
         y = y + 1
       end
     end
