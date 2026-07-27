@@ -6,6 +6,7 @@
         "network",
         "custom/tailscale",
         "custom/docker",
+        "custom/vm",
         "custom/corne-layer",
         "custom/updates",
         "custom/latency",
@@ -74,6 +75,13 @@
 
     "custom/docker": {
         "exec": "~/.scripts/waybar/docker_status.sh",
+        "interval": 5,
+        "return-type": "json",
+        "format": "{}"
+    },
+
+    "custom/vm": {
+        "exec": "~/.scripts/waybar/vm_status.sh",
         "interval": 5,
         "return-type": "json",
         "format": "{}"
