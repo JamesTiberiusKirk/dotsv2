@@ -60,6 +60,7 @@ gruvbox-material-gtk-theme-git
 gtk-engine-murrine
 helium-browser-bin
 helm
+hey-git
 hicolor-icon-theme
 htop
 httpie
