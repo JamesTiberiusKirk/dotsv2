@@ -25,6 +25,22 @@
           "vertical" : 12
         }
       }
+    },
+    {
+      "if" : {
+        "device" : {
+          "category" : "mouse",
+          "productID" : "0xc084",
+          "productName" : "G203 Prodigy Gaming Mouse",
+          "serialNumber" : "156938723338",
+          "vendorID" : "0x46d"
+        }
+      },
+      "scrolling" : {
+        "reverse" : {
+          "vertical" : true
+        }
+      }
     }
   ]
 }

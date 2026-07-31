@@ -7,6 +7,7 @@ config.font = wezterm.font_with_fallback {
 }
 config.font_size = 13.0
 config.line_height = 1.0
+config.cell_width = 0.9
 
 config.color_scheme_dirs = { os.getenv 'HOME' .. '/.config/wezterm/colors' }
 

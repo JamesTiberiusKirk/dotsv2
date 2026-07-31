@@ -23,6 +23,9 @@ cmd-shift-c = 'reload-config'
 
 # --- Layout ---
 cmd-shift-f = 'fullscreen'
+# cmd-shift-w = 'layout tiles'
+cmd-shift-a = 'layout h_accordion tiles'
+cmd-shift-w = 'layout v_accordion tiles'
 
 # --- Focus (vim) ---
 cmd-h = 'focus left'
@@ -61,8 +64,8 @@ cmd-shift-9 = 'move-node-to-workspace 9'
 cmd-shift-0 = 'move-node-to-workspace 10'
 
 # --- Cross-monitor ---
-cmd-shift-period = 'move-workspace-to-monitor next'
-cmd-shift-comma  = 'move-workspace-to-monitor prev'
+cmd-shift-period = 'move-workspace-to-monitor right'
+cmd-shift-comma  = 'move-workspace-to-monitor left'
 
 # --- Resize mode ---
 cmd-shift-r = 'mode resize'
