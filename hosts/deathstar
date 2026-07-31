@@ -61,6 +61,7 @@
 .config/darkman
 .config/dunst
 .config/gtk-3.0
+.config/gtmux
 .config/hypr
 .config/hyprland-autoname-workspaces
 .config/i3

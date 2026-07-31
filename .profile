@@ -24,8 +24,8 @@ export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$HOME/.
 fpath=(~/.zsh/completion $fpath)
 
 # Aliases
-
-alias ws="workspacer -W=ws"
+export WORKSPACER_MUX=gtmux
+alias ws="WORKSPACER_MUX=gtmux workspacer -W=ws"
 alias at="workspacer -W=at"
 alias sf="workspacer -W=sf"
 alias ff="workspacer -W=ff"

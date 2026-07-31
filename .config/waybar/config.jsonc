@@ -4,7 +4,9 @@
     "modules-center": ["custom/activewindow"],
     "modules-right": [
         "network",
+        "custom/tailscale",
         "custom/docker",
+        "custom/vm",
         "custom/corne-layer",
         "custom/updates",
         "custom/latency",
@@ -19,7 +21,8 @@
     ],
 
     "hyprland/workspaces": {
-        "format": "{name}"
+        "format": "{name}",
+        "on-click": "activate"
     },
 
     "custom/layout": {
@@ -63,8 +66,22 @@
         "interval": 30
     },
 
+    "custom/tailscale": {
+        "exec": "~/.scripts/waybar/tailscale.sh",
+        "interval": 5,
+        "return-type": "json",
+        "format": "{}"
+    },
+
     "custom/docker": {
         "exec": "~/.scripts/waybar/docker_status.sh",
+        "interval": 5,
+        "return-type": "json",
+        "format": "{}"
+    },
+
+    "custom/vm": {
+        "exec": "~/.scripts/waybar/vm_status.sh",
         "interval": 5,
         "return-type": "json",
         "format": "{}"

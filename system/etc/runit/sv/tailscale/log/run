@@ -1,2 +1,6 @@
 #!/bin/sh
+set -e
+
+[ -d /var/log/tailscale ] || install -dm 0755 /var/log/tailscale
+
 exec svlogd -tt /var/log/tailscale

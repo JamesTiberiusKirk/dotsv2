@@ -60,6 +60,7 @@ gruvbox-material-gtk-theme-git
 gtk-engine-murrine
 helium-browser-bin
 helm
+hey-git
 hicolor-icon-theme
 htop
 httpie
@@ -102,6 +103,7 @@ mkdocs-material
 mpv
 mullvad-vpn-bin
 mumble
+neovide
 netcat
 networkmanager
 network-manager-applet
