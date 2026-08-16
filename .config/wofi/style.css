@@ -1,0 +1,14 @@
+/* Translucent so hyprglass shows through; radius matches Hyprland windows. */
+window {
+    background-color: rgba(13, 8, 24, 0.6);
+    color: #f0e8ff;
+    border-radius: 12px;
+}
+
+#outer-box {
+    padding: 12px;
+}
+
+#input {
+    margin-bottom: 8px;
+}
