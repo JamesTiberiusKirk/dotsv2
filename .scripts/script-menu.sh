@@ -27,7 +27,7 @@ if [ ${#items[@]} -eq 0 ]; then
     exit 0
 fi
 
-choice=$(printf '%s\n' "${!items[@]}" | sort | wofi --dmenu --prompt "Run script" --width 500 --height 400)
+choice=$(printf '%s\n' "${!items[@]}" | sort | ~/.scripts/qsmenu --prompt "Run script")
 [ -n "$choice" ] || exit 0
 
 target=${items["$choice"]:-}

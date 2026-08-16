@@ -6,10 +6,17 @@ set -u
 LAYOUT_FILE="$HOME/.config/hypr/.layout"
 CURRENT=$(cat "$LAYOUT_FILE" 2>/dev/null || echo dwindle)
 
-SELECTED=$(printf "dwindle\nmaster" \
-    | wofi --dmenu --prompt "Layout (now: $CURRENT)")
+MENU=$(cat <<'EOF'
+dwindle — split the focused tile along its longest edge
+master — one big master window, stacks on the sides
+monocle — every window maximized, switch between them
+scrolling — windows in a horizontal strip, pan across
+EOF
+)
 
+SELECTED=$(printf "%s\n" "$MENU" | ~/.scripts/qsmenu --prompt "Layout (now: $CURRENT)")
 [ -z "$SELECTED" ] && exit 0
 
-printf "%s" "$SELECTED" > "$LAYOUT_FILE"
+LAYOUT=${SELECTED%% *} # strip the description
+printf "%s" "$LAYOUT" > "$LAYOUT_FILE"
 hyprctl reload
