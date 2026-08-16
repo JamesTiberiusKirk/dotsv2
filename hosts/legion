@@ -26,11 +26,14 @@
 .scripts/i3status-wrapper
 .scripts/imports
 .scripts/launch-waybar
+.scripts/layout-switcher.sh
+.scripts/menu/common
 .scripts/pg_prettify.sh
 .scripts/ping-latency.sh
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle
 .scripts/screenshot.sh
+.scripts/script-menu.sh
 .scripts/sql-align-format
 .scripts/swap-workspaces.sh
 .scripts/theme-apply
@@ -67,3 +70,6 @@
 .config/opencode/opencode.jsonc
 .config/opencode/package.json
 .config/opencode/package-lock.json
+.config/opencode/tui.json
+.config/opencode/themes/glass.json
+.config/wofi/style.css
