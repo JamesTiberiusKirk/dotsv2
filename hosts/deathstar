@@ -29,6 +29,7 @@
 .scripts/launch-waybar
 .scripts/pg_prettify.sh
 .scripts/ping-latency.sh
+.scripts/qsmenu
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle
 .scripts/screenshot.sh
@@ -70,6 +71,7 @@
 .config/keyd
 .config/nvim
 .config/picom
+.config/quickshell
 .config/waybar
 .config/wezterm
 .config/workspacer
