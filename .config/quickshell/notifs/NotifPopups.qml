@@ -46,7 +46,10 @@ PanelWindow {
                     anchors { left: parent.left; top: parent.top; margins: 12 }
                     implicitSize: 32
                     visible: String(source) !== ""
-                    source: n?.image || (n?.appIcon ? Quickshell.iconPath(n.appIcon, true) : "")
+                    // appIcon is either a themed icon name or an absolute path (notify-send -i <file>)
+                    source: n?.image || (n?.appIcon
+                        ? (n.appIcon.startsWith("/") ? "file://" + n.appIcon : Quickshell.iconPath(n.appIcon, true))
+                        : "")
                 }
 
                 Column {

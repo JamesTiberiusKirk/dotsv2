@@ -53,6 +53,7 @@
 .claude/statusline-usage.sh
 .claude/settings.json
 .claude/CLAUDE.md
+.claude/icons
 
 # xfce helpers
 .local/share/xfce4/helpers/wezterm.desktop

@@ -50,6 +50,7 @@
 .claude/statusline-usage.sh
 .claude/settings.json
 .claude/CLAUDE.md
+.claude/icons
 
 # config
 .config/alacritty

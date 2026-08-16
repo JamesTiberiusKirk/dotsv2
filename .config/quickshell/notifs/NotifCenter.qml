@@ -103,7 +103,9 @@ Scope {
                         anchors { left: parent.left; top: parent.top; margins: 10 }
                         implicitSize: 24
                         visible: String(source) !== ""
-                        source: modelData.image || (modelData.appIcon ? Quickshell.iconPath(modelData.appIcon, true) : "")
+                        source: modelData.image || (modelData.appIcon
+                            ? (modelData.appIcon.startsWith("/") ? "file://" + modelData.appIcon : Quickshell.iconPath(modelData.appIcon, true))
+                            : "")
                     }
 
                     Column {

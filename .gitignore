@@ -6,6 +6,7 @@ __pycache__/
 !.claude/CLAUDE.md
 !.claude/settings.json
 !.claude/statusline-usage.sh
+!.claude/icons
 
 # Theme runtime state — swapped by ~/.scripts/theme-apply, sources are tracked.
 .config/alacritty/colors.toml
