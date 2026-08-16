@@ -26,7 +26,16 @@ Variants {
             implicitHeight: barHeight
             color: "transparent"
             exclusionMode: ExclusionMode.Normal
-            exclusiveZone: barHeight
+            // hidden: islands slide up into the band and fade, windows reclaim
+            // the bar body; the thin frame stays (bezelWin), like the bottom strip
+            exclusiveZone: ShellState.hidden ? Theme.frameT : barHeight
+
+            // shared island entrance/exit: transform + opacity only (GPU),
+            // no Canvas repaints during the animation
+            property real islandFade: ShellState.hidden ? 0 : 1
+            Behavior on islandFade { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+            property real islandLift: ShellState.hidden ? -(barBodyHeight * 0.7) : 0
+            Behavior on islandLift { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             WlrLayershell.namespace: "quickshell"
 
             property string submap: ""
@@ -102,6 +111,9 @@ Variants {
             // refraction on the 2px chrome smeared the screen corners.
             Canvas {
                 id: topEdge
+                visible: opacity > 0
+                opacity: panel.islandFade
+                transform: Translate { y: panel.islandLift }
                 width: panel.width
                 height: panel.implicitHeight
 
@@ -221,6 +233,9 @@ Variants {
             // ---- left: layout + workspaces + submap, then services/system ----
             Row {
                 id: leftRow
+                visible: opacity > 0
+                opacity: panel.islandFade
+                transform: Translate { y: panel.islandLift }
                 anchors { left: parent.left; top: parent.top; leftMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
                 spacing: 10
 
@@ -304,7 +319,9 @@ Variants {
             Island {
                 id: titleIsland
                 anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: Theme.frameT }
-                visible: (ToplevelManager.activeToplevel?.title ?? "") !== ""
+                visible: opacity > 0 && (ToplevelManager.activeToplevel?.title ?? "") !== ""
+                opacity: panel.islandFade
+                transform: Translate { y: panel.islandLift }
 
                 Cell {
                     text: ToplevelManager.activeToplevel?.title ?? ""
@@ -317,6 +334,9 @@ Variants {
             // ---- right: status cluster + audio/power + tray/clock ----
             Row {
                 id: rightRow
+                visible: opacity > 0
+                opacity: panel.islandFade
+                transform: Translate { y: panel.islandLift }
                 anchors { right: parent.right; top: parent.top; rightMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
                 spacing: 10
 
@@ -450,6 +470,14 @@ Variants {
             QsMenuAnchor {
                 id: trayMenu
                 anchor.window: panel
+            }
+
+            Connections {
+                target: ShellState
+                function onHiddenChanged() {
+                    if (ShellState.hidden)
+                        panel.closeIslandPopouts();
+                }
             }
 
             // anchor the notif center's neck to the bell on every open,

@@ -141,6 +141,7 @@ reg("SUPER + SHIFT + ", {
 })
 reg("SUPER + ", {
     { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissLatest" or "dunstctl close"), "Dismiss notification" },
+    { "B", dsp.exec_cmd("qs ipc call shell toggle"), "Toggle bar" },
 })
 
 -- ---- Audio / brightness / media (no modifier) ----

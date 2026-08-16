@@ -1,5 +1,6 @@
 singleton Theme 1.0 Theme.qml
 singleton Sys 1.0 Sys.qml
 singleton Notifs 1.0 Notifs.qml
+singleton ShellState 1.0 ShellState.qml
 AttachedPanel 1.0 AttachedPanel.qml
 Island 1.0 Island.qml
