@@ -28,15 +28,28 @@ return {
         end
       end
 
+      -- Clear the main background groups so the terminal's transparency (and
+      -- the compositor's glass effect) shows through inside the editor.
+      -- ctermfg=NONE keeps syntax groups that default to a dark cterm color
+      -- (e.g. LineNr) from going invisible on dark terminal backgrounds.
+      local function set_transparent_bg()
+        local groups = { "Normal", "NormalNC", "SignColumn", "EndOfBuffer", "LineNr", "FoldColumn", "MsgArea" }
+        for _, g in ipairs(groups) do
+          vim.api.nvim_set_hl(0, g, { bg = "NONE", ctermbg = "NONE", ctermfg = "NONE" })
+        end
+      end
+
       vim.api.nvim_create_autocmd("ColorScheme", {
         group = vim.api.nvim_create_augroup("CustomSpellUnderline", { clear = true }),
         callback = function()
           set_spell_underline()
           set_diff_transparent_fg()
+          set_transparent_bg()
         end,
       })
       set_spell_underline()
       set_diff_transparent_fg()
+      set_transparent_bg()
     end,
   },
   { "ellisonleao/gruvbox.nvim" },

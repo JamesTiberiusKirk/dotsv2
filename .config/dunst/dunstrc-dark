@@ -108,7 +108,7 @@
 
     # Defines width in pixels of frame around the notification window.
     # Set to 0 to disable.
-    frame_width = 2
+    frame_width = 0 # no stroke: edge comes from the glass, Apple-style
 
     # Defines color of the frame around the notification window.
     frame_color = "#6272a4"
@@ -273,7 +273,7 @@
     # corners.
     # The radius will be automatically lowered if it exceeds half of the
     # notification height to avoid clipping text and/or icons.
-    corner_radius = 10
+    corner_radius = 12
 
     # Define which corners to round when drawing the window. If the corner radius
     # is set to 0 this option will be ignored.
@@ -348,14 +348,14 @@
 
 
 [urgency_low]
-    background = "#282a36"
+    background = "#282a3699"
     foreground = "#6272a4"
     frame_color = "#6272a4"
     timeout = 0
     default_icon = dialog-information
 
 [urgency_normal]
-    background = "#282a36"
+    background = "#282a3699"
     foreground = "#f8f8f2"
     frame_color = "#bd93f9"
     timeout = 0

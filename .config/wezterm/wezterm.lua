@@ -5,7 +5,7 @@ config.font = wezterm.font_with_fallback {
   'Noto Sans Mono',
   'Hack Nerd Font Mono',
 }
-config.font_size = 13.0
+config.font_size = 10.7 -- matches the previous manual CTRL-minus CTRL-minus from 13.0
 config.line_height = 1.0
 config.cell_width = 0.9
 
@@ -16,7 +16,7 @@ config.tab_bar_at_bottom = false
 config.hide_tab_bar_if_only_one_tab = true
 
 config.window_decorations = 'TITLE | RESIZE'
-config.window_background_opacity = 1.0
+config.window_background_opacity = 0.50
 config.macos_window_background_blur = 0
 
 config.default_cursor_style = 'BlinkingBlock'
