@@ -10,7 +10,10 @@ import "../common"
 PanelWindow {
     id: root
 
-    visible: hideTimer.running
+    // decoupled from hideTimer.running: restart() flips running false→true,
+    // which would remap the surface and replay the compositor popin per press
+    visible: shown
+    property bool shown: false
     anchors { bottom: true }
     margins { bottom: 80 }
     implicitWidth: 220
@@ -28,20 +31,25 @@ PanelWindow {
     // suppress the initial property flurry when pipewire binds
     property bool armed: false
     Timer { interval: 1500; running: true; onTriggered: root.armed = true }
-    Timer { id: hideTimer; interval: 1400 }
+    Timer { id: hideTimer; interval: 1400; onTriggered: root.shown = false }
+
+    function show(m) {
+        mode = m;
+        shown = true;
+        hideTimer.restart();
+    }
 
     Connections {
         target: root.sink?.audio ?? null
-        function onVolumeChanged() { if (root.armed) { root.mode = "vol"; hideTimer.restart(); } }
-        function onMutedChanged() { if (root.armed) { root.mode = "vol"; hideTimer.restart(); } }
+        function onVolumeChanged() { if (root.armed) root.show("vol"); }
+        function onMutedChanged() { if (root.armed) root.show("vol"); }
     }
 
     IpcHandler {
         target: "osd"
         function brightness(): void {
             Sys.refreshBacklight();
-            root.mode = "bright";
-            hideTimer.restart();
+            root.show("bright");
         }
     }
 
