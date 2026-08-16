@@ -25,7 +25,7 @@ local function layout_mode()
     if f then
         local s = f:read("l")
         f:close()
-        if s == "master" then return "master" end
+        if s == "master" or s == "monocle" or s == "scrolling" then return s end
     end
     return "dwindle"
 end
@@ -42,7 +42,8 @@ hl.config({
     },
 
     decoration = {
-        rounding         = 0,
+        rounding         = 12,
+        rounding_power   = 4.0, -- superellipse: Apple's "continuous" corner, not a plain arc
         active_opacity   = 1.0,
         inactive_opacity = 1.0,
 
@@ -105,8 +106,11 @@ hl.animation({ leaf = "windowsOut",    enabled = true, speed = 1.49, bezier = "l
 hl.animation({ leaf = "fadeIn",        enabled = true, speed = 1.73, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeOut",       enabled = true, speed = 1.46, bezier = "almostLinear" })
 hl.animation({ leaf = "fade",          enabled = true, speed = 3.03, bezier = "quick" })
+-- slight-overshoot spring for popup entrances (quickshell layer surfaces)
+hl.curve("popSpring",      { type = "spring", mass = 1, stiffness = 260, dampening = 22 })
+
 hl.animation({ leaf = "layers",        enabled = true, speed = 3.81, bezier = "easeOutQuint" })
-hl.animation({ leaf = "layersIn",      enabled = true, speed = 4,    bezier = "easeOutQuint", style = "fade" })
+hl.animation({ leaf = "layersIn",      enabled = true, speed = 4,    spring = "popSpring",    style = "fade" })
 hl.animation({ leaf = "layersOut",     enabled = true, speed = 1.5,  bezier = "linear",       style = "fade" })
 hl.animation({ leaf = "fadeLayersIn",  enabled = true, speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
@@ -167,11 +171,9 @@ hl.device({
 -------------------
 ---- WINDOWRULES --
 -------------------
-hl.window_rule({
-    name    = "wezterm-opacity",
-    match   = { class = "^(org\\.wezfurlong\\.wezterm)$" },
-    opacity = "0.90 0.85",
-})
+-- wezterm uses its own window_background_opacity (real per-pixel alpha) so the
+-- hyprglass decoration shows through; a compositor opacity rule would fade the
+-- glass along with the window.
 hl.window_rule({
     name  = "firefox-picture-in-picture",
     match = { class = "^(firefox)$", title = "^(Picture-in-Picture)$" },
@@ -185,18 +187,51 @@ hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\
 hl.window_rule({ name = "flameshot-float-pin", match = { class = "^(flameshot)$" }, float = true, pin = true })
 
 -------------------
+---- LAYERRULES ---
+-------------------
+-- quickshell popups: compositor blur + popin entrance. All GPU-side, so the
+-- animation stays smooth no matter what the QML inside is doing.
+-- ignore_alpha keeps the fully-transparent margins around the panel unblurred.
+hl.layer_rule({
+    name  = "qs-popups",
+    match = { namespace = "^quickshell-(notifs|launcher|osd)$" },
+    blur         = true,
+    ignore_alpha = 0.05,
+    animation    = "popin 80%",
+})
+-- bar popouts (calendar/resources/notif center) animate themselves in QML
+-- (grow-from-island), so no compositor popin — just blur + the layer fade.
+hl.layer_rule({
+    name  = "qs-popouts",
+    match = { namespace = "^quickshell-popout$" },
+    blur         = true,
+    ignore_alpha = 0.05,
+})
+hl.layer_rule({
+    name  = "qs-backdrop",
+    match = { namespace = "^quickshell-(notifs-)?backdrop$" },
+    no_anim = true,
+})
+
+-------------------
 ---- AUTOSTART ----
 -------------------
 -- hyprland.start fires once at launch (not on reload), matching exec-once.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("dunst")
-    hl.exec_cmd("~/.scripts/launch-waybar")
+    -- first: load plugins + reload config so glass rules exist before bars spawn
+    hl.exec_cmd("~/.config/hypr/scripts/load-plugins.sh")
+    if os.getenv("HYPR_SHELL") == "quickshell" then
+        hl.exec_cmd("qs") -- owns bar + notifications + launcher (see .config/quickshell)
+    else
+        hl.exec_cmd("dunst")
+        hl.exec_cmd("~/.scripts/launch-waybar")
+    end
     hl.exec_cmd("pasystray")
     hl.exec_cmd("blueman-applet")
     hl.exec_cmd("owncloud")
     hl.exec_cmd("hyprland-autoname-workspaces")
     hl.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh")
-    hl.exec_cmd("swaybg -o '*' -i ~/Pictures/wallpapers/interior-of-a-barn.jpg -m fill")
+    hl.exec_cmd("~/.scripts/menu/common/next-wallpaper.sh --current") -- hyprpaper, driven by the menu script
     hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
     hl.exec_cmd("cornd")
 end)

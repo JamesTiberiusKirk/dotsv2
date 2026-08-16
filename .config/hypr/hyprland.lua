@@ -4,7 +4,7 @@
 -- The check is startup-only, so hyprland.conf stays as an instant fallback:
 -- delete/rename this file and restart Hyprland to go back.
 --
--- Load order: base -> colors (theme) -> binds -> host overlay.
+-- Load order: base -> colors (theme) -> binds -> plugins -> host overlay.
 -- require() in Hyprland is a custom per-call scope and re-runs on reload,
 -- so theme switching (theme-apply writes ~/.theme-mode + hyprctl reload) works.
 -- ============================================================================
@@ -34,4 +34,5 @@ end
 require("base")
 require("colors-" .. theme_mode())
 require("binds")
+require("plugins")
 require("hosts/" .. hostname())

@@ -6,7 +6,10 @@
 
 local terminal    = "wezterm"
 local fileManager = "thunar"
-local menu        = "wofi --show drun"
+-- HYPR_SHELL=quickshell (hyprx --shell) swaps the wofi/waybar/dunst stack
+-- for the quickshell shell in .config/quickshell.
+local quickshell  = os.getenv("HYPR_SHELL") == "quickshell"
+local menu        = quickshell and "qs ipc call launcher toggle" or "wofi --show drun"
 local dsp         = hl.dsp
 
 local doc = {}
@@ -23,7 +26,7 @@ local function reg(prefix, list)
 end
 
 -- Live keybind cheatsheet: build the list from `doc` at press-time and pipe it
--- straight into wofi. No file on disk; always in sync with the table.
+-- straight into the menu. No file on disk; always in sync with the table.
 local function show_binds()
     table.sort(doc, function(a, b) return a.keys < b.keys end)
     local lines = {}
@@ -31,7 +34,7 @@ local function show_binds()
         lines[#lines + 1] = string.format("%-40s %s", d.keys, d.desc or "")
     end
     local data = (table.concat(lines, "\n"):gsub("'", "'\\''"))
-    hl.dispatch(hl.dsp.exec_cmd("printf '%s' '" .. data .. "' | wofi --dmenu --prompt 'Hyprland bindings' --width 700 --height 600"))
+    hl.dispatch(hl.dsp.exec_cmd("printf '%s' '" .. data .. "' | ~/.scripts/qsmenu --prompt 'Hyprland bindings'"))
 end
 
 -- ---- Apps (SUPER) ----
@@ -65,11 +68,24 @@ reg("SUPER + SHIFT + ", {
 })
 
 -- ---- Focus (vim) ----
+-- Monocle stacks all windows at the same geometry, so directional focus is
+-- meaningless there: J/K cycle the stack instead (checked live at press time).
+local function focus_vertical(dir)
+    return function()
+        if hl.get_config("general.layout") == "monocle" then
+            -- tiled=true routes through the monocle algorithm's own cycle order
+            hl.dispatch(dsp.window.cycle_next({ next = (dir == "d"), tiled = true }))
+        else
+            hl.dispatch(dsp.focus({ direction = dir }))
+        end
+    end
+end
+
 reg("SUPER + ", {
     { "H", dsp.focus({ direction = "l" }), "Focus left" },
     { "L", dsp.focus({ direction = "r" }), "Focus right" },
-    { "K", dsp.focus({ direction = "u" }), "Focus up" },
-    { "J", dsp.focus({ direction = "d" }), "Focus down" },
+    { "K", focus_vertical("u"),            "Focus up (cycle back in monocle)" },
+    { "J", focus_vertical("d"),            "Focus down (cycle next in monocle)" },
 })
 
 -- ---- Move window (vim + shift) ----
@@ -118,13 +134,13 @@ reg("SUPER + ", {
 reg("SUPER + SHIFT + ", {
     { "C", dsp.exec_cmd("hyprctl reload && pkill -USR2 -x waybar"),     "Reload config" },
     { "T", dsp.exec_cmd("~/.scripts/theme-toggle"),                     "Toggle theme" },
-    { "D", dsp.exec_cmd("dunstctl close-all"),                          "Dismiss all notifications" },
+    { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissAll" or "dunstctl close-all"), "Dismiss all notifications" },
     { "S", dsp.exec_cmd("~/.scripts/screenshot.sh"),                    "Screenshot" },
     { "A", dsp.exec_cmd("~/.scripts/extracttext.sh"),                   "OCR extract text" },
     { "N", dsp.exec_cmd("~/.config/hypr/scripts/nightlight-toggle.sh"), "Toggle night light" },
 })
 reg("SUPER + ", {
-    { "D", dsp.exec_cmd("dunstctl close"), "Dismiss notification" },
+    { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissLatest" or "dunstctl close"), "Dismiss notification" },
 })
 
 -- ---- Audio / brightness / media (no modifier) ----
@@ -133,8 +149,8 @@ reg("", {
     { "XF86AudioLowerVolume",  dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),   "Volume down", { locked = true, repeating = true } },
     { "XF86AudioMute",         dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),  "Mute",        { locked = true, repeating = true } },
     { "XF86AudioMicMute",      dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),"Mute mic",    { locked = true, repeating = true } },
-    { "XF86MonBrightnessUp",   dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -lt 5 ]; then brightnessctl s 1%+; else brightnessctl s 5%+; fi']]), "Brightness up",   { locked = true, repeating = true } },
-    { "XF86MonBrightnessDown", dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -le 5 ]; then brightnessctl -n1 s 1%-; else brightnessctl s 5%-; fi']]), "Brightness down", { locked = true, repeating = true } },
+    { "XF86MonBrightnessUp",   dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -lt 5 ]; then brightnessctl s 1%+; else brightnessctl s 5%+; fi; qs ipc call osd brightness >/dev/null 2>&1 || true']]), "Brightness up",   { locked = true, repeating = true } },
+    { "XF86MonBrightnessDown", dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -le 5 ]; then brightnessctl -n1 s 1%-; else brightnessctl s 5%-; fi; qs ipc call osd brightness >/dev/null 2>&1 || true']]), "Brightness down", { locked = true, repeating = true } },
     { "XF86AudioNext",         dsp.exec_cmd("playerctl next"),       "Next track",  { locked = true } },
     { "XF86AudioPause",        dsp.exec_cmd("playerctl play-pause"), "Play/pause",  { locked = true } },
     { "XF86AudioPlay",         dsp.exec_cmd("playerctl play-pause"), "Play/pause",  { locked = true } },

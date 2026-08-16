@@ -1,0 +1,38 @@
+#!/bin/sh
+# dmenu-compatible picker: quickshell launcher when the shell is running,
+# wofi fallback otherwise. Usage: <options on stdin> qsmenu --prompt "..."
+# Prints the selected line, or nothing on cancel.
+set -u
+
+prompt="menu"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --prompt) prompt="${2:-menu}"; shift ;;
+        --prompt=*) prompt="${1#--prompt=}" ;;
+    esac
+    shift
+done
+
+in=$(mktemp /tmp/qsmenu-in.XXXXXX)
+cat > "$in"
+
+if ! pgrep -x qs >/dev/null 2>&1; then
+    sel=$(wofi --dmenu --prompt "$prompt" < "$in"); rc=$?
+    rm -f "$in"
+    [ $rc -eq 0 ] && [ -n "$sel" ] && printf '%s\n' "$sel"
+    exit 0
+fi
+
+out=$(mktemp -u /tmp/qsmenu-out.XXXXXX)
+mkfifo "$out"
+trap 'rm -f "$in" "$out"' EXIT TERM INT
+
+if ! qs ipc call dmenu open "$prompt" "$in" "$out" >/dev/null 2>&1; then
+    sel=$(wofi --dmenu --prompt "$prompt" < "$in")
+    [ -n "$sel" ] && printf '%s\n' "$sel"
+    exit 0
+fi
+
+sel=$(cat "$out") # blocks until the launcher writes the selection ("" = cancel)
+[ -n "$sel" ] && printf '%s\n' "$sel"
+exit 0
