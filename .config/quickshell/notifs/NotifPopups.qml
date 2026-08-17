@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import Quickshell.Hyprland
 import QtQuick
 import "../common"
 
@@ -8,6 +9,9 @@ import "../common"
 // clicked; everything else times out (Notifs singleton owns the list).
 PanelWindow {
     visible: Notifs.popups.length > 0
+    // follow the focused monitor instead of whatever screen is first
+    screen: [...Quickshell.screens].find(s => s.name === Hyprland.focusedMonitor?.name)
+            ?? Quickshell.screens[0]
     anchors { top: true; right: true }
     margins { top: 46; right: 12 }
     implicitWidth: 320

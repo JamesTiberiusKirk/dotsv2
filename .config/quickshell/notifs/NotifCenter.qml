@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Io
+import Quickshell.Hyprland
 import QtQuick
 import "../common"
 
@@ -9,7 +10,7 @@ import "../common"
 Scope {
     id: root
 
-    readonly property int topMargin: 30 + Theme.frameT
+    readonly property int topMargin: Theme.barBody + Theme.frameT
     readonly property int panelWidth: 360
     readonly property int gutter: Theme.frameT + Theme.frameFillet + 8
     readonly property real panelX: Math.max(gutter, Math.min(
@@ -21,15 +22,28 @@ Scope {
         return Math.min(430, Math.max(160, list.contentHeight + 65));
     }
 
+    // IPC opens have no bell to hang from: anchor to the focused monitor,
+    // panel centered (AttachedPanel clamps the zero-width neck)
+    function anchorToFocusedScreen() {
+        const name = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
+        const s = [...Quickshell.screens].find(sc => sc.name === name) || Quickshell.screens[0];
+        Notifs.setCenterAnchor(s.width / 2, 0, s);
+    }
+
     IpcHandler {
         target: "notifs"
-        function toggle(): void { Notifs.centerOpen = !Notifs.centerOpen; }
+        function toggle(): void {
+            if (!Notifs.centerOpen && !Notifs.centerScreen)
+                root.anchorToFocusedScreen();
+            Notifs.centerOpen = !Notifs.centerOpen;
+        }
         function dismissAll(): void { Notifs.dismissAll(); }
         function dismissLatest(): void { Notifs.dismissLatest(); }
     }
 
     PanelWindow {
         visible: Notifs.centerOpen
+        screen: Notifs.centerScreen || Quickshell.screens[0]
         anchors { top: true; right: true; bottom: true; left: true }
         margins { top: root.topMargin }
         color: "transparent"
@@ -45,6 +59,7 @@ Scope {
 
     PanelWindow {
         visible: Notifs.centerOpen
+        screen: Notifs.centerScreen || Quickshell.screens[0]
         anchors { top: true; left: true }
         margins { top: root.topMargin; left: root.panelX }
         implicitWidth: root.panelWidth

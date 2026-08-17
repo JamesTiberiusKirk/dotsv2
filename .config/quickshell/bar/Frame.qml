@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Shapes
 import "../common"
 
 // Screen bezel: solid side and bottom bands that reserve space, molded into
@@ -45,50 +46,56 @@ Variants {
             color: "transparent"
             WlrLayershell.namespace: "quickshell-frame"
 
-            Canvas {
-                id: bottomBand
+            // Shape + rects, not Canvas: Canvas AA edges composite with a
+            // premultiply mismatch on nvidia (dark fringe around path edges)
+            Item {
+                id: bottomChrome
                 anchors.fill: parent
+                readonly property real bT: Theme.frameT
+                readonly property real bf: Theme.frameFillet
+                readonly property real bW: width
 
-                onPaint: {
-                    const ctx = getContext("2d");
-                    const T = Theme.frameT, f = Theme.frameFillet;
-                    const W = width, H = height;
-                    ctx.reset();
+                // band + side stubs
+                Rectangle { y: bottomChrome.bf; width: bottomChrome.bW; height: bottomChrome.bT; color: Theme.island }
+                Rectangle { width: bottomChrome.bT; height: parent.height; color: Theme.island }
+                Rectangle { x: bottomChrome.bW - bottomChrome.bT; width: bottomChrome.bT; height: parent.height; color: Theme.island }
 
-                    // band + side stubs + concave fillets, one fill op
-                    ctx.beginPath();
-                    ctx.rect(0, f, W, T);
-                    ctx.rect(0, 0, T, H);
-                    ctx.rect(W - T, 0, T, H);
-                    ctx.moveTo(T, 0);
-                    ctx.arc(T + f, 0, f, Math.PI, 0.5 * Math.PI, true);
-                    ctx.lineTo(T, f);
-                    ctx.closePath();
-                    ctx.moveTo(W - T, 0);
-                    ctx.arc(W - T - f, 0, f, 0, 0.5 * Math.PI, false);
-                    ctx.lineTo(W - T, f);
-                    ctx.closePath();
-                    ctx.fillStyle = Theme.island;
-                    ctx.fill();
-
-                    // inner border: fillet arcs + band top line
-                    ctx.beginPath();
-                    ctx.moveTo(T, 0);
-                    ctx.arc(T + f, 0, f, Math.PI, 0.5 * Math.PI, true);
-                    ctx.moveTo(T + f, f + 0.5);
-                    ctx.lineTo(W - T - f, f + 0.5);
-                    ctx.moveTo(W - T, 0);
-                    ctx.arc(W - T - f, 0, f, 0, 0.5 * Math.PI, false);
-                    ctx.strokeStyle = Theme.islandBorder;
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+                // band top line between the fillets
+                Rectangle {
+                    x: bottomChrome.bT + bottomChrome.bf; y: bottomChrome.bf
+                    width: bottomChrome.bW - 2 * (bottomChrome.bT + bottomChrome.bf); height: 1
+                    color: Theme.islandBorder
                 }
 
-                Connections {
-                    target: Theme
-                    function onModeChanged() { bottomBand.requestPaint(); }
+                // concave fillets
+                Shape {
+                    anchors.fill: parent
+                    preferredRendererType: Shape.CurveRenderer
+                    ShapePath {
+                        strokeColor: "transparent"; fillColor: Theme.island
+                        startX: bottomChrome.bT; startY: 0
+                        PathArc { x: bottomChrome.bT + bottomChrome.bf; y: bottomChrome.bf; radiusX: bottomChrome.bf; radiusY: bottomChrome.bf; direction: PathArc.Counterclockwise }
+                        PathLine { x: bottomChrome.bT; y: bottomChrome.bf }
+                    }
+                    ShapePath {
+                        strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
+                        startX: bottomChrome.bT; startY: 0
+                        PathArc { x: bottomChrome.bT + bottomChrome.bf; y: bottomChrome.bf; radiusX: bottomChrome.bf; radiusY: bottomChrome.bf; direction: PathArc.Counterclockwise }
+                    }
+                    ShapePath {
+                        strokeColor: "transparent"; fillColor: Theme.island
+                        startX: bottomChrome.bW - bottomChrome.bT; startY: 0
+                        PathArc { x: bottomChrome.bW - bottomChrome.bT - bottomChrome.bf; y: bottomChrome.bf; radiusX: bottomChrome.bf; radiusY: bottomChrome.bf }
+                        PathLine { x: bottomChrome.bW - bottomChrome.bT; y: bottomChrome.bf }
+                    }
+                    ShapePath {
+                        strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
+                        startX: bottomChrome.bW - bottomChrome.bT; startY: 0
+                        PathArc { x: bottomChrome.bW - bottomChrome.bT - bottomChrome.bf; y: bottomChrome.bf; radiusX: bottomChrome.bf; radiusY: bottomChrome.bf }
+                    }
                 }
             }
+
         }
 
         SideBand {}

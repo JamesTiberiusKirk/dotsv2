@@ -10,14 +10,16 @@ Singleton {
 
     property bool centerOpen: false
     property var popups: []   // [{ n: Notification, until: ms-epoch }]
-    property real centerAnchorX: 1300
-    property real centerAnchorWidth: 40
-    property real centerScreenWidth: 1366
+    // set at open time (bell click or IPC fallback) — never read before then
+    property real centerAnchorX: 0
+    property real centerAnchorWidth: 0
+    property var centerScreen: null
+    readonly property real centerScreenWidth: centerScreen ? centerScreen.width : 0
 
-    function setCenterAnchor(x, w, screenW) {
+    function setCenterAnchor(x, w, screen) {
         centerAnchorX = x;
         centerAnchorWidth = w;
-        centerScreenWidth = screenW;
+        centerScreen = screen;
     }
 
     readonly property NotificationServer server: NotificationServer {

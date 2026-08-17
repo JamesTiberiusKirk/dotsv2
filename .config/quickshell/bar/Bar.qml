@@ -5,22 +5,24 @@ import Quickshell.Services.SystemTray
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import Quickshell.Widgets
-import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 import "../common"
 
 Variants {
     model: Quickshell.screens
 
     delegate: Component {
+        Scope {
+            id: barScope
+            required property var modelData
         PanelWindow {
             id: panel
 
-            required property var modelData
-            screen: modelData
+            screen: barScope.modelData
             anchors { top: true; left: true; right: true }
-            readonly property int barBodyHeight: 30
+            readonly property int barBodyHeight: Theme.barBody
             readonly property int barHeight: barBodyHeight + Theme.frameT
 
             implicitHeight: barHeight
@@ -29,6 +31,12 @@ Variants {
             // hidden: islands slide up into the band and fade, windows reclaim
             // the bar body; the thin frame stays (bezelWin), like the bottom strip
             exclusiveZone: ShellState.hidden ? Theme.frameT : barHeight
+            // hidden: windows reclaim the bar body, so drop the input region
+            // too — otherwise the invisible surface eats clicks in that strip
+            mask: Region {
+                width: ShellState.hidden ? 0 : panel.width
+                height: ShellState.hidden ? 0 : panel.barHeight
+            }
 
             // shared island entrance/exit: transform + opacity only (GPU),
             // no Canvas repaints during the animation
@@ -92,24 +100,11 @@ Variants {
             ]
             readonly property int notchFillet: 8 // notch fillet (Island.qml)
 
-            // one notch outline: fillets, walls, rounded bottom (global coords)
-            function notchPath(ctx, x, w) {
-                const T = Theme.frameT, f = notchFillet, r = 12, h = 30;
-                ctx.moveTo(x - f, T);
-                ctx.arc(x - f, T + f, f, -Math.PI / 2, 0, false);          // left fillet
-                ctx.lineTo(x, T + h - r);
-                ctx.arc(x + r, T + h - r, r, Math.PI, Math.PI / 2, true);  // bottom-left
-                ctx.lineTo(x + w - r, T + h);
-                ctx.arc(x + w - r, T + h - r, r, Math.PI / 2, 0, true);    // bottom-right
-                ctx.lineTo(x + w, T + f);
-                ctx.arc(x + w + f, T + f, f, Math.PI, 1.5 * Math.PI, false); // right fillet
-            }
-
             // ---- island capsules: the only pixels hyprglass touches ----
             // The band/stubs/corner fillets live in the separate bezel window
             // below (namespace quickshell-frame, unglassed) — glass edge
             // refraction on the 2px chrome smeared the screen corners.
-            Canvas {
+            Item {
                 id: topEdge
                 visible: opacity > 0
                 opacity: panel.islandFade
@@ -117,118 +112,57 @@ Variants {
                 width: panel.width
                 height: panel.implicitHeight
 
-                Connections {
-                    target: Theme
-                    function onModeChanged() { topEdge.requestPaint(); }
-                }
-                Connections {
-                    target: panel
-                    function onIslandGeomChanged() { topEdge.requestPaint(); }
-                }
+                // Shape, not Canvas: Canvas AA edges composite with a premultiply
+                // mismatch on nvidia (dark fringe around every path edge)
+                // stable count model: geometry changes (clock tick, cpu% width)
+                // rebind ix/iw in place instead of rebuilding the delegates
+                Repeater {
+                    model: panel.islandGeom.length
+                    Shape {
+                        required property int index
+                        readonly property var g: panel.islandGeom[index]
+                        visible: g[2]
+                        readonly property real ix: g[0]
+                        readonly property real iw: g[1]
+                        readonly property real nT: Theme.frameT
+                        readonly property real nf: panel.notchFillet
+                        readonly property real cr: 12
+                        readonly property real ch: panel.barBodyHeight
+                        anchors.fill: parent
+                        preferredRendererType: Shape.CurveRenderer
 
-                onPaint: {
-                    const ctx = getContext("2d");
-                    const vis = panel.islandGeom.filter(i => i[2]).sort((a, b) => a[0] - b[0]);
-                    ctx.reset();
-                    ctx.beginPath();
-                    for (const i of vis) {
-                        panel.notchPath(ctx, i[0], i[1]);
-                        ctx.closePath(); // closes along y = T, flush under the band
+                        // capsule fill — auto-closes along y = T, flush under the band
+                        ShapePath {
+                            strokeColor: "transparent"
+                            fillColor: Theme.island
+                            startX: ix - nf; startY: nT
+                            PathArc { x: ix; y: nT + nf; radiusX: nf; radiusY: nf }
+                            PathLine { x: ix; y: nT + ch - cr }
+                            PathArc { x: ix + cr; y: nT + ch; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
+                            PathLine { x: ix + iw - cr; y: nT + ch }
+                            PathArc { x: ix + iw; y: nT + ch - cr; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
+                            PathLine { x: ix + iw; y: nT + nf }
+                            PathArc { x: ix + iw + nf; y: nT; radiusX: nf; radiusY: nf }
+                        }
+                        // outline — same run, left open at the top edge
+                        ShapePath {
+                            strokeColor: Theme.islandBorder
+                            strokeWidth: 1
+                            fillColor: "transparent"
+                            startX: ix - nf; startY: nT
+                            PathArc { x: ix; y: nT + nf; radiusX: nf; radiusY: nf }
+                            PathLine { x: ix; y: nT + ch - cr }
+                            PathArc { x: ix + cr; y: nT + ch; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
+                            PathLine { x: ix + iw - cr; y: nT + ch }
+                            PathArc { x: ix + iw; y: nT + ch - cr; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
+                            PathLine { x: ix + iw; y: nT + nf }
+                            PathArc { x: ix + iw + nf; y: nT; radiusX: nf; radiusY: nf }
+                        }
                     }
-                    ctx.fillStyle = Theme.island;
-                    ctx.fill();
-                    ctx.beginPath();
-                    for (const i of vis)
-                        panel.notchPath(ctx, i[0], i[1]);
-                    ctx.strokeStyle = Theme.islandBorder;
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
                 }
             }
 
-            // ---- bezel chrome: band, stubs, concave corner fillets ----
-            // Own layer surface so hyprglass (which whitelists "quickshell")
-            // never refracts the thin chrome; input-masked to stay click-through.
-            PanelWindow {
-                id: bezelWin
 
-                screen: panel.screen
-                anchors { top: true; left: true; right: true }
-                implicitHeight: panel.barHeight
-                color: "transparent"
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.namespace: "quickshell-frame"
-                mask: Region {}
-
-                Canvas {
-                    id: bezelEdge
-                    anchors.fill: parent
-
-                    Connections {
-                        target: Theme
-                        function onModeChanged() { bezelEdge.requestPaint(); }
-                    }
-                    Connections {
-                        target: panel
-                        function onIslandGeomChanged() { bezelEdge.requestPaint(); }
-                    }
-
-                    onPaint: {
-                        const ctx = getContext("2d");
-                        const T = Theme.frameT, f = Theme.frameFillet, nf = panel.notchFillet;
-                        const W = width, H = panel.barHeight;
-                        const vis = panel.islandGeom.filter(i => i[2]).sort((a, b) => a[0] - b[0]);
-                        ctx.reset();
-
-                        // band + stubs + corner fillets, one fill op
-                        ctx.beginPath();
-                        ctx.rect(0, 0, W, T);
-                        ctx.rect(0, 0, T, H);
-                        ctx.rect(W - T, 0, T, H);
-                        ctx.moveTo(T, T + f);
-                        ctx.arc(T + f, T + f, f, Math.PI, 1.5 * Math.PI, false);
-                        ctx.lineTo(T, T);
-                        ctx.closePath();
-                        ctx.moveTo(W - T - f, T);
-                        ctx.arc(W - T - f, T + f, f, 1.5 * Math.PI, 2 * Math.PI, false);
-                        ctx.lineTo(W - T, T);
-                        ctx.closePath();
-                        ctx.fillStyle = Theme.island;
-                        ctx.fill();
-
-                        // inner border: corner arcs, stub walls, band line with
-                        // gaps where the island capsules hang
-                        const gaps = vis.map(i => [i[0] - nf, i[0] + i[1] + nf])
-                            .sort((a, b) => a[0] - b[0]);
-                        const merged = [];
-                        for (const g of gaps) {
-                            if (merged.length && g[0] <= merged[merged.length - 1][1])
-                                merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], g[1]);
-                            else
-                                merged.push(g);
-                        }
-                        ctx.beginPath();
-                        ctx.moveTo(T, T + f);
-                        ctx.arc(T + f, T + f, f, Math.PI, 1.5 * Math.PI, false);
-                        const y = T + 0.5;
-                        let x = T + f;
-                        for (const g of merged) {
-                            if (g[0] > x) { ctx.moveTo(x, y); ctx.lineTo(g[0], y); }
-                            x = Math.max(x, g[1]);
-                        }
-                        if (x < W - T - f) { ctx.moveTo(x, y); ctx.lineTo(W - T - f, y); }
-                        ctx.moveTo(W - T - f, T);
-                        ctx.arc(W - T - f, T + f, f, 1.5 * Math.PI, 2 * Math.PI, false);
-                        ctx.moveTo(T - 0.5, T + f);
-                        ctx.lineTo(T - 0.5, H);
-                        ctx.moveTo(W - T + 0.5, T + f);
-                        ctx.lineTo(W - T + 0.5, H);
-                        ctx.strokeStyle = Theme.islandBorder;
-                        ctx.lineWidth = 1;
-                        ctx.stroke();
-                    }
-                }
-            }
 
             // ---- left: layout + workspaces + submap, then services/system ----
             Row {
@@ -257,12 +191,12 @@ Variants {
                         padding: 4
                         Repeater {
                             model: Hyprland.workspaces.values
-                                .filter(w => w.id > 0)
+                                .filter(w => w.id > 0 && w.monitor?.name === panel.screen.name)
                                 .sort((a, b) => a.id - b.id)
                             Rectangle {
                                 required property var modelData
                                 readonly property bool on:
-                                    Hyprland.focusedMonitor?.activeWorkspace?.id === modelData.id
+                                    modelData.monitor?.activeWorkspace?.id === modelData.id
                                 width: 18; height: 18; radius: 6
                                 color: on ? Theme.accent : "transparent"
                                 Text {
@@ -275,7 +209,8 @@ Variants {
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    onClicked: Hyprland.dispatch("workspace " + parent.modelData.id)
+                                    // lua-config hyprland: classic dispatch syntax errors out
+                                    onClicked: Hyprland.dispatch("hl.dsp.focus({ workspace = " + parent.modelData.id + " })")
                                 }
                             }
                         }
@@ -446,6 +381,10 @@ Variants {
                             onClicked: {
                                 const next = !Notifs.centerOpen;
                                 panel.closeIslandPopouts();
+                                if (next)
+                                    Notifs.setCenterAnchor(notifBellCell.mapToItem(null, 0, 0).x,
+                                                           notifBellCell.width,
+                                                           panel.screen);
                                 Notifs.centerOpen = next;
                             }
                         }
@@ -477,18 +416,6 @@ Variants {
                 function onHiddenChanged() {
                     if (ShellState.hidden)
                         panel.closeIslandPopouts();
-                }
-            }
-
-            // anchor the notif center's neck to the bell on every open,
-            // including IPC toggles (mapToItem handles the nested layouts)
-            Connections {
-                target: Notifs
-                function onCenterOpenChanged() {
-                    if (Notifs.centerOpen)
-                        Notifs.setCenterAnchor(notifBellCell.mapToItem(null, 0, 0).x,
-                                               notifBellCell.width,
-                                               panel.width);
                 }
             }
 
@@ -706,6 +633,101 @@ Variants {
                 }
             }
 
+        }
+            // ---- bezel chrome: band, stubs, concave corner fillets ----
+            // Own layer surface so hyprglass (which whitelists "quickshell")
+            // never refracts the thin chrome; input-masked to stay click-through.
+            PanelWindow {
+                id: bezelWin
+
+                screen: panel.screen
+                anchors { top: true; left: true; right: true }
+                implicitHeight: panel.barHeight
+                color: "transparent"
+                exclusionMode: ExclusionMode.Ignore
+                WlrLayershell.namespace: "quickshell-frame"
+                mask: Region {}
+
+                Item {
+                    id: bezelChrome
+                    anchors.fill: parent
+                    readonly property real bT: Theme.frameT
+                    readonly property real bf: Theme.frameFillet
+                    readonly property real bW: bezelWin.width
+                    readonly property real bH: panel.barHeight
+
+                    // band line segments between the hanging capsules
+                    readonly property var bandSegs: {
+                        const nf = panel.notchFillet;
+                        const gaps = panel.islandGeom.filter(i => i[2])
+                            .map(i => [i[0] - nf, i[0] + i[1] + nf])
+                            .sort((a, b) => a[0] - b[0]);
+                        const merged = [];
+                        for (const g of gaps) {
+                            if (merged.length && g[0] <= merged[merged.length - 1][1])
+                                merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], g[1]);
+                            else
+                                merged.push(g);
+                        }
+                        const segs = [];
+                        let x = bT + bf;
+                        for (const g of merged) {
+                            if (g[0] > x) segs.push([x, Math.min(g[0], bW - bT - bf)]);
+                            x = Math.max(x, g[1]);
+                        }
+                        if (x < bW - bT - bf) segs.push([x, bW - bT - bf]);
+                        return segs;
+                    }
+
+                    // band + stubs
+                    Rectangle { width: bezelChrome.bW; height: bezelChrome.bT; color: Theme.island }
+                    Rectangle { width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
+                    Rectangle { x: bezelChrome.bW - bezelChrome.bT; width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
+
+                    // stub walls
+                    Rectangle { x: bezelChrome.bT - 1; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }
+                    Rectangle { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }
+
+                    // band line with gaps where the capsules hang
+                    Repeater {
+                        model: bezelChrome.bandSegs
+                        Rectangle {
+                            required property var modelData
+                            x: modelData[0]; y: bezelChrome.bT; width: modelData[1] - modelData[0]; height: 1
+                            color: Theme.islandBorder
+                        }
+                    }
+
+                    // concave corner fillets
+                    Shape {
+                        anchors.fill: parent
+                        preferredRendererType: Shape.CurveRenderer
+                        ShapePath {
+                            strokeColor: "transparent"; fillColor: Theme.island
+                            startX: bezelChrome.bT; startY: bezelChrome.bT + bezelChrome.bf
+                            PathArc { x: bezelChrome.bT + bezelChrome.bf; y: bezelChrome.bT; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
+                            PathLine { x: bezelChrome.bT; y: bezelChrome.bT }
+                        }
+                        ShapePath {
+                            strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
+                            startX: bezelChrome.bT; startY: bezelChrome.bT + bezelChrome.bf
+                            PathArc { x: bezelChrome.bT + bezelChrome.bf; y: bezelChrome.bT; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
+                        }
+                        ShapePath {
+                            strokeColor: "transparent"; fillColor: Theme.island
+                            startX: bezelChrome.bW - bezelChrome.bT - bezelChrome.bf; startY: bezelChrome.bT
+                            PathArc { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
+                            PathLine { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT }
+                        }
+                        ShapePath {
+                            strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
+                            startX: bezelChrome.bW - bezelChrome.bT - bezelChrome.bf; startY: bezelChrome.bT
+                            PathArc { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
+                        }
+                    }
+                }
+
+            }
         }
     }
 }

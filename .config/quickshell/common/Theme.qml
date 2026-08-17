@@ -17,6 +17,8 @@ Singleton {
     // screen bezel: band thickness + concave inner-corner radius
     readonly property int frameT: 2
     readonly property int frameFillet: 8
+    // bar body height (island/capsule height, below the top band)
+    readonly property int barBody: 30
 
     readonly property color island:       dark ? "#D90C0716" : "#D9FBF1C7"
     readonly property color islandBorder: dark ? "#884A3870" : "#AAD5C4A1"

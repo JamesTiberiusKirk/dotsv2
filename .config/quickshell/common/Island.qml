@@ -5,7 +5,7 @@ import QtQuick
 Item {
     default property alias content: row.data
 
-    implicitHeight: 30
+    implicitHeight: Theme.barBody
     implicitWidth: row.implicitWidth + 12
 
     Row {
