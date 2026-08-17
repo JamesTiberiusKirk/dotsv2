@@ -164,6 +164,7 @@ local clankerDismissed = {}
 local clankerFrame = 0
 local clankerSpin = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "black", interval = 1,
+  name = "sidebar", min_cols = 110, -- auto-hide on narrow clients; prefix+B toggles
   draw = function(c)
     -- box returns its interior as a clipped child: text drawn through `inner`
     -- is truncated at the border instead of overwriting it. The title and the
@@ -228,3 +229,10 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "black", interval = 1
       end
     end
   end }
+
+-- Responsive: below 90 cols keep the active pane maximized (phone attach);
+-- Tab cycles panes keeping the zoom. prefix+B force-shows/hides the sidebar
+-- over its min_cols breakpoint.
+gtmux.responsive{ cols_below = 90 }
+gtmux.bind("Tab", function() gtmux.next_pane() end)
+gtmux.bind("B", function() gtmux.toggle_dock("sidebar") end)
