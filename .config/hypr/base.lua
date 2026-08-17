@@ -30,10 +30,17 @@ local function layout_mode()
     return "dwindle"
 end
 
+-- Focus mode: big side gaps, toggled by menu/common/focus-mode.sh via ~/.config/hypr/.focus
+local function gaps_out()
+    local f = io.open(os.getenv("HOME") .. "/.config/hypr/.focus")
+    if f then f:close() return { top = 5, right = 400, bottom = 5, left = 400 } end
+    return 5
+end
+
 hl.config({
     general = {
         gaps_in          = 5,
-        gaps_out         = 5,
+        gaps_out         = gaps_out(),
         border_size      = 2,
         resize_on_border = false,
         allow_tearing    = false,

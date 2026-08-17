@@ -8,6 +8,9 @@ __pycache__/
 !.claude/statusline-usage.sh
 !.claude/icons
 
+# Focus mode runtime state (menu/common/focus-mode.sh)
+.config/hypr/.focus
+
 # Theme runtime state — swapped by ~/.scripts/theme-apply, sources are tracked.
 .config/alacritty/colors.toml
 .config/dunst/dunstrc

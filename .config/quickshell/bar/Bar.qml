@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.SystemTray
@@ -93,6 +94,7 @@ Variants {
             readonly property var islandGeom: [
                 [leftRow.x + wsIsland.x, wsIsland.width, wsIsland.visible],
                 [leftRow.x + svcWrap.x, svcWrap.width, svcWrap.visible],
+                [leftRow.x + spareIsland.x, spareIsland.width, spareIsland.visible],
                 [titleIsland.x, titleIsland.width, titleIsland.visible],
                 [rightRow.x + statusWrap.x, statusIsland.width, true],
                 [rightRow.x + powerIsland.x, powerIsland.width, powerIsland.visible],
@@ -246,6 +248,38 @@ Variants {
                         Cell { text: "📊 " + Math.round(Sys.cpu * 100) + "%" }
                         Cell { visible: Sys.memText !== ""; text: "🧠 " + Sys.memText }
                         Cell { visible: Sys.diskFree !== ""; text: "💾 " + Sys.diskFree }
+                    }
+                }
+
+                // focus mode toggle (big side gaps, ~/.scripts/menu/common/focus-mode.sh)
+                // state is file-backed (~/.config/hypr/.focus) so it survives
+                // quickshell reloads and toggles from the script menu
+                Island {
+                    id: spareIsland
+                    property bool on: false
+                    Process {
+                        id: focusCheck
+                        command: ["sh", "-c", "test -e ~/.config/hypr/.focus && echo 1 || echo 0"]
+                        running: true
+                        stdout: StdioCollector { onStreamFinished: spareIsland.on = text.trim() === "1" }
+                    }
+                    // ponytail: 2s poll instead of a file watcher, catches script-menu toggles
+                    Timer { interval: 2000; running: true; repeat: true; onTriggered: focusCheck.running = true }
+                    Process {
+                        id: focusToggle
+                        command: ["sh", "-c", "~/.scripts/menu/common/focus-mode.sh"]
+                        onExited: focusCheck.running = true
+                    }
+                    Cell {
+                        text: "focus"
+                        color: spareIsland.on ? Theme.accent : Theme.dim
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                spareIsland.on = !spareIsland.on; // instant; poll corrects if the script fails
+                                focusToggle.running = true;
+                            }
+                        }
                     }
                 }
             }
