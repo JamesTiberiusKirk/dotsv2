@@ -67,6 +67,9 @@
 .config/nvim
 .config/picom
 .config/quickshell
+
+# mask dunst dbus activation (quickshell owns notifications in shell mode)
+.local/share/dbus-1/services/org.knopwob.dunst.service
 .config/waybar
 .config/wezterm
 .config/workspacer

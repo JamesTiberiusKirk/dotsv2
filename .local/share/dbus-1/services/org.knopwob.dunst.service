@@ -1,0 +1,7 @@
+[D-BUS Service]
+# Mask dunst's dbus activation: quickshell owns org.freedesktop.Notifications
+# in shell mode, and any notification during a shell restart gap would
+# auto-spawn dunst, which then squats on the name. base.lua still execs dunst
+# explicitly in the waybar stack, so nothing is lost.
+Name=org.freedesktop.Notifications
+Exec=/bin/false

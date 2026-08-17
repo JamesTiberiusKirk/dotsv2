@@ -58,6 +58,9 @@
 # xfce helpers
 .local/share/xfce4/helpers/wezterm.desktop
 
+# mask dunst dbus activation (quickshell owns notifications in shell mode)
+.local/share/dbus-1/services/org.knopwob.dunst.service
+
 # config
 .config/alacritty
 .config/darkman
