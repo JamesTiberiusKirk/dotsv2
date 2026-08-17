@@ -132,7 +132,8 @@ reg("SUPER + ", {
 
 -- ---- Utilities ----
 reg("SUPER + SHIFT + ", {
-    { "C", dsp.exec_cmd("hyprctl reload && pkill -USR2 -x waybar"),     "Reload config" },
+    { "C", dsp.exec_cmd(quickshell and "hyprctl reload && qs kill; qs -d"
+                                    or  "hyprctl reload && pkill -USR2 -x waybar"), "Reload config" },
     { "T", dsp.exec_cmd("~/.scripts/theme-toggle"),                     "Toggle theme" },
     { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissAll" or "dunstctl close-all"), "Dismiss all notifications" },
     { "S", dsp.exec_cmd("~/.scripts/screenshot.sh"),                    "Screenshot" },

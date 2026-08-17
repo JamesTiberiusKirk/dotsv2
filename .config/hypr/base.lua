@@ -43,7 +43,7 @@ hl.config({
 
     decoration = {
         rounding         = 12,
-        rounding_power   = 4.0, -- superellipse: Apple's "continuous" corner, not a plain arc
+        rounding_power   = 2.0, -- plain arc: superellipse (4.0) renders jagged on deathstar/nvidia
         active_opacity   = 1.0,
         inactive_opacity = 1.0,
 
