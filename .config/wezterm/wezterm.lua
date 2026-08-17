@@ -4,6 +4,7 @@ local config = wezterm.config_builder()
 config.font = wezterm.font_with_fallback {
   'Noto Sans Mono',
   'Hack Nerd Font Mono',
+  'Noto Sans Mono CJK SC',
 }
 config.font_size = 10.7 -- matches the previous manual CTRL-minus CTRL-minus from 13.0
 config.line_height = 1.0
