@@ -250,19 +250,126 @@ Variants {
                 }
             }
 
-            // ---- center: active window title ----
+            // ---- center: window carousel ----
+            // All windows on this screen's active workspace as pills; the
+            // focused one is highlighted and the strip slides to keep it
+            // centered. Clicking a pill focuses that window.
             Island {
                 id: titleIsland
                 anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: Theme.frameT }
-                visible: opacity > 0 && (ToplevelManager.activeToplevel?.title ?? "") !== ""
+                visible: opacity > 0 && carousel.wins.length > 0
                 opacity: panel.islandFade
                 transform: Translate { y: panel.islandLift }
 
-                Cell {
-                    text: ToplevelManager.activeToplevel?.title ?? ""
-                    color: Theme.bright
-                    elide: Text.ElideMiddle
-                    width: Math.min(implicitWidth, panel.width * 0.4)
+                Item {
+                    id: carousel
+
+                    readonly property var mon: Hyprland.monitorFor(panel.screen)
+                    // rev is a rebuild trigger: .values is a fresh array each
+                    // access but only re-evaluates on list add/remove, not when
+                    // a toplevel's workspace property changes (window moved)
+                    property int rev: 0
+                    readonly property var wins: (rev, Hyprland.toplevels.values.filter(t =>
+                        t.workspace && carousel.mon
+                        && t.workspace.id === carousel.mon.activeWorkspace?.id))
+                    readonly property int activeIndex: {
+                        for (let i = 0; i < wins.length; i++)
+                            if (wins[i] === Hyprland.activeToplevel)
+                                return i;
+                        return -1;
+                    }
+
+                    width: Math.min(strip.width, panel.width * 0.4)
+                    height: panel.barBodyHeight
+                    clip: true
+
+                    Connections {
+                        target: Hyprland
+                        function onRawEvent(e) {
+                            switch (e.name) {
+                            case "openwindow":
+                            case "closewindow":
+                            case "movewindowv2":
+                            case "workspacev2":
+                            case "focusedmonv2":
+                                carousel.rev++;
+                            }
+                        }
+                    }
+
+                    function recenter() {
+                        const it = pills.itemAt(activeIndex);
+                        if (it)
+                            strip.x = width / 2 - (it.x + it.width / 2);
+                        else if (wins.length === 0)
+                            strip.x = 0;
+                    }
+                    onActiveIndexChanged: recenter()
+                    onWidthChanged: recenter()
+
+                    Row {
+                        id: strip
+                        spacing: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        onWidthChanged: carousel.recenter()
+                        Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+
+                        Repeater {
+                            id: pills
+                            model: carousel.wins
+
+                            delegate: Rectangle {
+                                id: pill
+                                required property var modelData
+                                required property int index
+                                readonly property bool active: index === carousel.activeIndex
+
+                                width: pillRow.width + 22
+                                height: panel.barBodyHeight - 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                radius: 8
+                                color: pill.active ? Theme.track : "transparent"
+                                border.color: pill.active ? Theme.islandBorder : "transparent"
+
+                                Row {
+                                    id: pillRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    IconImage {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        implicitSize: 14
+                                        visible: source != ""
+                                        // appId rarely matches the icon name verbatim;
+                                        // heuristicLookup resolves e.g. wezterm's reverse-DNS id
+                                        source: {
+                                            const appId = pill.modelData.wayland?.appId ?? "";
+                                            const entry = DesktopEntries.heuristicLookup(appId);
+                                            return Quickshell.iconPath(entry?.icon ?? appId, true);
+                                        }
+                                    }
+
+                                    Text {
+                                        id: pillText
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: Math.min(implicitWidth, 240)
+                                        elide: Text.ElideMiddle
+                                        font.family: Theme.font
+                                        font.pixelSize: Theme.fontSize
+                                        color: pill.active ? Theme.bright : Theme.dim
+                                        text: pill.modelData.title || pill.modelData.wayland?.title || ""
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: Hyprland.dispatch(
+                                        "hl.dsp.focus({ window = \"address:0x"
+                                        + pill.modelData.address.replace(/^0x/, "") + "\" })")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
