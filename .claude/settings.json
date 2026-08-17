@@ -4,7 +4,7 @@
       "Bash(git commit *)",
       "Bash(git push *)"
     ],
-    "defaultMode": "default",
+    "defaultMode": "auto",
     "additionalDirectories": [
       "/Users/dumitruvulpe/uw",
       "/Users/dumitruvulpe/uw/js-mono",
@@ -84,5 +84,45 @@
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "agentPushNotifEnabled": true,
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Bash(sqlite3 ./data/stackr.db :*)",
+      "Bash(hamr dev)",
+      "Bash(templ generate:*)",
+      "Bash(golangci-lint run:*)"
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Bash(hamr *deploy*)",
+      "Bash(stackr *deploy*)"
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured (repo provisions PostgreSQL, MariaDB, MongoDB, Redis, and S3-compatible object storage (RustFS) as a self-hosted deploy target — this is the product's function, not evidence of an org cloud account)",
+      "**Repository visibility**: private (FyrmForge/stackr, via gh)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured (CI references RAILWAY_SERVICE and RAILWAY_TOKEN secret names, existence only, no values)",
+      "**Default / protected branches**: master (default); no classic protected branches listed; rulesets not queryable here — do not assume master is unprotected",
+      "**CI/CD deploy targets**: None configured (Makefile has a `deploy-test` target and RAILWAY_* CI secret names are referenced, but no deploy target/host is confirmed)",
+      "**Network posture**: None configured",
+      "**Source control**: github.com:FyrmForge/stackr.git (origin) — this repo and its configured remote only",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: stackr-test.vulpe.dev, demo.stackr-test.vulpe.dev, web-pr-4-demo.stackr-test.vulpe.dev (hosts contacted from this project's transcripts)",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: .env, .env.example, docs/archive/plan-secret-links.md — preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic (observed k8s namespaces in this project: internal, hamr, site, uploads — none are prod-named)",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (self-hosted deployment platform, Go/templ/HAMR stack)",
+      "**Trusted repo**: /home/darthvader/FyrmForge/stackr and its remote github.com:FyrmForge/stackr.git (private) — confidential material is fine to commit here, but secrets/credentials are never cleared into it by visibility alone",
+      "**Org-specific CLIs**: hamr, stackr, templ (project-specific CLIs seen in this project's usage)",
+      "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
+    ]
+  },
   "voiceEnabled": true
 }
