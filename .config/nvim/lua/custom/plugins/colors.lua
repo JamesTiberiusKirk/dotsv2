@@ -37,6 +37,15 @@ return {
         for _, g in ipairs(groups) do
           vim.api.nvim_set_hl(0, g, { bg = "NONE", ctermbg = "NONE", ctermfg = "NONE" })
         end
+        -- The regenerated builtin schemes (e.g. elflord) bake guibg=#000000 into
+        -- every group; strip those so transparency shows through everywhere.
+        for name, hl in pairs(vim.api.nvim_get_hl(0, {})) do
+          if hl.bg == 0 then
+            hl.bg = nil
+            hl.ctermbg = nil
+            vim.api.nvim_set_hl(0, name, hl)
+          end
+        end
       end
 
       vim.api.nvim_create_autocmd("ColorScheme", {
