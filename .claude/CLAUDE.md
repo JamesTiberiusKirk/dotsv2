@@ -14,6 +14,9 @@
 - Dont ask questions which you can answer yourself by looking at the repo
 - NEVER print out json expecting the user/developer to read it raw
 - When explaining a technical problem or concept: state (1) the technical possibility/context, (2) the concrete failure mode, (3) the implication or question — in that order, in plain language. No preamble, no "in other words", no restating the conclusion.
+- I do not read youre background analysis or thinking, i do not hold the same context in my head as u do, i often multitask therfore my own cotnext is smaller. 
+  - when you talk about points make sure to actually offer enough context to either summon my memory or to tell me about what ur talking about
+  - often i might not even know about a specific bug, feature, point ur trying to make
 
 # Communication
 - Be direct. No filler, no praise, no preamble.

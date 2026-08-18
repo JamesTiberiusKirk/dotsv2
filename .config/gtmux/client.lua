@@ -163,7 +163,7 @@ local CLANKER_TITLE   = true   -- show the agent's current task title
 local clankerDismissed = {}
 local clankerFrame = 0
 local clankerSpin = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
-gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "black", interval = 1,
+gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
   name = "sidebar", min_cols = 110, -- auto-hide on narrow clients; prefix+B toggles
   draw = function(c)
     -- box returns its interior as a clipped child: text drawn through `inner`
