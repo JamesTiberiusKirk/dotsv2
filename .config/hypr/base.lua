@@ -13,7 +13,7 @@ hl.env("XDG_CURRENT_DESKTOP",  "Hyprland")
 hl.env("QT_QPA_PLATFORM",      "wayland")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("TERMINAL",             "wezterm")
-hl.env("QS_ICON_THEME",        "Adwaita:AdwaitaLegacy") -- tray icon fallback (pasystray etc.)
+hl.env("QS_ICON_THEME",        "Adwaita") -- tray/menu icons; Adwaita inherits AdwaitaLegacy for the old names
 
 -----------------------
 ---- LOOK AND FEEL ----
