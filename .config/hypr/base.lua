@@ -18,19 +18,6 @@ hl.env("QS_ICON_THEME",        "Adwaita") -- tray/menu icons; Adwaita inherits A
 -----------------------
 ---- LOOK AND FEEL ----
 -----------------------
--- Global tiling layout, read from ~/.config/hypr/.layout (default dwindle).
--- hyprctl keyword no-ops under the lua config, so layout-switcher.sh writes this
--- file and runs `hyprctl reload`; require() re-runs on reload (same as theme).
-local function layout_mode()
-    local f = io.open(os.getenv("HOME") .. "/.config/hypr/.layout")
-    if f then
-        local s = f:read("l")
-        f:close()
-        if s == "master" or s == "monocle" or s == "scrolling" then return s end
-    end
-    return "dwindle"
-end
-
 hl.config({
     general = {
         gaps_in          = 5,
@@ -38,7 +25,9 @@ hl.config({
         border_size      = 2,
         resize_on_border = false,
         allow_tearing    = false,
-        layout           = layout_mode(),
+        -- per-workspace switching is runtime-only: layout-switcher.sh sets
+        -- workspace_rules via `hyprctl eval` (lost on reload, back to dwindle)
+        layout           = "dwindle",
         -- border colors are set in colors-{dark,light}.lua
     },
 

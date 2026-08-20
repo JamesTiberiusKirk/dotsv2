@@ -5,12 +5,11 @@ import QtQuick
 
 // System stats not covered by a quickshell service. Reuses the same sources
 // the waybar setup used: /tmp/i3status_* files (ping-latency.sh,
-// update-count.sh started from hyprx) and the ~/.config/hypr/.layout file.
+// update-count.sh started from hyprx).
 Singleton {
     id: root
 
     property string latency: ""
-    property string layout: "dwindle"
     property string netText: "down"
     property bool netUp: false
     property real cpu: 0            // 0..1
@@ -24,12 +23,6 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onLoaded: root.latency = text().trim()
-    }
-    FileView {
-        path: Quickshell.env("HOME") + "/.config/hypr/.layout"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: root.layout = text().trim() || "dwindle"
     }
 
     // cpu: /proc/stat delta over the poll interval

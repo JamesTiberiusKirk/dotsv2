@@ -176,7 +176,7 @@ Variants {
                 Island {
                     id: wsIsland
                     Cell {
-                        text: Sys.layout
+                        text: Hyprland.monitorFor(panel.screen)?.activeWorkspace?.lastIpcObject?.tiledLayout ?? ""
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {

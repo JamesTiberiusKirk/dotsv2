@@ -70,9 +70,11 @@ reg("SUPER + SHIFT + ", {
 -- ---- Focus (vim) ----
 -- Monocle stacks all windows at the same geometry, so directional focus is
 -- meaningless there: J/K cycle the stack instead (checked live at press time).
+-- Layout is per-workspace now (layout-switcher.sh), so ask the workspace.
 local function focus_vertical(dir)
     return function()
-        if hl.get_config("general.layout") == "monocle" then
+        local ws = hl.get_active_workspace()
+        if ws and ws.tiled_layout == "monocle" then
             -- tiled=true routes through the monocle algorithm's own cycle order
             hl.dispatch(dsp.window.cycle_next({ next = (dir == "d"), tiled = true }))
         else

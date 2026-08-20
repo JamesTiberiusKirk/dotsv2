@@ -32,6 +32,10 @@ local function theme_mode()
 end
 
 require("base")
+-- extra tiled layouts (from Hyprland's example/layouts), selectable as lua:<name>
+require("layouts/spiral")
+require("layouts/grid")
+require("layouts/columns")
 require("colors-" .. theme_mode())
 require("binds")
 require("plugins")
