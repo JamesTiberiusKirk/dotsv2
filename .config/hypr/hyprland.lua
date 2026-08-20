@@ -31,11 +31,12 @@ local function theme_mode()
     return "dark"
 end
 
-require("base")
 -- extra tiled layouts (from Hyprland's example/layouts), selectable as lua:<name>
+-- registered before base so .layout entries referencing them resolve
 require("layouts/spiral")
 require("layouts/grid")
 require("layouts/columns")
+require("base")
 require("colors-" .. theme_mode())
 require("binds")
 require("plugins")
