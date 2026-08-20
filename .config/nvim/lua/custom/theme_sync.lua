@@ -4,6 +4,19 @@ local function apply(mode)
   if mode == "dark" then
     vim.api.nvim_set_option_value("background", "dark", {})
     vim.cmd("colorscheme elflord")
+    -- elflord predates italics; slant comments, keywords, builtins,
+    -- and parameters while keeping its colors
+    for _, g in ipairs({
+      "Comment",
+      "Statement", "Keyword", "Conditional", "Repeat",
+      "Boolean", "@variable.builtin",
+      "@variable.parameter",
+      "Type", "@attribute", "@tag.attribute",
+    }) do
+      local h = vim.api.nvim_get_hl(0, { name = g, link = false })
+      h.italic = true
+      vim.api.nvim_set_hl(0, g, h)
+    end
   elseif mode == "light" then
     vim.api.nvim_set_option_value("background", "light", {})
     vim.cmd("colorscheme gruvbox")

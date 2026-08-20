@@ -1,5 +1,8 @@
 -- Some basics
 
+-- Font for GUI Neovim only; terminal nvim uses the terminal's font
+vim.o.guifont = 'Source Code Pro,DejaVu Sans Mono,Courier New,monospace'
+
 -- Set highlight on search
 vim.o.hlsearch = true
 

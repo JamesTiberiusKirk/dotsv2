@@ -2,6 +2,7 @@ local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
 config.font = wezterm.font_with_fallback {
+  'Source Code Pro', -- real italics, unlike Noto Sans Mono
   'Noto Sans Mono',
   'Hack Nerd Font Mono',
   'Noto Sans Mono CJK SC',
