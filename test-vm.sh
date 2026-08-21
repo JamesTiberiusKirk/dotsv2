@@ -14,7 +14,7 @@ OVMF=/usr/share/edk2/x64
 mkdir -p "$WORK"
 
 # refuse to clobber a running VM's disk (rm -f bypasses qemu's own file lock)
-if pgrep -x qemu-system-x86_64 >/dev/null; then
+if pgrep -x qemu-system-x86 >/dev/null; then  # comm truncates to 15 chars
   echo "a qemu VM is already running — close it first"; exit 1
 fi
 

@@ -153,6 +153,7 @@ python-sqlparse
 python-virtualenv
 python-west
 qemu-base
+qemu-hw-display-virtio-vga
 qemu-ui-gtk
 qt5ct
 qt6ct-kde
