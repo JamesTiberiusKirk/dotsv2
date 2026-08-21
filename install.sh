@@ -20,8 +20,18 @@ fi
 
 # ---- packages: common + fonts + per-host (pacman ones already done in chroot, --needed skips them) ----
 files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null || true)
-# args, not stdin: `yay -S -` reopens /dev/tty, which dies in a chroot
-yay -S --needed --noconfirm $(sort -u $files) || echo "WARN: some packages failed — rerun later"
+all=$(sort -u $files)
+# repo packages first via pacman (one reliable batch), then AUR one at a time —
+# yay aborts a whole transaction over one unresolvable AUR dep, and `yay -S -`
+# (stdin mode) reopens /dev/tty which dies in a chroot, so: args only.
+repo=$(echo "$all" | while read -r p; do pacman -Si "$p" >/dev/null 2>&1 && echo "$p"; done)
+aur=$(comm -23 <(echo "$all") <(echo "$repo"))
+sudo pacman -S --needed --noconfirm $repo
+failed=
+for p in $aur; do
+  yay -S --needed --noconfirm "$p" || failed="$failed $p"
+done
+[ -z "$failed" ] || echo "WARN: AUR packages failed:$failed — rerun install.sh later"
 
 # ---- login shell: zsh (arrives with the package pass; useradd left bash) ----
 [ "$(getent passwd "$USER" | cut -d: -f7)" = /usr/bin/zsh ] || sudo chsh -s /usr/bin/zsh "$USER"

@@ -25,7 +25,6 @@ btop
 bun
 caja
 ccache
-chirp-next
 cloudflared
 cmake
 darktable-git
@@ -99,7 +98,6 @@ lazygit
 libnotify
 libreoffice-fresh
 linux-lts-headers
-litecli
 logiops
 lua51
 luarocks
@@ -131,11 +129,9 @@ ntp-runit
 openresolv
 openssh
 otf-font-awesome
-owncloud-client
 pandoc-bin
 pasystray-wayland
 pavucontrol
-pgcli
 pgformatter-git
 picom
 pipewire
