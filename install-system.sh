@@ -27,6 +27,10 @@ DISK=/dev/$DISK
 [ -b "$DISK" ] || { echo "$DISK is not a block device"; exit 1; }
 read -rp "hostname [$HOSTNAME_DEFAULT]: " NEWHOST; NEWHOST=${NEWHOST:-$HOSTNAME_DEFAULT}
 read -rp "username [$USER_DEFAULT]: " NEWUSER; NEWUSER=${NEWUSER:-$USER_DEFAULT}
+read -rsp "password (root + $NEWUSER): " PW; echo
+read -rsp "confirm password: " PW2; echo
+[ "$PW" = "$PW2" ] || { echo "passwords don't match"; exit 1; }
+[ -n "$PW" ] || { echo "empty password"; exit 1; }
 read -rp "THIS WIPES $DISK COMPLETELY. type YES to continue: " OK
 [ "$OK" = YES ] || exit 1
 
@@ -125,10 +129,7 @@ sudo -u "$NEWUSER" -H bash -ec 'cd ~/.dots && ./install.sh' \
 rm /etc/sudoers.d/99-install
 CHROOT
 
-echo "== password for root =="
-artix-chroot /mnt passwd root
-echo "== password for $NEWUSER =="
-artix-chroot /mnt passwd "$NEWUSER"
+printf '%s:%s\n' root "$PW" "$NEWUSER" "$PW" | artix-chroot /mnt chpasswd
 
 echo
 echo "==== github ssh key for $NEWUSER — add at https://github.com/settings/keys ===="
