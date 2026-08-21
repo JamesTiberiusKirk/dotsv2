@@ -1,0 +1,81 @@
+# Linux laptop - Binstar (Asus Zenbook Duo)
+
+# shell
+.profile
+.zshrc
+.zsh
+.xinitrc
+.Xresources
+
+# tmux
+.tmux.conf
+.tmux-osx.conf
+.tmux-linux.conf
+
+# tools
+.scripts/rquickshare
+
+# scripts
+.scripts/brightness-step
+.scripts/check-gpu.sh
+.scripts/extracttext.sh
+.scripts/gomodrename.sh
+.scripts/hypr-doc-gen
+.scripts/hyprx
+.scripts/i3-doc-gen
+.scripts/i3status-wrapper
+.scripts/imports
+.scripts/launch-waybar
+.scripts/layout-switcher.sh
+.scripts/menu/common
+.scripts/pg_prettify.sh
+.scripts/qsmenu
+.scripts/ping-latency.sh
+.scripts/random-wallpaper.sh
+.scripts/redshift-toggle
+.scripts/screenshot.sh
+.scripts/script-menu.sh
+.scripts/sql-align-format
+.scripts/swap-workspaces.sh
+.scripts/theme-apply
+.scripts/theme-toggle
+.scripts/touchpad-fix
+.scripts/trackpoint-scroll
+.scripts/update-count.sh
+.scripts/waybar
+.scripts/x11_extracttext.sh
+.scripts/x11_screenshot.sh
+
+# claude
+.claude/statusline-usage.sh
+.claude/settings.json
+.claude/CLAUDE.md
+.claude/icons
+
+# config
+.config/alacritty
+.config/darkman
+.config/dunst
+.config/gtk-3.0
+.config/gtmux
+.config/hypr
+.config/hyprland-autoname-workspaces
+.config/i3
+.config/i3status
+.config/installed_packages
+.config/keyd
+.config/nvim
+.config/picom
+.config/quickshell
+
+# mask dunst dbus activation (quickshell owns notifications in shell mode)
+.local/share/dbus-1/services/org.knopwob.dunst.service
+.config/waybar
+.config/wezterm
+.config/workspacer
+.config/opencode/opencode.jsonc
+.config/opencode/package.json
+.config/opencode/package-lock.json
+.config/opencode/tui.json
+.config/opencode/themes/glass.json
+.config/wofi/style.css

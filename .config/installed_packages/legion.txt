@@ -3,6 +3,7 @@ amd-ucode
 atril
 base
 base-devel
+bbswitch-dkms
 btrfs-progs
 caja
 caja-actions
