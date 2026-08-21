@@ -19,7 +19,7 @@ if ! command -v yay >/dev/null; then
 fi
 
 # ---- packages: common + fonts + per-host (pacman ones already done in chroot, --needed skips them) ----
-files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null)
+files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null || true)
 sort -u $files \
   | yay -S --needed --noconfirm - || echo "WARN: some packages failed — rerun later"
 
@@ -29,7 +29,8 @@ sort -u $files \
 # ---- dots-link: build + link this host's manifest (go comes from the package pass) ----
 export PATH=$PATH:$HOME/go/bin
 (cd "$DOTS" && make install)
-dots-link sync --remote --yes
+# DOTS_HOST: in the install chroot the kernel hostname is still the live ISO's
+DOTS_HOST=$HOST dots-link sync --remote --yes
 
 # ---- runit services from the repo (keyd, ntpd, tailscale) + install-time ones ----
 for sv in "$DOTS"/system/etc/runit/sv/*/; do
@@ -50,6 +51,6 @@ if ! sudo snapper list-configs 2>/dev/null | grep -q root; then
 fi
 
 # ---- hyprland plugins (best effort — needs hyprland headers/session) ----
-command -v hyprpm >/dev/null && { hyprpm add https://github.com/hyprnux/hyprglass || true; hyprpm enable hyprglass || true; }
+command -v hyprpm >/dev/null && { hyprpm add https://github.com/hyprnux/hyprglass || true; hyprpm enable hyprglass || true; } || true
 
 echo "done. log out/in (or reboot) for shell + services to settle."

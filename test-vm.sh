@@ -19,7 +19,8 @@ if pgrep -x qemu-system-x86_64 >/dev/null; then
 fi
 
 # latest base-runit ISO, downloaded once
-ISO_NAME=$(curl -s "$MIRROR/" | grep -oE 'artix-base-runit-[0-9]+-x86_64\.iso' | sort -u | tail -1)
+ISO_NAME=$(curl -s "$MIRROR/" | grep -oE 'artix-base-runit-[0-9]+-x86_64\.iso' | sort -u | tail -1) \
+  || { echo "mirror unreachable: $MIRROR"; exit 1; }
 ISO=$WORK/$ISO_NAME
 [ -f "$ISO" ] || curl -Lo "$ISO" "$MIRROR/$ISO_NAME"
 
@@ -45,6 +46,7 @@ qemu-system-x86_64 \
   -drive file="$DISK",if=virtio \
   -drive file="$USB",format=raw,if=none,id=usb -device usb-storage,drive=usb \
   -usb -device usb-tablet \
+  -device virtio-vga \
   "${CDROM[@]}"
 
 # in the live VM:  mount /dev/sda1 /mnt2 && /mnt2/dots/install-system.sh
