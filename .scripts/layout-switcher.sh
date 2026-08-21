@@ -18,6 +18,8 @@ scrolling — windows in a horizontal strip, pan across
 lua:spiral — fibonacci spiral, each window splits the remainder
 lua:grid — even grid of roughly square cells
 lua:columns — equal-width side-by-side columns
+lua:accordion:horizontal — overlapping stack, side peek strips, H/L to navigate
+lua:accordion:vertical — overlapping stack, top/bottom peek strips, J/K to navigate
 default — clear override, follow global default
 EOF
 )

@@ -60,7 +60,7 @@ reg("SUPER + CTRL + ", {
 reg("SUPER + ", {
     { "V", dsp.window.float({ action = "toggle" }),                           "Toggle floating" },
     { "F", dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }), "Fullscreen" },
-    { "P", dsp.window.pseudo(),                                               "Pseudotile" },
+    { "P", dsp.exec_cmd("~/.config/hypr/scripts/pseudotile.sh"), "Pseudotile (60% x 100%)" },
 })
 reg("SUPER + SHIFT + ", {
     -- internal=0 (none) keeps the window tiled; client=2 tells the app it's fullscreen.
@@ -68,15 +68,20 @@ reg("SUPER + SHIFT + ", {
 })
 
 -- ---- Focus (vim) ----
--- Monocle stacks all windows at the same geometry, so directional focus is
--- meaningless there: J/K cycle the stack instead (checked live at press time).
+-- Monocle and accordion stack windows spatially overlapped, so directional
+-- focus is meaningless there (checked live at press time). Monocle: J/K cycle,
+-- H/L stay directional (cross-monitor). Accordion: forwarded to the layout's
+-- own layout_msg, which cycles on its axis and stays directional cross-axis.
 -- Layout is per-workspace now (layout-switcher.sh), so ask the workspace.
-local function focus_vertical(dir)
+local function focus_dir(dir)
     return function()
         local ws = hl.get_active_workspace()
-        if ws and ws.tiled_layout == "monocle" then
+        local layout = ws and ws.tiled_layout
+        if layout == "monocle" and (dir == "u" or dir == "d") then
             -- tiled=true routes through the monocle algorithm's own cycle order
             hl.dispatch(dsp.window.cycle_next({ next = (dir == "d"), tiled = true }))
+        elseif layout and layout:find("lua:accordion", 1, true) == 1 then
+            hl.dispatch(dsp.layout("focus " .. dir))
         else
             hl.dispatch(dsp.focus({ direction = dir }))
         end
@@ -84,10 +89,10 @@ local function focus_vertical(dir)
 end
 
 reg("SUPER + ", {
-    { "H", dsp.focus({ direction = "l" }), "Focus left" },
-    { "L", dsp.focus({ direction = "r" }), "Focus right" },
-    { "K", focus_vertical("u"),            "Focus up (cycle back in monocle)" },
-    { "J", focus_vertical("d"),            "Focus down (cycle next in monocle)" },
+    { "H", focus_dir("l"), "Focus left (cycle in h-accordion)" },
+    { "L", focus_dir("r"), "Focus right (cycle in h-accordion)" },
+    { "K", focus_dir("u"), "Focus up (cycle in monocle/v-accordion)" },
+    { "J", focus_dir("d"), "Focus down (cycle in monocle/v-accordion)" },
 })
 
 -- ---- Move window (vim + shift) ----
@@ -164,12 +169,25 @@ reg("", {
 -- ============================ SUBMAPS ============================
 
 -- Resize mode (i3-style). Enter with SUPER SHIFT R.
+-- On accordion workspaces h/j/k/l adjust the layout's peek width instead
+-- (the fold reveal); SHIFT variants stay plain window resizes.
 reg("SUPER + SHIFT + ", { { "R", dsp.submap("resize"), "Resize mode" } })
+local function resize_or_peek(dir, resize_dsp)
+    return function()
+        local ws = hl.get_active_workspace()
+        local layout = ws and ws.tiled_layout
+        if layout and layout:find("lua:accordion", 1, true) == 1 then
+            hl.dispatch(dsp.layout((dir == "l" or dir == "j") and "grow" or "shrink"))
+        else
+            hl.dispatch(resize_dsp)
+        end
+    end
+end
 hl.define_submap("resize", function()
-    hl.bind("h",            dsp.window.resize({ x = -50, y = 0,  relative = true }), { repeating = true })
-    hl.bind("l",            dsp.window.resize({ x = 50,  y = 0,  relative = true }), { repeating = true })
-    hl.bind("k",            dsp.window.resize({ x = 0,   y = -50, relative = true }), { repeating = true })
-    hl.bind("j",            dsp.window.resize({ x = 0,   y = 50,  relative = true }), { repeating = true })
+    hl.bind("h",            resize_or_peek("h", dsp.window.resize({ x = -50, y = 0,  relative = true })), { repeating = true })
+    hl.bind("l",            resize_or_peek("l", dsp.window.resize({ x = 50,  y = 0,  relative = true })), { repeating = true })
+    hl.bind("k",            resize_or_peek("k", dsp.window.resize({ x = 0,   y = -50, relative = true })), { repeating = true })
+    hl.bind("j",            resize_or_peek("j", dsp.window.resize({ x = 0,   y = 50,  relative = true })), { repeating = true })
     hl.bind("SHIFT + h",    dsp.window.resize({ x = -100, y = 0,   relative = true }), { repeating = true })
     hl.bind("SHIFT + l",    dsp.window.resize({ x = 100,  y = 0,   relative = true }), { repeating = true })
     hl.bind("SHIFT + k",    dsp.window.resize({ x = 0,    y = -100, relative = true }), { repeating = true })
@@ -177,7 +195,7 @@ hl.define_submap("resize", function()
     hl.bind("escape",       dsp.submap("reset"))
     hl.bind("return",       dsp.submap("reset"))
 end)
-doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active window; Esc/Enter to exit" }
+doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active window (accordion: peek width); Esc/Enter to exit" }
 
 -- Swap-visible-workspaces mode (i3-style). Enter with SUPER Tab.
 reg("SUPER + ", { { "Tab", dsp.submap("swap"), "Swap workspaces mode" } })

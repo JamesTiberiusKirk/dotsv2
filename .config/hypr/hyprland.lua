@@ -36,6 +36,7 @@ end
 require("layouts/spiral")
 require("layouts/grid")
 require("layouts/columns")
+require("layouts/accordion")
 require("base")
 require("colors-" .. theme_mode())
 require("binds")

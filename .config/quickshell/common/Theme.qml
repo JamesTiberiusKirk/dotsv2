@@ -30,6 +30,7 @@ Singleton {
     readonly property color accentText:   dark ? "#FFFFFF"   : "#FBF1C7"
     readonly property color track:        dark ? "#2A1A45"   : "#E0D2AC"
     readonly property color ok:           dark ? "#7DD87D"   : "#79740E"
+    readonly property color warn:         dark ? "#FBBF24"   : "#D79921"
     readonly property color urgent:       dark ? "#F87171"   : "#CC241D"
 
     FileView {

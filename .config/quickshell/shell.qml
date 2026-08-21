@@ -14,4 +14,5 @@ ShellRoot {
     NotifCenter {}
     Launcher {}
     Osd {}
+    BatteryGuard {}
 }

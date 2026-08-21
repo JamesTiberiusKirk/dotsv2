@@ -418,7 +418,9 @@ Variants {
                         readonly property real pct: dev ? (dev.percentage > 1 ? dev.percentage : dev.percentage * 100) : 0
                         readonly property bool charging: dev ? dev.state === UPowerDeviceState.Charging : false
                         text: (charging ? "⚡" : "bat ") + Math.round(pct) + "%"
-                        color: !charging && pct <= 15 ? Theme.urgent : Theme.text
+                        color: !charging && pct <= 10 ? Theme.urgent
+                             : !charging && pct <= 20 ? Theme.warn
+                             : Theme.text
                     }
                     // backlight
                     Cell {
