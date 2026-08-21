@@ -13,6 +13,11 @@ OVMF=/usr/share/edk2/x64
 
 mkdir -p "$WORK"
 
+# refuse to clobber a running VM's disk (rm -f bypasses qemu's own file lock)
+if pgrep -x qemu-system-x86_64 >/dev/null; then
+  echo "a qemu VM is already running — close it first"; exit 1
+fi
+
 # latest base-runit ISO, downloaded once
 ISO_NAME=$(curl -s "$MIRROR/" | grep -oE 'artix-base-runit-[0-9]+-x86_64\.iso' | sort -u | tail -1)
 ISO=$WORK/$ISO_NAME
@@ -31,8 +36,9 @@ else
   CDROM=()
 fi
 
-cp --update=none "$OVMF/OVMF_VARS.4m.fd" "$WORK/vars.fd"
+cp -f "$OVMF/OVMF_VARS.4m.fd" "$WORK/vars.fd"
 qemu-system-x86_64 \
+  -name test-vm \
   -enable-kvm -m 4G -smp 4 -cpu host \
   -drive if=pflash,format=raw,readonly=on,file="$OVMF/OVMF_CODE.4m.fd" \
   -drive if=pflash,format=raw,file="$WORK/vars.fd" \

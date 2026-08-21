@@ -241,8 +241,8 @@ Variants {
                         height: panel.barBodyHeight
 
                         Cell { visible: Sys.docker !== ""; text: Sys.docker }
-                        Cell { visible: Sys.tailscale !== ""; text: Sys.tailscale }
                         Cell { visible: Sys.vm !== ""; text: Sys.vm }
+                        Cell { visible: Sys.tailscale !== ""; text: Sys.tailscale }
                         Cell { text: "📊 " + Math.round(Sys.cpu * 100) + "%" }
                         Cell { visible: Sys.memText !== ""; text: "🧠 " + Sys.memText }
                         Cell { visible: Sys.diskFree !== ""; text: "💾 " + Sys.diskFree }
@@ -736,8 +736,16 @@ Variants {
                         ResourceInfoRow { label: "disk free"; value: Sys.diskFree }
                         ResourceInfoRow { label: "net"; value: Sys.netText }
                         ResourceInfoRow { label: "docker"; value: Sys.docker }
-                        ResourceInfoRow { label: "tailscale"; value: Sys.tailscale }
+                        Repeater {
+                            model: Sys.dockerList
+                            ResourceInfoRow { label: "  " + modelData.name; value: modelData.status }
+                        }
                         ResourceInfoRow { label: "vm"; value: Sys.vm }
+                        Repeater {
+                            model: Sys.vmList
+                            ResourceInfoRow { label: "  " + modelData.name; value: modelData.status }
+                        }
+                        ResourceInfoRow { label: "tailscale"; value: Sys.tailscale }
                     }
                 }
             }

@@ -110,6 +110,33 @@ Singleton {
         }
     }
 
+    // per-item lists for the popout: [{name, status}]
+    property var dockerList: []
+    property var vmList: []
+    Process {
+        id: dockerListProc
+        command: ["sh", "-c", "docker ps --format '{{.Names}}|{{.Status}}' 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: root.dockerList = text.split("\n").filter(l => l).map(l => {
+                const i = l.indexOf("|");
+                return { name: l.slice(0, i), status: l.slice(i + 1) };
+            })
+        }
+    }
+    Process {
+        id: vmListProc
+        // qemu VM names from -name (libvirt sets guest=X); nameless qemu shows "qemu"
+        command: ["sh", "-c",
+            "for p in $(pgrep -f '[q]emu-system-'); do " + // bracket dodges self-match
+            "tr '\\0' '\\n' < /proc/$p/cmdline 2>/dev/null | " +
+            "awk '$0==\"-name\"{getline;sub(/^guest=/,\"\");sub(/,.*/,\"\");print;f=1;exit} END{if(!f)print \"qemu\"}'; " +
+            "done"]
+        stdout: StdioCollector {
+            onStreamFinished: root.vmList = text.split("\n").filter(l => l)
+                .map(n => ({ name: n, status: "running" }))
+        }
+    }
+
     // corne keyboard layer (cornd/cornectl, present on some hosts only)
     property string corne: ""
     Process {
@@ -160,6 +187,8 @@ Singleton {
             dockerProc.running = true;
             tsProc.running = true;
             vmProc.running = true;
+            dockerListProc.running = true;
+            vmListProc.running = true;
         }
     }
     Timer {

@@ -73,6 +73,7 @@ hicolor-icon-theme
 htop
 httpie
 hugo
+hyprland
 hyprland-autoname-workspaces-git
 hyprpaper
 hyprshade
@@ -88,12 +89,14 @@ inkscape
 iwd
 iwd-runit
 jdk21-openjdk
+jq
 keyd
 krita
 kservice5
 kvantum-qt5
 lazydocker
 lazygit
+libnotify
 libreoffice-fresh
 linux-lts-headers
 litecli
@@ -113,6 +116,7 @@ mtools
 mullvad-vpn-bin
 mumble
 neovide
+neovim
 network-manager-applet
 networkmanager
 networkmanager-runit
@@ -125,6 +129,7 @@ npm
 ntp
 ntp-runit
 openresolv
+openssh
 otf-font-awesome
 owncloud-client
 pandoc-bin
@@ -133,6 +138,10 @@ pavucontrol
 pgcli
 pgformatter-git
 picom
+pipewire
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
 playerctl
 playwright
 postgresql-libs
@@ -161,6 +170,7 @@ rust
 satty
 seahorse
 shellcheck
+slurp
 socklog
 solaar
 sqlitebrowser
@@ -196,10 +206,13 @@ ueberzugpp
 unclutter
 vencord-bin
 vertex-themes
+vim
 visual-studio-code-bin
 waybar
 wezterm
+wireplumber
 wkhtmltopdf-bin
+wl-clipboard
 wofi
 xclip
 xdg-desktop-portal
@@ -218,3 +231,4 @@ zathura
 zathura-pdf-poppler
 zephyr-sdk
 zmk-studio-bin
+zsh

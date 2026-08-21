@@ -23,6 +23,9 @@ files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null
 sort -u $files \
   | yay -S --needed --noconfirm - || echo "WARN: some packages failed — rerun later"
 
+# ---- login shell: zsh (arrives with the package pass; useradd left bash) ----
+[ "$(getent passwd "$USER" | cut -d: -f7)" = /usr/bin/zsh ] || sudo chsh -s /usr/bin/zsh "$USER"
+
 # ---- dots-link: build + link this host's manifest (go comes from the package pass) ----
 export PATH=$PATH:$HOME/go/bin
 (cd "$DOTS" && make install)
