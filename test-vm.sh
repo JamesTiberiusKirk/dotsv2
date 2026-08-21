@@ -46,7 +46,6 @@ qemu-system-x86_64 \
   -drive file="$DISK",if=virtio \
   -drive file="$USB",format=raw,if=none,id=usb -device usb-storage,drive=usb \
   -usb -device usb-tablet \
-  -device virtio-vga \
   "${CDROM[@]}"
 
 # in the live VM:  mount /dev/sda1 /mnt2 && /mnt2/dots/install-system.sh
