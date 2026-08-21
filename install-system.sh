@@ -88,6 +88,7 @@ sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen
 echo LANG=en_US.UTF-8 > /etc/locale.conf
 
 useradd -m -G wheel "$NEWUSER"
+printf '%s:%s\n' root "$ROOT_PW" "$NEWUSER" "$USER_PW" | chpasswd
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
 for s in dbus elogind NetworkManager; do
@@ -126,19 +127,28 @@ sudo -u "$NEWUSER" ssh-keygen -t ed25519 -N "" -f /home/$NEWUSER/.ssh/id_ed25519
 sudo -u "$NEWUSER" -H git clone "$REPO_HTTPS" /home/$NEWUSER/.dots
 sudo -u "$NEWUSER" -H git -C /home/$NEWUSER/.dots remote set-url origin "$REPO_SSH"
 
-# converge: packages (repo+AUR), dots-link, services, snapper — via install.sh
-# as the user; passwordless sudo just for this run, reverted below
-echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/99-install
 pacman -Sy
-sudo -u "$NEWUSER" -H bash -ec 'cd ~/.dots && ./install.sh' \
-  || echo "WARN: install.sh failed — rerun it after first boot"
-rm /etc/sudoers.d/99-install
 CHROOT
-
-printf '%s:%s\n' root "$ROOT_PW" "$NEWUSER" "$USER_PW" | artix-chroot /mnt chpasswd
 
 echo
 echo "==== github ssh key for $NEWUSER — add at https://github.com/settings/keys ===="
 cat /mnt/home/$NEWUSER/.ssh/id_ed25519.pub
 echo "================================================================"
-echo "done. reboot and remove the USB/ISO."
+
+# ---- converge: packages (repo+AUR), dots-link, services, snapper — via install.sh ----
+# as the user; passwordless sudo just for this run, reverted below. Output is
+# logged to ~/install.log on the target; a failure stops the script LOUDLY.
+LOG=/mnt/home/$NEWUSER/install.log
+echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' > /mnt/etc/sudoers.d/99-install
+if artix-chroot /mnt sudo -u "$NEWUSER" -H bash -ec 'cd ~/.dots && ./install.sh' 2>&1 | tee "$LOG"; then
+  rm /mnt/etc/sudoers.d/99-install
+  echo "done. reboot and remove the USB/ISO."
+else
+  rm /mnt/etc/sudoers.d/99-install
+  echo
+  echo "########## install.sh FAILED — last lines of ~/install.log: ##########"
+  tail -n 25 "$LOG"
+  echo "######################################################################"
+  echo "the system still boots (passwords are set); fix, then rerun ~/.dots/install.sh after boot."
+  exit 1
+fi

@@ -1,6 +1,6 @@
 *=dwindle
 1=monocle
 2=monocle
-3=monocle
 9=lua:accordion:horizontal
 10=lua:accordion:horizontal
+3=lua:accordion:horizontal

@@ -20,8 +20,8 @@ fi
 
 # ---- packages: common + fonts + per-host (pacman ones already done in chroot, --needed skips them) ----
 files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null || true)
-sort -u $files \
-  | yay -S --needed --noconfirm - || echo "WARN: some packages failed — rerun later"
+# args, not stdin: `yay -S -` reopens /dev/tty, which dies in a chroot
+yay -S --needed --noconfirm $(sort -u $files) || echo "WARN: some packages failed — rerun later"
 
 # ---- login shell: zsh (arrives with the package pass; useradd left bash) ----
 [ "$(getent passwd "$USER" | cut -d: -f7)" = /usr/bin/zsh ] || sudo chsh -s /usr/bin/zsh "$USER"
