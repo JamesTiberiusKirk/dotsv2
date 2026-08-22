@@ -10,6 +10,9 @@ HOST=$(cat /etc/hostname)
 
 [ "$(id -u)" != 0 ] || { echo "run as your user, not root"; exit 1; }
 
+# `./install.sh extra-pkgs` — heavy optional stuff (extras.txt), on demand only
+[ "${1-}" != extra-pkgs ] || exec yay -S --needed $(grep -v '^#' "$LISTS/extras.txt")
+
 # ---- yay (built from AUR; makepkg refuses root, hence the user check above) ----
 if ! command -v yay >/dev/null; then
   t=$(mktemp -d)
@@ -17,6 +20,10 @@ if ! command -v yay >/dev/null; then
   (cd "$t" && makepkg -si --noconfirm)
   rm -rf "$t"
 fi
+
+# ---- makepkg: build in RAM, all cores, skip package compression ----
+sudo mkdir -p /etc/makepkg.conf.d
+printf 'BUILDDIR=/tmp/makepkg\nMAKEFLAGS="-j$(nproc)"\nPKGEXT=".pkg.tar"\n' | sudo tee /etc/makepkg.conf.d/speed.conf >/dev/null
 
 # ---- packages: common + fonts + per-host (pacman ones already done in chroot, --needed skips them) ----
 files=$(ls "$LISTS/common.txt" "$LISTS/fonts.txt" "$LISTS/$HOST.txt" 2>/dev/null || true)

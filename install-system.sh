@@ -80,9 +80,21 @@ fi
 case $(grep -m1 vendor_id /proc/cpuinfo) in
   *Intel*) UCODE=intel-ucode;; *AMD*) UCODE=amd-ucode;; *) UCODE=;;
 esac
+sed -i 's/^#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
+# known-good mirrors first — default lists have led with dead ones (rit.edu)
+prepend_mirrors() {
+  sed -i '1i Server = https://mirror1.artixlinux.org/repos/$repo/os/$arch' "$1/mirrorlist"
+  [ -f "$1/mirrorlist-arch" ] && sed -i '1i Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' "$1/mirrorlist-arch" || true
+}
+prepend_mirrors /etc/pacman.d
 basestrap /mnt base base-devel runit dbus-runit elogind-runit linux linux-firmware $UCODE \
   btrfs-progs networkmanager networkmanager-runit git openssh limine
+sed -i 's/^#ParallelDownloads/ParallelDownloads/' /mnt/etc/pacman.conf
+prepend_mirrors /mnt/etc/pacman.d
 fstabgen -U /mnt >> /mnt/etc/fstab
+# carry the live session's wifi profiles into the installed system
+mkdir -p /mnt/etc/NetworkManager/system-connections
+cp /etc/NetworkManager/system-connections/* /mnt/etc/NetworkManager/system-connections/ 2>/dev/null || true
 
 # ---- config inside chroot ----
 echo "$NEWHOST" > /mnt/etc/hostname

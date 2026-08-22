@@ -1,55 +1,49 @@
-# binstar — install project state (2026-08-21)
+# binstar — install project state (2026-08-22)
 
-Asus Zenbook Duo. Artix runit, btrfs, Limine. Resumed from dellstar session.
+Asus Zenbook Duo (Intel Core Ultra, Arc iGPU, 32G). Artix runit, btrfs, Limine.
 
 ## What exists
 
 - `install-system.sh` (repo root) — live-ISO installer: interactive disk/hostname/user
-  + two password pairs up front, then unattended: GPT (1G ESP at /boot + btrfs),
-  subvols `@ @home @log @snapshots @swap` (zstd, noatime, discard=async), swapfile
-  ram*2 with hibernate (resume + resume_offset on cmdline, resume hook in
-  mkinitcpio), basestrap w/ ucode autodetect, dbus/elogind/NetworkManager enabled,
-  Limine via EFI fallback path, ssh keygen (pubkey printed at end), https-clones
-  this repo to ~user/.dots (origin flipped to ssh), then runs install.sh in the
-  chroot with temp NOPASSWD; converge output tees to ~/install.log and a failure
-  stops LOUDLY with the log tail. Entry: curl the raw script from GitHub master.
-- `install.sh` — idempotent converge: yay-bin (built if missing), repo packages in
-  one pacman batch then AUR one-by-one w/ failure summary (yay stdin mode dies in
-  chroot — args only), chsh to zsh, `make install` + `dots-link sync --remote -y`
-  (DOTS_HOST env for chroot), repo runit services (keyd/ntpd/tailscale), snapper +
-  snap-pac + limine-snapper-sync (QGROUP= — no quotas, omarchy freeze bug), hyprpm
-  hyprglass best-effort.
-- `test-vm.sh` — throwaway UEFI qemu test: fresh disk + FAT usb image carrying the
-  working tree (`/mnt2/dots/…` after `mount /dev/sda /mnt2`); `boot` arg boots the
-  installed disk. Fresh OVMF vars each run (stale NVRAM broke boot once). Guard
-  against concurrent runs (second instance's rm -f clobbered a live install once).
-- Package lists: dellstar.txt + deathstar.txt added; common.txt cleaned (dep-installed
-  essentials like hyprland/pipewire/zsh added; broken-AUR + hardware + heavy
-  toolchains moved per-host; hosts/binstar manifest = copy of dellstar's).
+  + two password pairs + swap? prompt up front, then unattended: GPT (1G ESP at
+  /boot + btrfs), subvols `@ @home @log @snapshots` (+`@swap` w/ ram*2 swapfile,
+  hibernate resume on cmdline — skipped entirely if swap declined), basestrap w/
+  ucode autodetect, ParallelDownloads on + known-good mirrors prepended
+  (geo.mirror.pkgbuild.com for arch, mirror1.artixlinux.org for artix — default
+  lists led with dead mirrors, killed the first real install), Limine via EFI
+  fallback, ssh keygen (pubkey printed), https-clones repo to ~user/.dots (origin
+  → ssh), runs install.sh in chroot; converge failure is non-fatal + LOUD (system
+  still boots, rerun ~/.dots/install.sh after boot).
+- `install.sh` — idempotent converge: yay-bin, makepkg speed conf
+  (BUILDDIR=/tmp, -j$(nproc), no pkg compression), repo pkgs one pacman batch
+  then AUR one-by-one w/ failure summary, chsh zsh, make install + dots-link sync,
+  runit services, snapper (QGROUP=), hyprpm best-effort.
+  `./install.sh extra-pkgs` installs extras.txt (never by default).
+- Package lists: common.txt trimmed 223 → ~177 (dupe browsers/viewers/terminals,
+  legacy i3+X11 stack, blue-recorder + heavy AUR builds gone); `extras.txt` =
+  on-demand heavy stuff (embedded toolchain, texlive-fontsextra, jdk+maven,
+  gimp/inkscape/krita/rawtherapee, libreoffice, steam, hugo, ~8G total).
+  Still no binstar.txt (host gets common+fonts; fine until hardware pass).
+- `.config/hypr/hosts/binstar.lua` exists (was a hard startup error without it).
+- `test-vm.sh` — back on KVM (-cpu host, 8G, smp 8) now that we run on deathstar.
 
-## Verified in VM
+## Verified
 
-Full flow through: partition → basestrap → Limine boot → login (passwords via
-chpasswd early) → clone → converge started; repo-package batch + many AUR builds
-ran. NOT yet verified end-to-end: converge completing, dots-link result, snapper,
-first graphical session (hyprland is in common.txt now; hyprx --shell untested).
+- VM (deathstar): full flow → graphical hyprland session.
+- Real hardware (32G USB stick test): base install + Limine boot + passwords OK.
+  Chroot converge died on dead default mirrors (→ mirror prepend fix); rerun
+  after boot converged through the AUR list. USB stick I/O made it take hours —
+  not representative. Account later got faillock'd (bad password attempts).
+- Windows MSDM license key confirmed present in ACPI (photographed) — safe to
+  nuke Windows; BIOS updates via ASUS EZ Flash, no Windows needed.
 
-## Open problem: dellstar freezes (why we moved to desktop)
+## Next steps
 
-dellstar hard-froze 4-5x during VM runs — first blamed KVM (6.18.41-lts + qemu
-11.1, whose virtio-vga also segfaults), but it froze under pure TCG too, so the
-common factor is sustained all-core load. Idle cores 50-57°C with fan at 0 RPM →
-prime suspect: cooling/thermal hard-freeze (no kernel trace ever; logs stop
-mid-line). Unconfirmed test: `stress-ng --cpu 4` + watch sensors, no VM. test-vm.sh
-currently uses `-accel tcg -smp 2` because of this; on a healthy host switch back
-to `-enable-kvm -cpu host` and more cores/RAM for sane speed.
-
-## Next steps (desktop)
-
-1. `git pull`, run `./test-vm.sh` (KVM again — deathstar is healthy), full install,
-   `./test-vm.sh boot`, verify: zsh login, symlinks, `hyprx --shell`, snapper,
-   `~/install.log` AUR failure summary.
-2. Fix whatever the converge still trips on (AUR long-tail).
-3. Separately: dellstar cooling (dust/fan), then optionally retest KVM there.
-4. Real Zenbook when it arrives: curl install-system.sh from raw GitHub, no USB
-   repo needed; add binstar hardware pass (duo screens, asusctl, binstar.txt).
+1. NVMe install on the Zenbook: curl install-system.sh from raw master, pick
+   internal nvme, swap = Y. Should converge unattended with the mirror fix.
+2. Verify: zsh login, symlinks, `hyprx --shell`, snapper, ~/install.log summary.
+3. binstar hardware pass: duo screens (binstar.lua), asusctl, binstar.txt.
+4. dellstar cooling (dust/fan) — froze under sustained load, likely thermal;
+   then optionally re-enable KVM there.
+5. Maybe: prune-on-converge for packages (remove what's not in lists) — discussed,
+   undecided.

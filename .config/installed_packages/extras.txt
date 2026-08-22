@@ -1,0 +1,15 @@
+arduino-cli
+arm-none-eabi-gcc
+arm-none-eabi-newlib
+dfu-util
+gimp
+hugo
+inkscape
+jdk21-openjdk
+krita
+libreoffice-fresh
+maven
+rawtherapee
+steam
+texlive-fontsextra
+tinygo
