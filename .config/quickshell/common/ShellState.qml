@@ -18,10 +18,5 @@ Singleton {
             if (root.hidden)
                 Notifs.centerOpen = false;
         }
-        // layout-switcher.sh changes layouts via `hyprctl eval`, which emits no
-        // socket2 event, so it pokes us to refetch workspace data (tiledLayout)
-        function refreshLayout(): void {
-            Hyprland.refreshWorkspaces();
-        }
     }
 }

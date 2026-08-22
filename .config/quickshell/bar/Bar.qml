@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.SystemTray
@@ -173,10 +174,29 @@ Variants {
                 anchors { left: parent.left; top: parent.top; leftMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
                 spacing: 10
 
+                // hyprland's IPC reports the wrong name for lua layouts (always
+                // the first one registered), so read layout-switcher.sh's
+                // persisted picks instead — the file is the source of truth
+                FileView {
+                    id: layoutFile
+                    path: `${Quickshell.env("HOME")}/.config/hypr/.layout`
+                    watchChanges: true
+                    onFileChanged: reload()
+                }
+
                 Island {
                     id: wsIsland
                     Cell {
-                        text: Hyprland.monitorFor(panel.screen)?.activeWorkspace?.lastIpcObject?.tiledLayout ?? ""
+                        text: {
+                            const ws = Hyprland.monitorFor(panel.screen)?.activeWorkspace?.id;
+                            let def = "dwindle", cur = "";
+                            for (const line of layoutFile.text().split("\n")) {
+                                const [k, v] = line.split("=");
+                                if (k === "*") def = v;
+                                else if (k == ws) cur = v;
+                            }
+                            return (cur || def).replace("lua:", "");
+                        }
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
