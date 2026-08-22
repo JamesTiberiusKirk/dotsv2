@@ -43,7 +43,9 @@ all=$(sort -u $files)
 # (stdin mode) reopens /dev/tty which dies in a chroot, so: args only.
 repo=$(echo "$all" | while read -r p; do pacman -Si "$p" >/dev/null 2>&1 && echo "$p"; done)
 aur=$(comm -23 <(echo "$all") <(echo "$repo"))
-sudo pacman -S --needed --noconfirm $repo
+# interactive by default so conflicts can be resolved at the prompt;
+# install-system.sh sets DOTS_NOCONFIRM=1 for the unattended chroot run
+sudo pacman -S --needed ${DOTS_NOCONFIRM:+--noconfirm} $repo
 failed=
 for p in $aur; do
   yay -S --needed --noconfirm "$p" || failed="$failed $p"

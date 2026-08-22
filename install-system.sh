@@ -160,7 +160,7 @@ echo "================================================================"
 # logged to ~/install.log on the target; a failure stops the script LOUDLY.
 LOG=/mnt/home/$NEWUSER/install.log
 echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' > /mnt/etc/sudoers.d/99-install
-if artix-chroot /mnt sudo -u "$NEWUSER" -H bash -ec 'cd ~/.dots && ./install.sh' 2>&1 | tee "$LOG"; then
+if artix-chroot /mnt sudo -u "$NEWUSER" -H bash -ec 'cd ~/.dots && DOTS_NOCONFIRM=1 ./install.sh' 2>&1 | tee "$LOG"; then
   rm /mnt/etc/sudoers.d/99-install
   echo "done. reboot and remove the USB/ISO."
 else
