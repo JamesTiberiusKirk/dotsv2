@@ -177,7 +177,7 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
     local cur, y = gtmux.context().session, 2   -- y stays in PARENT coords
     for _, s in ipairs(gtmux.sessions()) do
       local here = (s.name == cur)
-      inner:text(1, y - 1, (here and "> " or "  ") .. s.name .. "(" .. s.windows .. ")",
+      inner:text(1, y - 1, (here and "> " or "  ") .. s.name,
              here and "fg=green,bold" or "fg=white")
       y = y + 1
     end
