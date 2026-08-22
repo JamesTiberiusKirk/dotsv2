@@ -21,6 +21,16 @@ if ! command -v yay >/dev/null; then
   rm -rf "$t"
 fi
 
+# ---- Arch repos on top of Artix (discord, httpie, etc. live there) ----
+if ! grep -q '^\[extra\]' /etc/pacman.conf; then
+  sudo pacman -S --needed --noconfirm artix-archlinux-support
+  grep -q 'geo.mirror.pkgbuild.com' /etc/pacman.d/mirrorlist-arch 2>/dev/null \
+    || echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' | sudo tee -a /etc/pacman.d/mirrorlist-arch >/dev/null
+  printf '\n[extra]\nInclude = /etc/pacman.d/mirrorlist-arch\n\n[multilib]\nInclude = /etc/pacman.d/mirrorlist-arch\n' | sudo tee -a /etc/pacman.conf >/dev/null
+  sudo pacman-key --populate archlinux
+  sudo pacman -Sy
+fi
+
 # ---- makepkg: build in RAM, all cores, skip package compression ----
 sudo mkdir -p /etc/makepkg.conf.d
 printf 'BUILDDIR=/tmp/makepkg\nMAKEFLAGS="-j$(nproc)"\nPKGEXT=".pkg.tar"\n' | sudo tee /etc/makepkg.conf.d/speed.conf >/dev/null
