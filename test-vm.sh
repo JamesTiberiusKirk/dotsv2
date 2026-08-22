@@ -40,7 +40,7 @@ fi
 cp -f "$OVMF/OVMF_VARS.4m.fd" "$WORK/vars.fd"
 qemu-system-x86_64 \
   -name test-vm \
-  -accel tcg -m 4G -smp 2 \
+  -enable-kvm -cpu host -m 8G -smp 8 \
   -drive if=pflash,format=raw,readonly=on,file="$OVMF/OVMF_CODE.4m.fd" \
   -drive if=pflash,format=raw,file="$WORK/vars.fd" \
   -drive file="$DISK",if=virtio \
