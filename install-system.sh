@@ -27,6 +27,7 @@ DISK=/dev/$DISK
 [ -b "$DISK" ] || { echo "$DISK is not a block device"; exit 1; }
 read -rp "hostname [$HOSTNAME_DEFAULT]: " NEWHOST; NEWHOST=${NEWHOST:-$HOSTNAME_DEFAULT}
 read -rp "username [$USER_DEFAULT]: " NEWUSER; NEWUSER=${NEWUSER:-$USER_DEFAULT}
+read -rp "swapfile + hibernate? [Y/n]: " WANT_SWAP; WANT_SWAP=${WANT_SWAP:-Y}
 ask_pw() {  # ask_pw <label> -> sets REPLY_PW
   local a b
   read -rsp "password for $1: " a; echo
@@ -54,21 +55,26 @@ mkfs.fat -F32 "$ESP"
 mkfs.btrfs -f "$ROOT"
 
 mount "$ROOT" /mnt
-btrfs subvolume create /mnt/@ /mnt/@home /mnt/@log /mnt/@snapshots /mnt/@swap
+btrfs subvolume create /mnt/@ /mnt/@home /mnt/@log /mnt/@snapshots
+[ "${WANT_SWAP^^}" != Y ] || btrfs subvolume create /mnt/@swap
 umount /mnt
 
 OPTS=compress=zstd,noatime,discard=async
 mount -o "$OPTS,subvol=@" "$ROOT" /mnt
-mkdir -p /mnt/{boot,home,var/log,.snapshots,swap}
+mkdir -p /mnt/{boot,home,var/log,.snapshots}
 mount "$ESP" /mnt/boot
 mount -o "$OPTS,subvol=@home"      "$ROOT" /mnt/home
 mount -o "$OPTS,subvol=@log"       "$ROOT" /mnt/var/log
 mount -o "$OPTS,subvol=@snapshots" "$ROOT" /mnt/.snapshots
-mount -o noatime,subvol=@swap      "$ROOT" /mnt/swap
-SWAP_SIZE=$(( ($(awk '/MemTotal/{print $2}' /proc/meminfo) * 2 / 1048576) + 1 ))g  # ram*2, rounded up
-btrfs filesystem mkswapfile --size "$SWAP_SIZE" /mnt/swap/swapfile
-RESUME_OFFSET=$(btrfs inspect-internal map-swapfile -r /mnt/swap/swapfile)
-swapon /mnt/swap/swapfile
+RESUME_OFFSET=
+if [ "${WANT_SWAP^^}" = Y ]; then
+  mkdir -p /mnt/swap
+  mount -o noatime,subvol=@swap      "$ROOT" /mnt/swap
+  SWAP_SIZE=$(( ($(awk '/MemTotal/{print $2}' /proc/meminfo) * 2 / 1048576) + 1 ))g  # ram*2, rounded up
+  btrfs filesystem mkswapfile --size "$SWAP_SIZE" /mnt/swap/swapfile
+  RESUME_OFFSET=$(btrfs inspect-internal map-swapfile -r /mnt/swap/swapfile)
+  swapon /mnt/swap/swapfile
+fi
 
 # ---- base system ----
 case $(grep -m1 vendor_id /proc/cpuinfo) in
@@ -102,8 +108,10 @@ cat > /etc/hosts <<EOF
 EOF
 
 # hibernation: resume hook (after udev, before filesystems) + rebuild initramfs
-sed -i 's/^\(HOOKS=.*\) filesystems/\1 resume filesystems/' /etc/mkinitcpio.conf
-grep -q ' resume ' /etc/mkinitcpio.conf || { echo "ERROR: resume hook not added to mkinitcpio.conf"; exit 1; }
+if [ -n "$RESUME_OFFSET" ]; then
+  sed -i 's/^\(HOOKS=.*\) filesystems/\1 resume filesystems/' /etc/mkinitcpio.conf
+  grep -q ' resume ' /etc/mkinitcpio.conf || { echo "ERROR: resume hook not added to mkinitcpio.conf"; exit 1; }
+fi
 mkinitcpio -P
 
 # Limine (UEFI fallback path — no efibootmgr entry needed)
@@ -115,7 +123,7 @@ timeout: 3
 /Artix
     protocol: linux
     path: boot():/vmlinuz-linux
-    cmdline: root=UUID=$UUID rootflags=subvol=@ rw quiet resume=UUID=$UUID resume_offset=$RESUME_OFFSET
+    cmdline: root=UUID=$UUID rootflags=subvol=@ rw quiet${RESUME_OFFSET:+ resume=UUID=$UUID resume_offset=$RESUME_OFFSET}
     module_path: boot():/initramfs-linux.img
 EOF
 
