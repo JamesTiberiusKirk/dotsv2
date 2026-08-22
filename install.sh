@@ -60,6 +60,7 @@ done
 yay -S --needed --noconfirm snapper snap-pac limine-snapper-sync || true
 if ! sudo snapper list-configs 2>/dev/null | grep -q root; then
   sudo umount /.snapshots 2>/dev/null || true
+  sudo rmdir /.snapshots 2>/dev/null || true  # create-config makes the subvol itself, dies if the dir exists
   sudo snapper --no-dbus create-config /
   # snapper recreates /.snapshots as a plain subvol; put our @snapshots back
   sudo btrfs subvolume delete /.snapshots 2>/dev/null || true
