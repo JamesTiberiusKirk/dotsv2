@@ -6,24 +6,14 @@ import Quickshell.Services.UPower
 import Quickshell.Networking
 import QtQuick
 
-// System stats not covered by a quickshell service. Reuses the same sources
-// the previous setup used: /tmp/i3status_* files (ping-latency.sh,
-// update-count.sh started from hyprx).
+// System stats not covered by a quickshell service.
 Singleton {
     id: root
 
-    property string latency: ""
     property real cpu: 0            // 0..1
     property string memText: ""
     property string swapText: ""
     property string diskFree: ""
-
-    FileView {
-        path: "/tmp/i3status_latency"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: root.latency = text().trim()
-    }
 
     // cpu: /proc/stat delta over the poll interval
     property var prevStat: null

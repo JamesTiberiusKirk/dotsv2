@@ -43,7 +43,9 @@ pipewire-pulse &
 wireplumber &
 
 # Latency probe (quickshell Sys.qml reads /tmp/i3status_latency)
-~/.scripts/ping-latency.sh &
+# ping-latency.sh: off. It pinged 1.1.1.1 three times every couple of seconds
+# for the life of the session to feed one bar cell, and the cell is gone.
+# ~/.scripts/ping-latency.sh &
 
 # Pending updates count (quickshell Sys.qml reads /tmp/i3status_updates)
 ~/.scripts/update-count.sh &

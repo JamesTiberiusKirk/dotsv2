@@ -248,7 +248,6 @@ Variants {
                 [leftRow.x + wsIsland.x, wsIsland.width, wsIsland.visible],
                 [leftRow.x + svcWrap.x, svcWrap.width, svcWrap.visible],
                 [titleIsland.x, titleIsland.width, titleIsland.visible],
-                [rightRow.x + statusWrap.x, statusIsland.width, true],
                 [rightRow.x + powerIsland.x, powerIsland.width, powerIsland.visible],
                 [rightRow.x + trayIsland.x, trayIsland.width, trayIsland.visible]
             ]
@@ -592,64 +591,52 @@ Variants {
                 anchors { right: parent.right; top: parent.top; rightMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
                 spacing: 10
 
-                Item {
-                    id: statusWrap
-
-                    width: statusIsland.implicitWidth
-                    height: statusIsland.implicitHeight
-
-                    Island {
-                        id: statusIsland
-
-                        width: statusWrap.width
-                        height: statusWrap.height
-
-                        // network — click opens the wifi panel
-                        Cell {
-                            id: netCell
-                            icon: Sys.netIcon
-                            text: Sys.netLabel
-                            color: Sys.netUp ? Theme.text : Theme.urgent
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    const next = !netPopout.open;
-                                    panel.closeIslandPopouts();
-                                    netPopout.open = next;
-                                }
-                            }
-                        }
-                        // tailscale — beside the net cell, its own panel
-                        Cell {
-                            id: tsCell
-                            visible: Sys.tsPresent
-                            icon: "lock-outline"
-                            text: Sys.tsUp ? Sys.tsNode : ""
-                            color: Sys.tsUp ? (Sys.tsHealth.length ? Theme.warn : Theme.text)
-                                            : Theme.dim
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    const next = !tsPopout.open;
-                                    panel.closeIslandPopouts();
-                                    tsPopout.open = next;
-                                }
-                            }
-                        }
-                        Cell {
-                            visible: Sys.corne !== ""
-                            icon: "keyboard"
-                            text: Sys.corne
-                            color: Theme.bright
-                        }
-                        Cell { visible: Sys.latency !== ""; icon: "timer-outline"; text: Sys.latency }
-                    }
-                }
-
                 Island {
                     id: powerIsland
+                    // network + tailscale, icon only (names in their popouts)
+
+                    // network — click opens the wifi panel
+                    Cell {
+                        id: netCell
+                        icon: Sys.netIcon
+                        // icon only — the SSID is in the popout, and the
+                        // signal ladder already says what the bar needs to
+                        color: Sys.netUp ? Theme.text : Theme.urgent
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const next = !netPopout.open;
+                                panel.closeIslandPopouts();
+                                netPopout.open = next;
+                            }
+                        }
+                    }
+                    // tailscale — beside the net cell, its own panel
+                    Cell {
+                        id: tsCell
+                        visible: Sys.tsPresent
+                        icon: "lock-outline"
+                        // icon only; node name lives in the popout
+                        color: Sys.tsUp ? (Sys.tsHealth.length ? Theme.warn : Theme.text)
+                                        : Theme.dim
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const next = !tsPopout.open;
+                                panel.closeIslandPopouts();
+                                tsPopout.open = next;
+                            }
+                        }
+                    }
+                    Cell {
+                        visible: Sys.corne !== ""
+                        icon: "keyboard"
+                        text: Sys.corne
+                        color: Theme.bright
+                    }
+
                     // battery — click opens the power-profile panel
                     Cell {
                         id: batteryCell
@@ -1538,7 +1525,7 @@ Variants {
             PanelWindow {
                 id: tsPanel
 
-                readonly property real sourceX: rightRow.x + statusWrap.x + tsCell.x
+                readonly property real sourceX: rightRow.x + powerIsland.x + tsCell.x
                 readonly property real sourceWidth: tsCell.width
                 readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
 
@@ -2127,7 +2114,7 @@ Variants {
             PanelWindow {
                 id: networkPopout
 
-                readonly property real sourceX: rightRow.x + statusWrap.x + netCell.x
+                readonly property real sourceX: rightRow.x + powerIsland.x + netCell.x
                 readonly property real sourceWidth: netCell.width
                 readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
 
