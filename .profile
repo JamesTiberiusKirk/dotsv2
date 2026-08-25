@@ -20,6 +20,7 @@ export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-
 export PATH="$PATH:$HOME/.pub-cache/bin"
 export ANDROID_SDK_ROOT=/opt/android-sdk
 export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$HOME/.pub-cache/bin:$PATH"
+# export GITHUB_AUTH=$(gh auth token)
 
 fpath=(~/.zsh/completion $fpath)
 
