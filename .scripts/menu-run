@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs a menu script and reports the outcome, since nothing here has a terminal
+# to print to. Same contract script-menu.sh used.
+set -u
+name=$(basename "$1"); name=${name%.sh}
+if out=$("$@" 2>&1); then
+    notify-send "menu: $name" "${out:-done}"
+else
+    notify-send -u critical "menu: $name failed" "${out:-see logs}"
+fi

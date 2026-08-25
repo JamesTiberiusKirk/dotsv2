@@ -1,6 +1,6 @@
 #!/bin/sh
-# dmenu-compatible picker: quickshell launcher when the shell is running,
-# wofi fallback otherwise. Usage: <options on stdin> qsmenu --prompt "..."
+# dmenu-compatible picker, backed by the quickshell launcher.
+# Usage: <options on stdin> qsmenu --prompt "..."
 # Prints the selected line, or nothing on cancel.
 set -u
 
@@ -17,9 +17,7 @@ in=$(mktemp /tmp/qsmenu-in.XXXXXX)
 cat > "$in"
 
 if ! pgrep -x qs >/dev/null 2>&1; then
-    sel=$(wofi --dmenu --prompt "$prompt" < "$in"); rc=$?
     rm -f "$in"
-    [ $rc -eq 0 ] && [ -n "$sel" ] && printf '%s\n' "$sel"
     exit 0
 fi
 
@@ -28,8 +26,6 @@ mkfifo "$out"
 trap 'rm -f "$in" "$out"' EXIT TERM INT
 
 if ! qs ipc call dmenu open "$prompt" "$in" "$out" >/dev/null 2>&1; then
-    sel=$(wofi --dmenu --prompt "$prompt" < "$in")
-    [ -n "$sel" ] && printf '%s\n' "$sel"
     exit 0
 fi
 

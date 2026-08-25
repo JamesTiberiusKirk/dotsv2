@@ -2,7 +2,7 @@
 # Headless script menu (SUPER+CTRL+R).
 #
 # Lists every executable in ~/.scripts/menu/common/ (all hosts) and
-# ~/.scripts/menu/<hostname>/ (this host only), shows them in a wofi picker,
+# ~/.scripts/menu/<hostname>/ (this host only), shows them in the quickshell picker,
 # and runs the chosen one. Drop a new executable into either dir and it shows
 # up automatically — no edits here.
 set -u
