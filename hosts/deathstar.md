@@ -11,8 +11,8 @@ Steps on the machine, in order:
 3. `hyprpm add https://github.com/hyprnux/hyprglass` + `hyprpm enable hyprglass`
    — after the Hyprland update (hyprpm pins against the running version).
    Startup ordering is handled by `.config/hypr/scripts/load-plugins.sh`.
-4. Install packages if missing: `quickshell`, `hyprpaper`
-   (wallpaper cycling drives hyprpaper via `.scripts/menu/common/next-wallpaper.sh`).
+4. Install packages if missing: `quickshell`, `awww`
+   (wallpaper cycling drives swww via `.scripts/menu/common/wallpaper.sh`).
 5. Launch with `hyprx --shell` — sets `HYPR_SHELL=quickshell`.
    Rollback: launch without the flag → waybar/dunst stack.
 

@@ -4,8 +4,6 @@
 .profile
 .zshrc
 .zsh
-.xinitrc
-.Xresources
 
 # tmux
 .tmux.conf
@@ -22,10 +20,7 @@
 .scripts/gomodrename.sh
 .scripts/hypr-doc-gen
 .scripts/hyprx
-.scripts/i3-doc-gen
-.scripts/i3status-wrapper
 .scripts/imports
-.scripts/launch-waybar
 .scripts/layout-switcher.sh
 .scripts/menu/common
 .scripts/pg_prettify.sh
@@ -33,17 +28,14 @@
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle
 .scripts/screenshot.sh
+.scripts/menu-run
 .scripts/script-menu.sh
 .scripts/sql-align-format
-.scripts/swap-workspaces.sh
 .scripts/theme-apply
 .scripts/theme-toggle
 .scripts/touchpad-fix
 .scripts/trackpoint-scroll
 .scripts/update-count.sh
-.scripts/waybar
-.scripts/x11_extracttext.sh
-.scripts/x11_screenshot.sh
 
 # claude
 .claude/statusline-usage.sh
@@ -54,18 +46,13 @@
 # config
 .config/alacritty
 .config/darkman
-.config/dunst
 .config/gtk-3.0
 .config/gtmux
 .config/hypr
 .config/hyprland-autoname-workspaces
-.config/i3
-.config/i3status
 .config/installed_packages
 .config/keyd
 .config/nvim
-.config/picom
-.config/waybar
 .config/wezterm
 .config/workspacer
 .config/opencode/opencode.jsonc
@@ -73,4 +60,3 @@
 .config/opencode/package-lock.json
 .config/opencode/tui.json
 .config/opencode/themes/glass.json
-.config/wofi/style.css

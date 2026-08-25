@@ -16,7 +16,6 @@ caja-wallpaper
 caja-xattr-tags
 dkms
 dolphin
-dunst
 efibootmgr
 engrampa
 eom
@@ -85,12 +84,10 @@ smartmontools
 tmux
 vertex-themes
 vim
-waybar
 wget
 wireless_tools
 wireplumber
 wl-clipboard
-wofi
 wpa_supplicant
 xdg-desktop-portal-hyprland
 xdg-utils

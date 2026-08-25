@@ -40,7 +40,6 @@ docker
 docker-buildx
 docker-compose
 docker-runit
-dunst
 efibootmgr
 elogind-runit
 evdi-dkms
@@ -49,7 +48,6 @@ ex-vi-compat
 fblog
 feh
 firefox
-flameshot
 fuse2
 fzf
 geeqie
@@ -71,13 +69,9 @@ htop
 httpie
 hugo
 hyprland-autoname-workspaces-git
-hyprpaper
 hyprshade
 hyprshot
 hyprsunset
-i3-wm
-i3lock
-i3status
 imagemagick
 impala
 imv
@@ -129,7 +123,6 @@ pasystray-wayland
 pavucontrol
 pgcli
 pgformatter-git
-picom
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
@@ -185,11 +178,9 @@ vencord-bin
 vertex-themes
 vim
 visual-studio-code-bin
-waybar
 wezterm
 wireplumber
 wkhtmltopdf-bin
-wofi
 xclip
 xdg-desktop-portal
 xdg-desktop-portal-gtk

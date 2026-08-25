@@ -55,6 +55,12 @@ done
 # ---- login shell: zsh (arrives with the package pass; useradd left bash) ----
 [ "$(getent passwd "$USER" | cut -d: -f7)" = /usr/bin/zsh ] || sudo chsh -s /usr/bin/zsh "$USER"
 
+# ---- groups: video = backlight sysfs, input = hidraw (duo's kbd handshake), docker = socket ----
+for g in video input docker; do
+  getent group "$g" >/dev/null || continue   # pkg missing -> group missing, don't abort
+  id -nG "$USER" | grep -qw "$g" || sudo usermod -aG "$g" "$USER"
+done
+
 # ---- dots-link: build + link this host's manifest (go comes from the package pass) ----
 export PATH=$PATH:$HOME/go/bin
 (cd "$DOTS" && make install)
@@ -67,6 +73,65 @@ for sv in "$DOTS"/system/etc/runit/sv/*/; do
   sudo cp -r "$sv" /etc/runit/sv/
   sudo ln -sf "/etc/runit/sv/$name" /etc/runit/runsvdir/default/
 done
+# package-provided services that just need enabling (bluez-runit ships the sv dir)
+[ ! -d /etc/runit/sv/bluetoothd ] || sudo ln -sf /etc/runit/sv/bluetoothd /etc/runit/runsvdir/default/
+# power-profiles-daemon-runit ships the sv dir; the bar's profile selector is
+# hidden until this is up (no daemon on the bus -> no rows)
+[ ! -d /etc/runit/sv/power-profiles-daemon ] || sudo ln -sf /etc/runit/sv/power-profiles-daemon /etc/runit/runsvdir/default/
+# docker-runit ships the sv dir; link it but leave it down — start with `sv up docker`
+if [ -d /etc/runit/sv/docker ]; then
+  sudo touch /etc/runit/sv/docker/down
+  sudo ln -sfn /etc/runit/sv/docker /etc/runit/runsvdir/default/
+fi
+
+# ---- keyd: the daemon only reads /etc/keyd, so link the repo config in ----
+if [ -d /etc/keyd ] || sudo mkdir -p /etc/keyd; then
+  sudo ln -sfn "$DOTS/.config/keyd/default.conf" /etc/keyd/default.conf
+  sudo keyd reload 2>/dev/null || true
+fi
+
+# ---- udev rules from the repo (hidraw access for duo, etc.) ----
+if [ -d "$DOTS/system/etc/udev/rules.d" ]; then
+  sudo cp "$DOTS"/system/etc/udev/rules.d/*.rules /etc/udev/rules.d/
+  sudo udevadm control --reload
+  sudo udevadm trigger --subsystem-match=hidraw
+fi
+
+# ---- DNS: stop tailscale mistaking Artix for a systemd box ----
+# Arch's filesystem package ships `resolve` (systemd-resolved's NSS module) in
+# the hosts line. Artix has no systemd, libnss_resolve.so does not exist, and the
+# entry is dead — but tailscale reads it, concludes resolved is running, talks to
+# a D-Bus name nobody owns, and MagicDNS silently never applies. Idempotent, so
+# existing hosts pick it up on the next converge.
+if grep -q '^hosts:.*resolve' /etc/nsswitch.conf; then
+  sudo sed -i 's/^hosts:.*/hosts: files dns/' /etc/nsswitch.conf
+  restart_net=1
+fi
+# and hand resolv.conf to openresolv so NetworkManager and tailscale arbitrate
+# through it rather than overwriting each other's file
+if [ ! -f /etc/NetworkManager/conf.d/rc-manager.conf ]; then
+  sudo mkdir -p /etc/NetworkManager/conf.d
+  printf '[main]\nrc-manager=resolvconf\n' | sudo tee /etc/NetworkManager/conf.d/rc-manager.conf >/dev/null
+  restart_net=1
+fi
+# quickshell's NetworkManager client does not survive an NM restart, so this is
+# deliberately left to the next reboot rather than bouncing the service here
+[ -z "${restart_net:-}" ] || echo "note: DNS config changed — reboot (or restart NetworkManager + tailscale) to apply"
+
+# ---- pam_gnome_keyring: auto-unlock the secret keyring at login (must be named "login") ----
+grep -q pam_gnome_keyring.so /etc/pam.d/login || sudo sed -i \
+  -e '/^session.*include.*system-local-login/a session  optional  pam_gnome_keyring.so auto_start' \
+  -e '/^auth.*requisite.*pam_nologin.so/a auth     optional  pam_gnome_keyring.so' \
+  /etc/pam.d/login
+grep -q pam_gnome_keyring.so /etc/pam.d/passwd || sudo sed -i \
+  '/^password.*include.*system-auth/a password optional  pam_gnome_keyring.so' \
+  /etc/pam.d/passwd
+
+# ---- elogind sleep drop-ins (hibernate power-off mode; see the conf comments) ----
+if [ -d "$DOTS/system/etc/elogind/sleep.conf.d" ]; then
+  sudo mkdir -p /etc/elogind/sleep.conf.d
+  sudo cp "$DOTS"/system/etc/elogind/sleep.conf.d/*.conf /etc/elogind/sleep.conf.d/
+fi
 
 # ---- snapper + bootable snapshots (omarchy-style, no btrfs quotas) ----
 yay -S --needed --noconfirm snapper snap-pac limine-snapper-sync || true
@@ -81,6 +146,13 @@ if ! sudo snapper list-configs 2>/dev/null | grep -q root; then
 fi
 
 # ---- hyprland plugins (best effort — needs hyprland headers/session) ----
-command -v hyprpm >/dev/null && { hyprpm add https://github.com/hyprnux/hyprglass || true; hyprpm enable hyprglass || true; } || true
+# Skipped on binstar for the same reason hypr/scripts/load-plugins.sh bails
+# there: hyprglass stops layer surfaces (the quickshell bar) rendering at all on
+# an output with a transform, so the bar vanishes when duo(1) rotates to
+# portrait. Without this guard a plain install.sh rerun re-enables and loads it.
+if [ "$HOST" != binstar ] && command -v hyprpm >/dev/null; then
+  hyprpm add https://github.com/hyprnux/hyprglass || true
+  hyprpm enable hyprglass || true
+fi
 
 echo "done. log out/in (or reboot) for shell + services to settle."

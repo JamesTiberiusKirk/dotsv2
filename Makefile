@@ -1,19 +1,20 @@
-DOTS_LINK := dots-link
+# Go tools living in this repo (each its own module dir).
+GO_DIRS := dots-link duo
 
 .PHONY: install build test vet fmt
 
-# Install the dots-link binary onto $PATH via the Go toolchain (-> $GOBIN or ~/go/bin).
+# Install the binaries onto $PATH via the Go toolchain (-> $GOBIN or ~/go/bin).
 install:
-	cd $(DOTS_LINK) && go install .
+	for d in $(GO_DIRS); do (cd $$d && go install .); done
 
 build:
-	cd $(DOTS_LINK) && go build -o dots-link .
+	for d in $(GO_DIRS); do (cd $$d && go build -o $$d .); done
 
 test:
-	cd $(DOTS_LINK) && go test ./...
+	for d in $(GO_DIRS); do (cd $$d && go test ./...); done
 
 vet:
-	cd $(DOTS_LINK) && go vet ./...
+	for d in $(GO_DIRS); do (cd $$d && go vet ./...); done
 
 fmt:
-	cd $(DOTS_LINK) && gofmt -w .
+	for d in $(GO_DIRS); do (cd $$d && gofmt -w .); done

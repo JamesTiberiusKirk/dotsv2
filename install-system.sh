@@ -11,6 +11,7 @@ set -euo pipefail
 
 HOSTNAME_DEFAULT=binstar
 USER_DEFAULT=darthvader
+TZ_DEFAULT=Europe/London
 REPO_HTTPS=https://github.com/JamesTiberiusKirk/dotsv2.git
 REPO_SSH=git@github.com:JamesTiberiusKirk/dotsv2.git
 
@@ -27,6 +28,8 @@ DISK=/dev/$DISK
 [ -b "$DISK" ] || { echo "$DISK is not a block device"; exit 1; }
 read -rp "hostname [$HOSTNAME_DEFAULT]: " NEWHOST; NEWHOST=${NEWHOST:-$HOSTNAME_DEFAULT}
 read -rp "username [$USER_DEFAULT]: " NEWUSER; NEWUSER=${NEWUSER:-$USER_DEFAULT}
+read -rp "timezone [$TZ_DEFAULT]: " NEWTZ; NEWTZ=${NEWTZ:-$TZ_DEFAULT}
+[ -f "/usr/share/zoneinfo/$NEWTZ" ] || { echo "unknown timezone: $NEWTZ"; exit 1; }
 read -rp "swapfile + hibernate? [Y/n]: " WANT_SWAP; WANT_SWAP=${WANT_SWAP:-Y}
 ask_pw() {  # ask_pw <label> -> sets REPLY_PW
   local a b
@@ -101,7 +104,7 @@ echo "$NEWHOST" > /mnt/etc/hostname
 UUID=$(blkid -s UUID -o value "$ROOT")
 
 artix-chroot /mnt /bin/bash -e <<CHROOT
-ln -sf /usr/share/zoneinfo/Europe/Chisinau /etc/localtime
+ln -sf "/usr/share/zoneinfo/$NEWTZ" /etc/localtime
 sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen
 echo LANG=en_US.UTF-8 > /etc/locale.conf
 
@@ -118,6 +121,17 @@ cat > /etc/hosts <<EOF
 ::1       localhost
 127.0.1.1 $NEWHOST.localdomain $NEWHOST
 EOF
+
+# DNS. Arch's filesystem package ships `resolve` — systemd-resolved's NSS module
+# — in the hosts line, and Artix has no systemd, so libnss_resolve.so does not
+# exist and the entry is dead. Tailscale reads it, concludes resolved is running,
+# talks to a D-Bus name nobody owns, and MagicDNS silently never applies.
+sed -i 's/^hosts:.*/hosts: files dns/' /etc/nsswitch.conf
+
+# and hand resolv.conf to openresolv, so NetworkManager and tailscale arbitrate
+# through it instead of overwriting each other's file
+mkdir -p /etc/NetworkManager/conf.d
+printf '[main]\nrc-manager=resolvconf\n' > /etc/NetworkManager/conf.d/rc-manager.conf
 
 # hibernation: resume hook (after udev, before filesystems) + rebuild initramfs
 if [ -n "$RESUME_OFFSET" ]; then
