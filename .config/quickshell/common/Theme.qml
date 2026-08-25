@@ -19,6 +19,9 @@ Singleton {
     readonly property int frameFillet: 8
     // bar body height (island/capsule height, below the top band)
     readonly property int barBody: 30
+    // gap between the bar and anything that hangs off it — popout
+    // cards and notification toasts sit on the same line
+    readonly property int popoutGap: 14
 
     readonly property color island:       dark ? "#D90C0716" : "#D9FBF1C7"
     readonly property color islandBorder: dark ? "#884A3870" : "#AAD5C4A1"

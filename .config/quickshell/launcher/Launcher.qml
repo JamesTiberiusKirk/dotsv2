@@ -4,17 +4,20 @@ import Quickshell.Widgets
 import Quickshell.Io
 import QtQuick
 import "../common"
+import "MenuModel.js" as MenuModel
 
-// App launcher (wofi drun replacement) + dmenu mode for scripts.
+// App launcher (wofi drun replacement), dmenu mode for scripts, and the
+// central menu.
 // Toggle apps:  qs ipc call launcher toggle
 // Dmenu:        ~/.scripts/qsmenu --prompt "..."  (feeds stdin, blocks on a
 //               fifo until a selection — or "" on cancel — is written back)
+// Menu:         qs ipc call menu toggle  (tree declared in common/Menu.qml)
 PanelWindow {
     id: root
 
     visible: false
-    implicitWidth: 430
-    implicitHeight: 320
+    implicitWidth: 480
+    implicitHeight: 440
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
@@ -25,6 +28,19 @@ PanelWindow {
     property string dmenuPrompt: ""
     property string dmenuOut: ""
     property var dmenuItems: []
+
+    // ---- central menu (SUPER+SPACE) ----
+    // Rows come from Menu.items, already in memory and bound to Sys for live
+    // state. The tree is the path: "display/rotate/left-up" nests two deep,
+    // and a row is a submenu purely because other rows continue past it —
+    // nothing declares hierarchy, so nothing can disagree about it.
+    property bool menu: false
+    readonly property var menuItems: Menu.items
+    property var menuLevel: []   // segments of the open submenu
+    // The row awaiting a yes/no, or null. Held here rather than in a separate
+    // dialog window: the confirm is just two rows in the list already on screen,
+    // so it works identically whether the row was reached by walking or search.
+    property var pending: null
 
     onVisibleChanged: {
         if (visible) {
@@ -54,6 +70,19 @@ PanelWindow {
             reader.running = true;
         }
     }
+    IpcHandler {
+        target: "menu"
+        function toggle(): void {
+            if (root.visible) {
+                root.finish(null);
+                return;
+            }
+            root.menuLevel = [];
+            root.menu = true;
+            root.visible = true;
+        }
+    }
+
     Process {
         id: reader
         stdout: StdioCollector {
@@ -68,21 +97,70 @@ PanelWindow {
     readonly property var apps: DesktopEntries.applications.values
         .filter(a => !a.noDisplay)
         .sort((a, b) => a.name.localeCompare(b.name))
+    // Ranking lives in MenuModel.js so `node MenuModel.js` can exercise the
+    // same code this imports — see the self-check at the bottom of that file.
+    function score(text, q) { return MenuModel.score(text, q); }
+    function ranked(rows, q) { return MenuModel.ranked(rows, q); }
+
+    // Rows of the open level: every distinct next segment under the current
+    // prefix, in Menu.items order. A segment is a leaf when nothing continues
+    // past it.
+    readonly property var menuRows: {
+        const prefix = menuLevel.length > 0 ? menuLevel.join("/") + "/" : "";
+        const seen = {}, rows = [];
+        // Apps are native rather than generated: DesktopEntries already gives
+        // icons and .execute(), both of which a "path<TAB>command" line loses.
+        if (menuLevel.length === 0)
+            rows.push({ label: "apps", path: "apps", cmd: "", leaf: false, icon: "view-grid" });
+        for (const it of menuItems) {
+            if (!it.path.startsWith(prefix))
+                continue;
+            const rest = it.path.slice(prefix.length);
+            const cut = rest.indexOf("/");
+            const seg = cut === -1 ? rest : rest.slice(0, cut);
+            if (seen[seg])
+                continue;
+            seen[seg] = true;
+            rows.push(cut === -1
+                ? Object.assign({ label: seg, leaf: true }, it)
+                : { label: seg, path: prefix + seg, leaf: false, icon: Menu.groupIcons[prefix + seg] || "" });
+        }
+        return rows;
+    }
+
     readonly property var matches: {
         const q = query.text.toLowerCase();
+        if (menu) {
+            // Cancel first, so a stray Return while the prompt appears backs out
+            // rather than powering the machine off.
+            if (pending !== null)
+                return [
+                    { label: "cancel", leaf: true, icon: "close", cancel: true },
+                    { label: pending.label + "?", leaf: true, icon: pending.icon || "check", confirm: true }
+                ];
+            // Searching spans the whole tree, not the open level — typing
+            // "hibernate" from the root should find it without walking there,
+            // and an app name should find the app.
+            if (q !== "") {
+                const hits = menuItems.map(it => Object.assign({ label: it.path, leaf: true }, it));
+                const appHits = apps.map(a =>
+                    ({ label: "apps/" + a.name, app: a, leaf: true }));
+                return ranked(hits.concat(appHits), q);
+            }
+            if (menuLevel.length === 1 && menuLevel[0] === "apps")
+                return apps.map(a => ({ label: a.name, app: a, leaf: true }));
+            return menuRows;
+        }
         if (dmenu) {
             return q === "" ? dmenuItems
                             : dmenuItems.filter(l => l.toLowerCase().includes(q));
         }
         if (q === "")
             return apps;
-        const starts = [], contains = [];
-        for (const a of apps) {
-            const n = a.name.toLowerCase();
-            if (n.startsWith(q)) starts.push(a);
-            else if (n.includes(q)) contains.push(a);
-        }
-        return starts.concat(contains);
+        return apps.map(a => ({ a: a, s: root.score(a.name, q) }))
+            .filter(x => x.s >= 0)
+            .sort((x, y) => x.s - y.s || x.a.name.length - y.a.name.length)
+            .map(x => x.a);
     }
 
     // Close the window; sel is a dmenu line, or null for cancel / app mode.
@@ -94,13 +172,72 @@ PanelWindow {
         dmenu = false;
         dmenuOut = "";
         dmenuItems = [];
+        menu = false;
+        menuLevel = [];
+        pending = null;
         visible = false;
+    }
+
+    // Up one level; closes the menu when already at the root.
+    function menuBack() {
+        if (pending !== null) {
+            pending = null;
+            query.text = "";
+            list.currentIndex = 0;
+            return;
+        }
+        if (menuLevel.length === 0) {
+            finish(null);
+            return;
+        }
+        menuLevel = menuLevel.slice(0, -1);
+        query.text = "";
+        list.currentIndex = 0;
+    }
+
+    // A leaf runs either a JS function (Sys setters) or a shell command.
+    function run(row) {
+        if (row.run) row.run();
+        else if (row.cmd) Quickshell.execDetached(["sh", "-c", row.cmd]);
     }
 
     function activate() {
         const m = matches[list.currentIndex];
         if (m === undefined)
             return;
+        if (menu) {
+            if (m.cancel) {
+                pending = null;
+                query.text = "";
+                list.currentIndex = 0;
+                return;
+            }
+            if (m.confirm) {
+                const p = pending;
+                pending = null;
+                run(p);
+                finish(null);
+                return;
+            }
+            if (!m.leaf) {
+                menuLevel = menuLevel.concat([m.label]);
+                query.text = "";
+                list.currentIndex = 0;
+                return;
+            }
+            if (m.confirm) {
+                pending = m;
+                query.text = "";
+                list.currentIndex = 0;
+                return;
+            }
+            if (m.app !== undefined)
+                m.app.execute();
+            else
+                run(m);
+            finish(null);
+            return;
+        }
         if (dmenu) {
             finish(m);
         } else {
@@ -127,14 +264,28 @@ PanelWindow {
             clip: true
             onTextChanged: list.currentIndex = 0
 
-            Keys.onEscapePressed: root.finish(null)
+            Keys.onEscapePressed: root.menu ? root.menuBack() : root.finish(null)
             Keys.onReturnPressed: root.activate()
             Keys.onDownPressed: list.incrementCurrentIndex()
             Keys.onUpPressed: list.decrementCurrentIndex()
+            // Left goes up a level and Right descends, but only with an empty
+            // query — otherwise they fight cursor movement while typing.
+            Keys.onLeftPressed: {
+                if (root.menu && query.text === "") root.menuBack();
+            }
+            Keys.onRightPressed: {
+                if (!root.menu || query.text !== "")
+                    return;
+                const m = root.matches[list.currentIndex];
+                if (m !== undefined && !m.leaf)
+                    root.activate();
+            }
 
             Text {
                 visible: query.text === ""
-                text: root.dmenu ? root.dmenuPrompt : "search apps…"
+                text: root.pending !== null ? "confirm — esc to cancel"
+                    : root.menu ? (root.menuLevel.length > 0 ? root.menuLevel.join(" / ") : "menu")
+                    : root.dmenu ? root.dmenuPrompt : "search apps…"
                 font: query.font
                 color: Theme.dim
             }
@@ -150,39 +301,66 @@ PanelWindow {
             id: list
 
             anchors { top: divider.bottom; left: parent.left; right: parent.right; bottom: parent.bottom; margins: 8 }
+            spacing: root.menu ? 2 : 0
             clip: true
             model: root.matches
             highlightMoveDuration: 60
+            SmoothScroll { flick: list }
 
             delegate: Rectangle {
                 required property var modelData
                 required property int index
                 width: list.width
-                height: 30
-                radius: 8
+                height: root.menu ? 42 : 34
+                radius: 10
                 color: list.currentIndex === index ? Qt.alpha(Theme.accent, 0.13) : "transparent"
 
+                // Icon name from a "# menu-icon:" directive; app rows use the
+                // real desktop icon below instead. A name rather than a pasted
+                // glyph, so a menu script says "cog" instead of carrying a
+                // private-use character no editor will render.
+                Icon {
+                    id: glyph
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    visible: name !== ""
+                    name: (root.menu && !modelData.app) ? (modelData.icon || "") : ""
+                    size: 18
+                    color: modelData.confirm ? Theme.urgent
+                        : list.currentIndex === index ? Theme.accent : Theme.text
+                }
                 IconImage {
                     id: aicon
-                    anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                    implicitSize: 18
-                    visible: !root.dmenu && String(source) !== ""
-                    source: root.dmenu ? "" : Quickshell.iconPath(modelData.icon, true)
+                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                    implicitSize: root.menu ? 22 : 18
+                    visible: String(source) !== ""
+                    source: root.dmenu ? ""
+                        : root.menu ? (modelData.app ? Quickshell.iconPath(modelData.app.icon, true) : "")
+                        : Quickshell.iconPath(modelData.icon, true)
                 }
                 Text {
-                    anchors { left: parent.left; leftMargin: root.dmenu ? 8 : 34; right: side.left; verticalCenter: parent.verticalCenter }
-                    text: root.dmenu ? modelData : modelData.name
+                    anchors {
+                        left: parent.left
+                        leftMargin: root.dmenu ? 8
+                            : root.menu ? ((aicon.visible || glyph.visible) ? 44 : 14)
+                            : 34
+                        right: side.left
+                        verticalCenter: parent.verticalCenter
+                    }
+                    text: root.menu ? modelData.label
+                        : root.dmenu ? modelData : modelData.name
                     elide: Text.ElideRight
                     font.family: Theme.font
-                    font.pixelSize: Theme.fontSize
-                    color: list.currentIndex === index ? Theme.bright : Theme.text
+                    font.pixelSize: root.menu ? 13 : Theme.fontSize
+                    color: modelData.confirm ? Theme.urgent
+                        : list.currentIndex === index ? Theme.bright : Theme.text
                 }
                 Text {
                     id: side
-                    anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                    text: root.dmenu ? "" : (modelData.genericName || "")
+                    anchors { right: parent.right; rightMargin: root.menu ? 14 : 8; verticalCenter: parent.verticalCenter }
+                    text: root.menu ? (modelData.leaf ? "" : "›")
+                        : root.dmenu ? "" : (modelData.genericName || "")
                     font.family: Theme.font
-                    font.pixelSize: 10
+                    font.pixelSize: root.menu ? 15 : 10
                     color: Theme.dim
                 }
                 MouseArea {

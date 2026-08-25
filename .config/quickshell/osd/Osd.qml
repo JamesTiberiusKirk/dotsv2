@@ -23,10 +23,15 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "quickshell-osd"
 
-    property string mode: "vol" // "vol" | "bright"
+    property string mode: "vol" // "vol" | "mic" | "bright" | "kbd"
+
+    // keyboard backlight is 0-3 (duo(1) pushes the new level on each keypress —
+    // the hardware exposes no readable sysfs node for it)
+    property int kbdLevel: 0
 
     readonly property PwNode sink: Pipewire.defaultAudioSink
-    PwObjectTracker { objects: [root.sink] }
+    readonly property PwNode source: Pipewire.defaultAudioSource
+    PwObjectTracker { objects: [root.sink, root.source] }
 
     // suppress the initial property flurry when pipewire binds
     property bool armed: false
@@ -44,6 +49,13 @@ PanelWindow {
         function onVolumeChanged() { if (root.armed) root.show("vol"); }
         function onMutedChanged() { if (root.armed) root.show("vol"); }
     }
+    // XF86AudioMicMute is bound but showed nothing, so the only way to find out
+    // whether the mic was actually muted was to open the audio panel
+    Connections {
+        target: root.source?.audio ?? null
+        function onVolumeChanged() { if (root.armed) root.show("mic"); }
+        function onMutedChanged() { if (root.armed) root.show("mic"); }
+    }
 
     IpcHandler {
         target: "osd"
@@ -51,11 +63,20 @@ PanelWindow {
             Sys.refreshBacklight();
             root.show("bright");
         }
+        function kbd(level: string): void {
+            root.kbdLevel = parseInt(level);
+            Sys.kbdBacklight = root.kbdLevel;
+            root.show("kbd");
+        }
     }
 
-    readonly property bool muted: mode === "vol" && (sink?.audio?.muted ?? false)
+    readonly property bool muted: mode === "vol" ? (sink?.audio?.muted ?? false)
+                                : mode === "mic" ? (source?.audio?.muted ?? false)
+                                : false
     readonly property real level: mode === "vol" ? (sink?.audio?.volume ?? 0)
-                                                 : Math.max(0, Sys.backlight)
+                                : mode === "mic" ? (source?.audio?.volume ?? 0)
+                                : mode === "kbd" ? kbdLevel / 3
+                                : Math.max(0, Sys.backlight)
 
     Rectangle {
         anchors.fill: parent
@@ -64,15 +85,31 @@ PanelWindow {
         border.color: Theme.islandBorder
         border.width: 1
 
-        Text {
+        Row {
             id: label
+
             anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-            text: root.mode === "bright" ? "☀ " + Math.round(root.level * 100) + "%"
-                : root.muted ? "muted"
-                : "vol " + Math.round(root.level * 100) + "%"
-            font.family: Theme.font
-            font.pixelSize: Theme.fontSize
-            color: Theme.bright
+            spacing: 6
+
+            Icon {
+                name: root.mode === "bright" ? "white-balance-sunny"
+                    : root.mode === "kbd" ? "keyboard"
+                    : root.mode === "mic" ? (root.muted ? "microphone-off" : "microphone")
+                    : Audio.volIcon(root.level, root.muted)
+                color: Theme.bright
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: root.mode === "bright" ? Math.round(root.level * 100) + "%"
+                    : root.mode === "kbd" ? (root.kbdLevel === 0 ? "off" : root.kbdLevel + "/3")
+                    : root.mode === "mic" ? (root.muted ? "muted" : Math.round(root.level * 100) + "%")
+                    : root.muted ? "muted"
+                    : Math.round(root.level * 100) + "%"
+                font.family: Theme.font
+                font.pixelSize: Theme.fontSize
+                color: Theme.bright
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
         Rectangle {
             anchors { left: label.right; right: parent.right; leftMargin: 12; rightMargin: 14; verticalCenter: parent.verticalCenter }
