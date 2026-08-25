@@ -74,6 +74,7 @@ Variants {
                 onOpenChanged: Sys.powerPanelOpen = open
             }
             QtObject { id: tsPopout; property bool open: false }
+            QtObject { id: trayPopout; property bool open: false }
             QtObject {
                 id: btPopout
                 property bool open: false
@@ -105,6 +106,31 @@ Variants {
                 audPopout.open = false;
                 btPopout.open = false;
                 tsPopout.open = false;
+                trayPopout.open = false;
+            }
+
+            // Popouts by the name the menu uses. Same path a cell click takes:
+            // close the rest, then flip this one.
+            readonly property var popoutsByName: ({
+                calendar: calPopout, system: sysPopout, display: dispPopout, power: pwrPopout,
+                network: netPopout, audio: audPopout, bluetooth: btPopout, tailscale: tsPopout, tray: trayPopout
+            })
+            readonly property bool anyPopoutOpen: calPopout.open || sysPopout.open || dispPopout.open || pwrPopout.open
+                || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || trayPopout.open
+            onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
+
+            Connections {
+                target: Sys
+                function onCloseAll() { panel.closeIslandPopouts(); }
+                function onTogglePanel(name) {
+                    // one panel per screen; only the focused one answers
+                    if (Hyprland.focusedMonitor?.name !== panel.screen.name) return;
+                    const p = panel.popoutsByName[name];
+                    if (!p) return;
+                    const next = !p.open;
+                    panel.closeIslandPopouts();
+                    p.open = next;
+                }
             }
 
             function clamp(v, lo, hi) {
@@ -362,7 +388,8 @@ Variants {
                         }
                     }
                     Cell {
-                        visible: panel.submap !== ""
+                        // the popout submap is plumbing for Esc, not a mode
+                        visible: panel.submap !== "" && panel.submap !== "popout"
                         text: panel.submap.toUpperCase()
                         color: Theme.urgent
                     }
@@ -747,35 +774,22 @@ Variants {
 
                 Island {
                     id: trayIsland
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-                        leftPadding: 8
-                        Repeater {
-                            model: SystemTray.items.values
-                            IconImage {
-                                id: trayIcon
-                                required property var modelData
-                                width: 16; height: 16
-                                anchors.verticalCenter: parent.verticalCenter
-                                source: modelData.icon
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    onClicked: e => {
-                                        panel.closeIslandPopouts();
-                                        if (e.button === Qt.LeftButton) {
-                                            trayIcon.modelData.activate();
-                                        } else if (trayIcon.modelData.hasMenu) {
-                                            trayMenu.menu = trayIcon.modelData.menu;
-                                            trayMenu.anchor.rect.x = trayIcon.mapToItem(null, 0, 0).x;
-                                            trayMenu.anchor.rect.y = panel.implicitHeight;
-                                            trayMenu.open();
-                                        } else {
-                                            trayIcon.modelData.secondaryActivate();
-                                        }
-                                    }
-                                }
+                    // tray folded behind one cell; the items live in a popout.
+                    // A row of third-party icons was the one thing in the bar
+                    // not drawn in its own language.
+                    Cell {
+                        id: trayCell
+                        readonly property int count: SystemTray.items.values.length
+                        visible: count > 0
+                        icon: "dots-horizontal"
+                        text: "" + count
+                        color: trayPopout.open ? Theme.bright : Theme.text
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const next = !trayPopout.open;
+                                panel.closeIslandPopouts();
+                                trayPopout.open = next;
                             }
                         }
                     }
@@ -855,6 +869,90 @@ Variants {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: panel.closeIslandPopouts()
+                }
+            }
+
+            // ---- tray popout (click the dots cell) ----
+            PanelWindow {
+                id: trayPanel
+
+                readonly property real sourceX: rightRow.x + trayIsland.x + trayCell.x
+                readonly property real sourceWidth: trayCell.width
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+
+                visible: trayPopout.open
+                screen: panel.screen
+                anchors { top: true; left: true }
+                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                exclusionMode: ExclusionMode.Ignore
+                WlrLayershell.layer: WlrLayer.Overlay
+                WlrLayershell.namespace: "quickshell-popout"
+                implicitWidth: 240
+                implicitHeight: trayCol.implicitHeight + 28
+                color: "transparent"
+
+                AttachedPanel {
+                    anchors.fill: parent
+                    shown: trayPopout.open
+                    neckX: trayPanel.sourceX - trayPanel.popupX
+                    neckWidth: trayPanel.sourceWidth
+
+                    Column {
+                        id: trayCol
+                        width: parent.width
+                        spacing: 2
+
+                        Repeater {
+                            model: SystemTray.items.values
+                            Item {
+                                id: trayRow
+                                required property var modelData
+                                width: trayCol.width
+                                height: 28
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 7
+                                    color: trayHover.hovered ? Theme.track : "transparent"
+                                }
+                                IconImage {
+                                    id: trayRowIcon
+                                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                                    implicitSize: 16
+                                    source: trayRow.modelData.icon
+                                }
+                                Text {
+                                    anchors { left: trayRowIcon.right; leftMargin: 10; right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                                    // title is what the app registers; the id is a bus name, last resort
+                                    text: trayRow.modelData.title || trayRow.modelData.tooltipTitle || trayRow.modelData.id
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: Theme.text
+                                    elide: Text.ElideRight
+                                }
+                                HoverHandler { id: trayHover }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: e => {
+                                        if (e.button === Qt.LeftButton) {
+                                            trayRow.modelData.activate();
+                                            panel.closeIslandPopouts();
+                                        } else if (trayRow.modelData.hasMenu) {
+                                            // the item's own menu, hung off this row rather
+                                            // than off the bar; the popout stays for it
+                                            trayMenu.anchor.window = trayPanel;
+                                            trayMenu.menu = trayRow.modelData.menu;
+                                            trayMenu.anchor.rect.x = trayRow.mapToItem(null, 0, 0).x + trayRow.width;
+                                            trayMenu.anchor.rect.y = trayRow.mapToItem(null, 0, 0).y;
+                                            trayMenu.open();
+                                        } else {
+                                            trayRow.modelData.secondaryActivate();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2009,10 +2107,16 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
-                // OnDemand, not Exclusive: keys are only wanted while a passphrase
-                // field has focus, and Exclusive would swallow the compositor's own
-                // bindings for as long as the list is open.
-                WlrLayershell.keyboardFocus: netPopout.open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+                // Keyboard only while a passphrase field is actually showing.
+                // Asking for it whenever the panel was open made this the one
+                // popout that did not close on a second click of its cell:
+                // Hyprland focuses a layer that wants keys the moment it maps,
+                // and with the pointer parked on the cell that focus stayed on
+                // the panel — the second click never reached the bar. OnDemand,
+                // not Exclusive, so the compositor's own bindings keep working
+                // while the field is up.
+                property bool wantKeys: false
+                WlrLayershell.keyboardFocus: netPopout.open && wantKeys ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
                 implicitWidth: 320
                 implicitHeight: netCol.implicitHeight + 28
                 color: "transparent"
@@ -2214,7 +2318,10 @@ Variants {
                                                         clip: true
                                                         // the surface takes focus on click, but nothing
                                                         // hands it to the field inside the delegate
-                                                        onVisibleChanged: if (visible) forceActiveFocus()
+                                                        onVisibleChanged: {
+                                                            networkPopout.wantKeys = visible;
+                                                            if (visible) forceActiveFocus();
+                                                        }
                                                         onTextChanged: netRow.pskText = text
                                                         Keys.onReturnPressed: netRow.join(netRow.pskText)
                                                         Keys.onEscapePressed: panel.closeIslandPopouts()

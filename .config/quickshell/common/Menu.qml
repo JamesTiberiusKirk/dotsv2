@@ -55,6 +55,9 @@ Singleton {
         "display/night light temp": "white-balance-sunny",
         "power": "power",
         "power/profile": "flash",
+        "notifications": "bell",
+        "notifications/mute": "bell-off",
+        "bar": "view-dashboard",
     })
 
     readonly property var items: {
@@ -91,6 +94,25 @@ Singleton {
             rows.push(profileRow(p));
         if (Sys.chargeLimit >= 0)
             rows.push({ path: "power/charge limit " + mark(Sys.chargeLimitOn), icon: "battery", run: () => Sys.setChargeLimit(!Sys.chargeLimitOn) });
+
+        // Straight onto the singleton, like the rest: a `qs ipc call` here
+        // would fork a process for what is one property flip.
+        rows.push(
+            { path: "notifications/open", icon: "bell", run: () => Notifs.toggle() },
+            { path: "notifications/do not disturb " + mark(Notifs.dnd), icon: "bell-off", run: () => Notifs.dnd = !Notifs.dnd },
+            { path: "notifications/clear all", icon: "close", run: () => Notifs.dismissAll() });
+        // one per sender history has seen — same list the drawer's bottom shows
+        for (const app of Notifs.apps)
+            rows.push({ path: "notifications/mute/" + app + " " + mark(Notifs.isMuted(app)), icon: "bell-off",
+                        run: () => Notifs.setMuted(app, !Notifs.isMuted(app)) });
+
+        // Bar widgets, opened from the keyboard. Toggles, like clicking the
+        // cell; the bar picks the panel on the focused screen (Sys.togglePanel).
+        for (const [name, icon] of [
+                ["calendar", "calendar"], ["system", "cpu-64-bit"], ["display", "monitor"], ["power", "battery"],
+                ["network", "wifi-strength-4"], ["audio", "volume-high"], ["bluetooth", "bluetooth"], ["tailscale", "server"],
+                ["tray", "dots-horizontal"]])
+            rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.togglePanel(name) });
 
         return rows;
     }

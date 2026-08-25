@@ -338,6 +338,8 @@ PanelWindow {
                         : Quickshell.iconPath(modelData.icon, true)
                 }
                 Text {
+                    id: rowText
+                    readonly property string raw: root.menu ? modelData.label : root.dmenu ? modelData : modelData.name
                     anchors {
                         left: parent.left
                         leftMargin: root.dmenu ? 8
@@ -346,13 +348,40 @@ PanelWindow {
                         right: side.left
                         verticalCenter: parent.verticalCenter
                     }
-                    text: root.menu ? modelData.label
-                        : root.dmenu ? modelData : modelData.name
+                    // breadcrumb (MenuModel.highlight); the match marker is
+                    // drawn behind, below
+                    textFormat: Text.StyledText
+                    // parents a step lighter than Theme.dim: at 13px on the
+                    // island the plain dim dropped out
+                    text: MenuModel.highlight(raw, query.text.toLowerCase(), Qt.lighter(Theme.dim, 1.5), Theme.bright)
                     elide: Text.ElideRight
                     font.family: Theme.font
                     font.pixelSize: root.menu ? 13 : Theme.fontSize
-                    color: modelData.confirm ? Theme.urgent
-                        : list.currentIndex === index ? Theme.bright : Theme.text
+                    // the icon carries the "this one asks first" red; a whole
+                    // red row read as an error, not a warning
+                    color: list.currentIndex === index ? Theme.bright : Theme.text
+
+                    // Highlighter swipes: one rounded rectangle per matched
+                    // run, sized from the font's advance width of the text
+                    // before and inside the run. Behind the glyphs (z below).
+                    FontMetrics { id: fm; font: rowText.font }
+                    Repeater {
+                        model: MenuModel.markRuns(rowText.raw, query.text.toLowerCase())
+                        Rectangle {
+                            required property var modelData
+                            readonly property string shown: MenuModel.displayText(rowText.raw)
+                            z: -1
+                            x: fm.advanceWidth(shown.slice(0, modelData[0])) - 2
+                            width: fm.advanceWidth(shown.slice(modelData[0], modelData[0] + modelData[1])) + 4
+                            y: (rowText.height - fm.height) / 2
+                            height: fm.height
+                            radius: 4
+                            // warn, not accent: the accent is the selected
+                            // row's fill, and a mark in the same colour
+                            // vanished on exactly the row you were looking at
+                            color: Qt.alpha(Theme.warn, 0.4)
+                        }
+                    }
                 }
                 Text {
                     id: side

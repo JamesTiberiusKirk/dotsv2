@@ -20,19 +20,15 @@ Scope {
     readonly property int cornerR: 12
     readonly property int fillet: 8
 
-    // IPC opens have no bell to say which screen: use the focused one.
-    function focusedScreen() {
-        const name = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
-        return [...Quickshell.screens].find(sc => sc.name === name) || Quickshell.screens[0];
+    // Esc in the `popout` submap (binds.lua) lands here.
+    IpcHandler {
+        target: "popouts"
+        function closeAll(): void { Sys.closeAll(); }
     }
 
     IpcHandler {
         target: "notifs"
-        function toggle(): void {
-            if (!Notifs.centerOpen && !Notifs.centerScreen)
-                Notifs.setCenterAnchor(0, 0, root.focusedScreen());
-            Notifs.centerOpen = !Notifs.centerOpen;
-        }
+        function toggle(): void { Notifs.toggle(); }
         function dismissAll(): void { Notifs.dismissAll(); }
         function dismissLatest(): void { Notifs.dismissLatest(); }
         // same switch as right-clicking the bell, for a keybind

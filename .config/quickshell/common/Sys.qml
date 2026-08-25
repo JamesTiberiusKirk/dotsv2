@@ -1,5 +1,6 @@
 pragma Singleton
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.UPower
 import Quickshell.Networking
@@ -196,6 +197,24 @@ Singleton {
     // nothing reads when it is closed.
     property bool panelOpen: false
     onPanelOpenChanged: if (panelOpen) poll();
+
+    // Asks the bar to toggle a popout by name (calendar, system, display,
+    // power, network, audio, bluetooth, tailscale). The bar is one panel per
+    // screen, so this cannot reach a popout directly — every panel hears it
+    // and only the one on the focused monitor answers. The menu uses it.
+    signal togglePanel(string name)
+    // Close every popout and the drawer, on every screen. Bound to Esc via the
+    // `popout` submap below; the bar panels listen.
+    signal closeAll()
+
+    // How many bar panels currently have a popout up (one per screen), plus
+    // the drawer. While anything is open Hyprland sits in the `popout` submap,
+    // whose only binding is Esc → closeAll — the popouts take no keyboard
+    // focus themselves (that broke pointer focus on the bell), so Esc has to
+    // be caught at the compositor. Everything else passes through a submap.
+    property int barPopoutsOpen: 0
+    readonly property bool anythingOpen: barPopoutsOpen > 0 || Notifs.centerOpen
+    onAnythingOpenChanged: Hyprland.dispatch(anythingOpen ? 'hl.dsp.submap("popout")' : 'hl.dsp.submap("reset")')
     function poll() {
         blProbe.running = true;
         if (root.isDuo) duoStateProbe.running = true;

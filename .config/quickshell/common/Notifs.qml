@@ -1,6 +1,7 @@
 pragma Singleton
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import QtQuick
 
@@ -61,6 +62,16 @@ Singleton {
         centerAnchorX = x;
         centerAnchorWidth = w;
         centerScreen = screen;
+    }
+
+    // Open the drawer with nothing to hang it from (IPC, menu row): on the
+    // focused monitor. The bell passes its own screen through setCenterAnchor.
+    function toggle() {
+        if (!centerOpen) {
+            const name = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
+            centerScreen = [...Quickshell.screens].find(sc => sc.name === name) || Quickshell.screens[0];
+        }
+        centerOpen = !centerOpen;
     }
 
     // ---- history -----------------------------------------------------------
@@ -221,8 +232,12 @@ Singleton {
                     until: critical ? Number.MAX_VALUE : Date.now() + ttl
                 }]);
             }
+            // The daemon destroys the object once it is closed — by the sender,
+            // by expiry, by us. The record stays; its live link goes, or the
+            // next remove() would call dismiss() on a dead reference.
             n.closed.connect(() => {
                 root.popups = root.popups.filter(p => p.n !== n);
+                root.history = root.history.map(r => r.n === n ? Object.assign({}, r, { n: null }) : r);
             });
         }
     }

@@ -234,3 +234,12 @@ hl.define_submap("swap", function()
 end)
 doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with adjacent monitor; Esc/Enter to exit" }
 
+-- Popout mode: entered by the shell itself whenever a bar popout or the
+-- notification drawer is open (Sys.anythingOpen), left when the last one
+-- closes. Only Esc is bound, so every other key still reaches the app — the
+-- popouts take no keyboard focus, and this is how Esc gets to close them.
+hl.define_submap("popout", function()
+    hl.bind("escape", dsp.exec_cmd("qs ipc call popouts closeAll"))
+    hl.bind("escape", dsp.submap("reset"))
+end)
+
