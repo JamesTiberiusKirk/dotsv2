@@ -18,23 +18,25 @@ if hl.plugin.hyprglass then
         layers = { enabled = true },
     })
 
-    -- Bar: whitelist the waybar namespace. mask_threshold sits above the
-    -- bar's shadow alpha so shadows don't get boxed in glass.
-    hg.layer("waybar", { mask_threshold = 0.05 })
+    -- Bar: mask_threshold sits above the bar's shadow alpha so shadows
+    -- don't get boxed in glass.
     hg.layer("quickshell", { mask_threshold = 0.05 })
     -- Keep animated quickshell popups out of hyprglass; layer-surface glass is
     -- noticeably expensive and creates colored edge artifacts while panels move.
     -- hg.layer("quickshell-notifs", { mask_threshold = 0.05 })
     -- hg.layer("quickshell-launcher", { preset = "launcher", mask_threshold = 0.2 })
 
-    -- Notifications and launcher get the same treatment.
-    -- (dunst's layer namespace is "notifications", not "dunst")
-    hg.layer("notifications", { mask_threshold = 0.05 })
+    -- Wallpaper picker: the surface is fullscreen but everything painted on it
+    -- is the carousel band, so the threshold only has to clear the fully
+    -- transparent rest. It cannot go high: mask_threshold culls sub-threshold
+    -- pixels outright rather than leaving them un-glassed, and at 0.6 it ate
+    -- both the picker's scrim and the band's own islandBorder (alpha 0.53).
+    hg.layer("quickshell-wallpaper", { mask_threshold = 0.3 })
+
     -- Launcher gets a frostier pane than the stock default (blur_strength 2.0).
     hg.preset("launcher", {
         blur_strength = 4.0,
     })
-    hg.layer("wofi",  { preset = "launcher", mask_threshold = 0.2 }) -- above GTK's focused CSD shadow alpha, or the square shadow gets glassed (hard corners)
 
     -- ACCEPTED ISSUE: no glass on fullscreen windows.
     -- Hyprland skips decoration rendering for real-fullscreen windows

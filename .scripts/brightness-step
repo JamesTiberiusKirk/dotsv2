@@ -40,4 +40,3 @@ fi
 
 printf '%s\n' "$next" >"$brightness_file"
 
-pkill -USR1 i3status >/dev/null 2>&1 || true

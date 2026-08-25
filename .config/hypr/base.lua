@@ -172,6 +172,42 @@ hl.device({
     scroll_button = 274,
     scroll_factor = 0.3,
 })
+-- binstar (Zenbook Duo) digitizers: without an output pin, they map across the
+-- whole layout, so bottom-screen touches/pen strokes land on the top panel.
+-- 9008 = top / 9009 = bottom (swap both pairs if they track the wrong panel).
+hl.device({ name = "elan9008:00-04f3:4447", output = "eDP-1" })
+hl.device({ name = "elan9009:00-04f3:4448", output = "eDP-2" })
+hl.device({ name = "elan9008:00-04f3:4447-stylus", output = "eDP-1" })
+hl.device({ name = "elan9009:00-04f3:4448-stylus", output = "eDP-2" })
+
+-- Duo keyboard: keyd can't manage it (see .config/keyd/default.conf — grabbing
+-- its combined keyboard+pointer node breaks the touchpad), so capslock→ctrl is
+-- done in xkb here. Two names: pogo-docked reports Primax, bluetooth doesn't.
+hl.device({ name = "primax-electronics-ltd.-asus-zenbook-duo-keyboard", kb_options = "ctrl:nocaps" })
+hl.device({ name = "asus-zenbook-duo-keyboard", kb_options = "ctrl:nocaps" })
+-- Palm rejection on the Duo keyboard's trackpad is disable-while-typing and
+-- nothing else: the touchpad reports only X/Y/tracking-id — no MT_TOUCH_MAJOR,
+-- no pressure, no MT_TOOL_TYPE — so libinput's size-, pressure- and
+-- firmware-based palm detection all have nothing to work with. Set explicitly
+-- because libinput defaults dwt OFF for touchpads it classes as external, which
+-- a USB/bluetooth keyboard-with-trackpad is; the global default reads as true
+-- but was never actually applied to this device.
+hl.device({
+    name                 = "primax-electronics-ltd.-asus-zenbook-duo-keyboard-touchpad",
+    natural_scroll       = true,
+    scroll_factor        = 0.2,
+    clickfinger_behavior = true,
+    tap_to_click         = false,
+    disable_while_typing = true,
+})
+hl.device({
+    name                 = "asus-zenbook-duo-keyboard-touchpad",
+    natural_scroll       = true,
+    scroll_factor        = 0.2,
+    clickfinger_behavior = true,
+    tap_to_click         = false,
+    disable_while_typing = true,
+})
 hl.device({
     name                 = "apple-inc.-magic-trackpad",
     sensitivity          = -0.2,
@@ -197,7 +233,10 @@ hl.window_rule({
 hl.window_rule({ name = "blue-recorder-float", match = { class = "^(blue-recorder)$" }, float = true })
 hl.window_rule({ name = "select-area-float",   match = { title = "^(Select Area)$" },   float = true })
 hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\.satty|satty)$" }, float = true })
-hl.window_rule({ name = "flameshot-float-pin", match = { class = "^(flameshot)$" }, float = true, pin = true })
+-- Bitwarden's popped-out extension window. Matched on title, not class:
+-- browser-agnostic, and normal tabs title as "Bitwarden - Brave" so the
+-- anchored "^(Bitwarden)$" only catches the standalone popup.
+hl.window_rule({ name = "bitwarden-float", match = { title = "^(Bitwarden)$" }, float = true })
 
 -------------------
 ---- LAYERRULES ---
@@ -207,10 +246,25 @@ hl.window_rule({ name = "flameshot-float-pin", match = { class = "^(flameshot)$"
 -- ignore_alpha keeps the fully-transparent margins around the panel unblurred.
 hl.layer_rule({
     name  = "qs-popups",
-    match = { namespace = "^quickshell-(notifs|launcher|osd)$" },
+    match = { namespace = "^quickshell-(launcher|osd)$" },
     blur         = true,
     ignore_alpha = 0.05,
     animation    = "popin 80%",
+})
+-- Notification toasts slide themselves in from the right (notifs/NotifPopups.qml),
+-- so no compositor animation at all — every one of them fought the slide.
+-- popin scaled the whole surface, which is the toast stack, so cards shrank
+-- in height and travelled on a diagonal. And the generic `layers` animation
+-- covers *resize*, not just map: the surface grows for every card that
+-- arrives, and Hyprland eased that growth by stretching the contents from the
+-- old height to the new — the card was full-size in the buffer the whole time.
+-- The map/unmap fade goes with it; the cards are already off-screen by then.
+hl.layer_rule({
+    name  = "qs-notifs",
+    match = { namespace = "^quickshell-notifs$" },
+    blur         = true,
+    ignore_alpha = 0.05,
+    no_anim      = true,
 })
 -- bar popouts (calendar/resources/notif center) animate themselves in QML
 -- (grow-from-island), so no compositor popin — just blur + the layer fade.
@@ -219,6 +273,14 @@ hl.layer_rule({
     match = { namespace = "^quickshell-popout$" },
     blur         = true,
     ignore_alpha = 0.05,
+})
+-- Notification drawer slides itself in (notifs/NotifCenter.qml); see qs-notifs.
+hl.layer_rule({
+    name  = "qs-drawer",
+    match = { namespace = "^quickshell-drawer$" },
+    blur         = true,
+    ignore_alpha = 0.05,
+    no_anim      = true,
 })
 hl.layer_rule({
     name  = "qs-backdrop",
@@ -233,18 +295,11 @@ hl.layer_rule({
 hl.on("hyprland.start", function()
     -- first: load plugins + reload config so glass rules exist before bars spawn
     hl.exec_cmd("~/.config/hypr/scripts/load-plugins.sh")
-    if os.getenv("HYPR_SHELL") == "quickshell" then
-        hl.exec_cmd("qs") -- owns bar + notifications + launcher (see .config/quickshell)
-    else
-        hl.exec_cmd("dunst")
-        hl.exec_cmd("~/.scripts/launch-waybar")
-    end
-    hl.exec_cmd("pasystray")
-    hl.exec_cmd("blueman-applet")
+    hl.exec_cmd("qs") -- owns bar + notifications + launcher (see .config/quickshell)
     hl.exec_cmd("owncloud")
     hl.exec_cmd("hyprland-autoname-workspaces")
     hl.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh")
-    hl.exec_cmd("~/.scripts/menu/common/next-wallpaper.sh --current") -- hyprpaper, driven by the menu script
+    hl.exec_cmd("~/.scripts/menu/common/wallpaper.sh --current") -- swww, daemon spawned by the script
     hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
     hl.exec_cmd("cornd")
 end)

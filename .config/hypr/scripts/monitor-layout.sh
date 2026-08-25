@@ -5,13 +5,17 @@
 set -u
 
 MONS=$(hyprctl monitors -j 2>/dev/null) || exit 0
+HOST=${HOSTNAME:-$(cat /etc/hostname)}
 
 # Sorted, comma-separated list of currently connected output names.
 profile=$(printf '%s' "$MONS" | jq -r '[.[].name] | sort | join(",")')
 
+# The lua config parser rejects `hyprctl keyword`, so rules go through eval.
 apply() {
     for line in "$@"; do
-        hyprctl keyword monitor "$line" >/dev/null
+        IFS=, read -r out mode pos scale <<<"$line"
+        # disabled=false matters: a rule without it won't revive a disabled output
+        hyprctl eval "hl.monitor({ output = \"$out\", mode = \"$mode\", position = \"$pos\", scale = $scale, disabled = false }) return \"\"" >/dev/null
     done
 }
 
@@ -26,14 +30,25 @@ case "$profile" in
             "DP-1,2560x1440@144,1920x1080,1" \
             "HDMI-A-1,preferred,4480x1080,1"
         ;;
+    "eDP-1,eDP-2")
+        # binstar — Zenbook Duo stacked panels (duo(1) handles dock/undock)
+        apply \
+            "eDP-1,2880x1800@120,0x0,1.5" \
+            "eDP-2,2880x1800@120,0x1200,1.5"
+        ;;
     "eDP-1")
-        # dellstar / legion solo
-        apply "eDP-1,preferred,0x0,1"
+        # binstar with the bottom panel off shares dellstar/legion's profile
+        # key but must keep its scale — a plain 1 here would shrink the UI.
+        if [ "$HOST" = binstar ]; then
+            apply "eDP-1,2880x1800@120,0x0,1.5"
+        else
+            apply "eDP-1,preferred,0x0,1"
+        fi
         ;;
     *)
         # Unknown layout: let Hyprland auto-place each output.
         for name in $(printf '%s' "$MONS" | jq -r '.[].name'); do
-            hyprctl keyword monitor "$name,preferred,auto,1" >/dev/null
+            apply "$name,preferred,auto,1"
         done
         ;;
 esac

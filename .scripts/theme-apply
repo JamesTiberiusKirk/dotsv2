@@ -19,20 +19,10 @@ touch ~/.config/alacritty/alacritty.toml
 # wezterm — write theme mode, touch config to trigger reload
 touch ~/.config/wezterm/wezterm.lua
 
-# i3 — swap include target, reload
-ln -sfn ~/.config/i3/colors-"$MODE".conf ~/.config/i3/colors.conf
-i3-msg -q reload >/dev/null 2>&1 || true
-
-# hyprland — swap colors include + waybar style symlink, reload both.
-# Symlinks always swap (idempotent); reloads no-op when the target isn't running.
+# hyprland — swap colors include, reload.
+# Symlink always swaps (idempotent); the reload no-ops when hyprland isn't running.
 ln -sfn ~/.config/hypr/colors-"$MODE".conf  ~/.config/hypr/colors.conf
-ln -sfn ~/.config/waybar/style-"$MODE".css  ~/.config/waybar/style.css
 hyprctl reload >/dev/null 2>&1 || true
-pkill -USR2 -x waybar >/dev/null 2>&1 || true
-
-# dunst — swap dunstrc symlink, reload
-ln -sfn ~/.config/dunst/dunstrc-"$MODE" ~/.config/dunst/dunstrc
-dunstctl reload >/dev/null 2>&1 || { pkill -x dunst >/dev/null 2>&1 || true; setsid dunst >/dev/null 2>&1 & }
 
 # Push the theme into running Neovim instances instead of waiting for portal polling.
 for server in /run/user/"$(id -u)"/nvim.*; do
@@ -89,7 +79,7 @@ if command -v xfconf-query >/dev/null 2>&1; then
     xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s 0 >/dev/null 2>&1 || true
 fi
 
-# Thunar does not reliably repaint on theme changes in this i3 session.
+# Thunar does not reliably repaint on theme changes.
 # Restart it if it is already running so the new GTK theme is applied.
 if pgrep -x thunar >/dev/null 2>&1; then
     thunar --quit >/dev/null 2>&1 || pkill -x thunar >/dev/null 2>&1 || true

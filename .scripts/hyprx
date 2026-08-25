@@ -4,14 +4,6 @@ set -euo pipefail
 
 export QT_QPA_PLATFORMTHEME=qt6ct
 
-# --shell: pilot the quickshell shell instead of waybar/dunst/wofi.
-# base.lua and binds.lua branch on HYPR_SHELL.
-for arg in "$@"; do
-    case "$arg" in
-        --shell) export HYPR_SHELL=quickshell ;;
-    esac
-done
-
 # Ensure a DBus session exists so keyring/secret services can register
 if command -v dbus-launch >/dev/null 2>&1 && [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
     eval "$(dbus-launch --sh-syntax --exit-with-session)"
@@ -43,15 +35,17 @@ if command -v gnome-keyring-daemon >/dev/null 2>&1; then
     wait_for_secret_service
 fi
 
-# Audio (PipeWire)
+# Audio (PipeWire) — kill any stale instance first so a Hyprland restart
+# doesn't leave orphaned daemons pointed at a dead dbus session
+pkill -u "$USER" -x pipewire pipewire-pulse wireplumber 2>/dev/null || true
 pipewire &
 pipewire-pulse &
 wireplumber &
 
-# Latency probe (waybar custom/latency module reads /tmp/i3status_latency)
+# Latency probe (quickshell Sys.qml reads /tmp/i3status_latency)
 ~/.scripts/ping-latency.sh &
 
-# Pending updates count (waybar custom/updates module reads /tmp/i3status_updates)
+# Pending updates count (quickshell Sys.qml reads /tmp/i3status_updates)
 ~/.scripts/update-count.sh &
 
 exec start-hyprland

@@ -6,10 +6,7 @@
 
 local terminal    = "wezterm"
 local fileManager = "thunar"
--- HYPR_SHELL=quickshell (hyprx --shell) swaps the wofi/waybar/dunst stack
--- for the quickshell shell in .config/quickshell.
-local quickshell  = os.getenv("HYPR_SHELL") == "quickshell"
-local menu        = quickshell and "qs ipc call launcher toggle" or "wofi --show drun"
+-- The shell is quickshell (.config/quickshell): bar, notifications, menu.
 local dsp         = hl.dsp
 
 local doc = {}
@@ -41,8 +38,29 @@ end
 reg("SUPER + ", {
     { "RETURN", dsp.exec_cmd(terminal),    "Open terminal" },
     { "E",      dsp.exec_cmd(fileManager), "Open file manager" },
-    { "R",      dsp.exec_cmd(menu),        "App launcher" },
+    { "SPACE",  dsp.exec_cmd("qs ipc call menu toggle"), "Menu (apps, scripts, display, power)" },
     { "slash",  show_binds, "Show keybindings" },
+    { "W",      dsp.exec_cmd("qs ipc call wallpaper toggle"), "Wallpaper picker" },
+})
+
+-- ---- Nav layer: ALT + hjkl -> arrow keys ----
+-- Done here rather than in keyd because keyd claims a whole device id, and the
+-- bluetooth keyboard (0b05:1bf3) publishes its touchpad under the same id with
+-- KEY events alongside its coordinates. keyd counts that as a keyboard, grabs
+-- it, and replays it through its virtual pointer as absolute motion — the
+-- cursor teleports to wherever your finger is. Pinning the right node needs a
+-- per-node hash that only `sudo keyd monitor` can tell you, per keyboard, per
+-- transport, forever.
+--
+-- Hyprland never touches the devices: it rewrites the chord after libinput has
+-- already delivered it, so this works on every keyboard on every host with
+-- nothing to enumerate. keyd's own [nav] layer still fires first for the docked
+-- keyboard — same result, so the two agree rather than conflict.
+reg("ALT + ", {
+    { "H", dsp.send_shortcut({ mods = "", key = "left" }),  "Left (nav layer)",  { repeating = true } },
+    { "J", dsp.send_shortcut({ mods = "", key = "down" }),  "Down (nav layer)",  { repeating = true } },
+    { "K", dsp.send_shortcut({ mods = "", key = "up" }),    "Up (nav layer)",    { repeating = true } },
+    { "L", dsp.send_shortcut({ mods = "", key = "right" }), "Right (nav layer)", { repeating = true } },
 })
 
 -- ---- Session (SUPER SHIFT / SUPER CTRL) ----
@@ -51,9 +69,8 @@ reg("SUPER + SHIFT + ", {
     { "M", dsp.exec_cmd("zenity --question --title=\"Exit Hyprland\" --text=\"Really exit Hyprland?\" && hyprctl dispatch 'hl.dsp.exit()'"), "Exit Hyprland (confirm)" },
 })
 reg("SUPER + CTRL + ", {
-    { "Q", dsp.exec_cmd("systemctl suspend"),             "Suspend" }, -- NOTE: runit host; verify suspend cmd
+    { "Q", dsp.exec_cmd("loginctl suspend"),              "Suspend" }, -- elogind (runit hosts have no systemctl)
     { "L", dsp.exec_cmd("~/.scripts/layout-switcher.sh"), "Layout switcher" },
-    { "R", dsp.exec_cmd("~/.scripts/script-menu.sh"),     "Script menu" },
 })
 
 -- ---- Window (SUPER) ----
@@ -123,7 +140,6 @@ reg("SUPER + SHIFT + ", {
 
 -- ---- Tabs (groups) ----
 reg("SUPER + ", {
-    { "W",            dsp.group.toggle(),                           "Toggle group" },
     { "bracketright", dsp.group.next(),                             "Next in group" },
     { "bracketleft",  dsp.group.prev(),                             "Previous in group" },
     { "G",            dsp.group.lock_active({ action = "toggle" }), "Lock active group" },
@@ -139,16 +155,15 @@ reg("SUPER + ", {
 
 -- ---- Utilities ----
 reg("SUPER + SHIFT + ", {
-    { "C", dsp.exec_cmd(quickshell and "hyprctl reload && qs kill; qs -d"
-                                    or  "hyprctl reload && pkill -USR2 -x waybar"), "Reload config" },
+    { "C", dsp.exec_cmd("hyprctl reload && qs kill; qs -d"),            "Reload config" },
     { "T", dsp.exec_cmd("~/.scripts/theme-toggle"),                     "Toggle theme" },
-    { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissAll" or "dunstctl close-all"), "Dismiss all notifications" },
+    { "D", dsp.exec_cmd("qs ipc call notifs dismissAll"),               "Dismiss all notifications" },
     { "S", dsp.exec_cmd("~/.scripts/screenshot.sh"),                    "Screenshot" },
     { "A", dsp.exec_cmd("~/.scripts/extracttext.sh"),                   "OCR extract text" },
-    { "N", dsp.exec_cmd("~/.config/hypr/scripts/nightlight-toggle.sh"), "Toggle night light" },
+    { "N", dsp.exec_cmd("~/.config/hypr/scripts/nightlight toggle"),      "Toggle night light" },
 })
 reg("SUPER + ", {
-    { "D", dsp.exec_cmd(quickshell and "qs ipc call notifs dismissLatest" or "dunstctl close"), "Dismiss notification" },
+    { "D", dsp.exec_cmd("qs ipc call notifs dismissLatest"), "Dismiss notification" },
     { "B", dsp.exec_cmd("qs ipc call shell toggle"), "Toggle bar" },
 })
 
@@ -158,8 +173,10 @@ reg("", {
     { "XF86AudioLowerVolume",  dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),   "Volume down", { locked = true, repeating = true } },
     { "XF86AudioMute",         dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),  "Mute",        { locked = true, repeating = true } },
     { "XF86AudioMicMute",      dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),"Mute mic",    { locked = true, repeating = true } },
-    { "XF86MonBrightnessUp",   dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -lt 5 ]; then brightnessctl s 1%+; else brightnessctl s 5%+; fi; qs ipc call osd brightness >/dev/null 2>&1 || true']]), "Brightness up",   { locked = true, repeating = true } },
-    { "XF86MonBrightnessDown", dsp.exec_cmd([[sh -c 'p=$(brightnessctl -m | cut -d, -f4 | tr -d %); if [ "$p" -le 5 ]; then brightnessctl -n1 s 1%-; else brightnessctl s 5%-; fi; qs ipc call osd brightness >/dev/null 2>&1 || true']]), "Brightness down", { locked = true, repeating = true } },
+    -- duo (repo: duo/) drives every panel backlight on the host + the OSD;
+    -- same 5%/1%-near-bottom stepping the old brightnessctl one-liner had
+    { "XF86MonBrightnessUp",   dsp.exec_cmd("~/go/bin/duo brightness up"),   "Brightness up",   { locked = true, repeating = true } },
+    { "XF86MonBrightnessDown", dsp.exec_cmd("~/go/bin/duo brightness down"), "Brightness down", { locked = true, repeating = true } },
     { "XF86AudioNext",         dsp.exec_cmd("playerctl next"),       "Next track",  { locked = true } },
     { "XF86AudioPause",        dsp.exec_cmd("playerctl play-pause"), "Play/pause",  { locked = true } },
     { "XF86AudioPlay",         dsp.exec_cmd("playerctl play-pause"), "Play/pause",  { locked = true } },
