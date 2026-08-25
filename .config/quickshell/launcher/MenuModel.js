@@ -114,6 +114,57 @@ function markRuns(label, q) {
     return runs;
 }
 
+// Spotlight-style calculator. Returns the value of an arithmetic expression,
+// or null when the text is not one — a query that is not an expression must
+// fall through to the menu search untouched, so "power" and "2fa" are null,
+// not errors. No eval(): a query is typed input, and a JS evaluator would
+// happily run whatever else got pasted into it.
+//
+// Grammar: numbers (decimals, 1e3), + - * / % ^, parentheses, unary minus.
+// Precedence climbing; ^ is right-associative.
+function calc(src) {
+    var s = String(src).replace(/\s+/g, "");
+    if (s === "" || !/^[0-9.eE+\-*/%^()]+$/.test(s) || !/[0-9]/.test(s) || !/[+\-*/%^]/.test(s.slice(1)))
+        return null;
+    var pos = 0, ok = true;
+    function peek() { return s[pos]; }
+    function number() {
+        var m = /^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(s.slice(pos));
+        if (!m) { ok = false; return 0; }
+        pos += m[0].length;
+        return parseFloat(m[0]);
+    }
+    function primary() {
+        var c = peek();
+        if (c === "(") { pos++; var v = expr(0); if (peek() !== ")") { ok = false; return 0; } pos++; return v; }
+        if (c === "-") { pos++; return -primary(); }
+        if (c === "+") { pos++; return primary(); }
+        return number();
+    }
+    var prec = { "+": 1, "-": 1, "*": 2, "/": 2, "%": 2, "^": 3 };
+    function expr(min) {
+        var lhs = primary();
+        while (ok) {
+            var op = peek();
+            if (!(op in prec) || prec[op] < min) break;
+            pos++;
+            var rhs = expr(op === "^" ? prec[op] : prec[op] + 1);
+            if (op === "+") lhs += rhs;
+            else if (op === "-") lhs -= rhs;
+            else if (op === "*") lhs *= rhs;
+            else if (op === "/") lhs /= rhs;
+            else if (op === "%") lhs %= rhs;
+            else lhs = Math.pow(lhs, rhs);
+        }
+        return lhs;
+    }
+    var v = expr(0);
+    if (!ok || pos !== s.length || !isFinite(v)) return null;
+    // 0.1+0.2 → 0.3, not 0.30000000000000004; 12 significant digits is
+    // past anything a menu row would be trusted for
+    return parseFloat(v.toPrecision(12));
+}
+
 if (typeof module !== "undefined" && require.main === module) {
     var assert = require("assert");
     var rows = ["power/hibernate", "power/suspend", "power/reboot", "power/power off",
@@ -146,6 +197,20 @@ if (typeof module !== "undefined" && require.main === module) {
     assert.deepStrictEqual(markRuns("power/power off", "p"), [[8, 1]], "leaf match wins over parent match");
     assert.deepStrictEqual(markRuns("power/suspend", "pow"), [[0, 3]], "parent-only match still marked");
     assert.deepStrictEqual(markRuns("firefox", "zzz"), [], "no match, no runs");
+
+    assert.strictEqual(calc("2*(3+4)"), 14, "parens and precedence");
+    assert.strictEqual(calc("2^3^2"), 512, "^ is right-associative");
+    assert.strictEqual(calc("-2^2"), 4, "unary minus binds tighter than ^ (as typed, -2 squared)");
+    assert.strictEqual(calc("10/4"), 2.5, "division is real");
+    assert.strictEqual(calc("0.1+0.2"), 0.3, "float noise trimmed");
+    assert.strictEqual(calc("7 % 3"), 1, "modulo, whitespace ignored");
+    assert.strictEqual(calc("1e3*2"), 2000, "exponent notation");
+    assert.strictEqual(calc("power"), null, "words are not expressions");
+    assert.strictEqual(calc("2fa"), null, "letters after a digit are not an expression");
+    assert.strictEqual(calc("42"), null, "a bare number is a search, not a sum");
+    assert.strictEqual(calc("2+"), null, "dangling operator");
+    assert.strictEqual(calc("(2+3"), null, "unbalanced paren");
+    assert.strictEqual(calc("1/0"), null, "infinity is not an answer");
 
     console.log("MenuModel: all checks passed");
 }

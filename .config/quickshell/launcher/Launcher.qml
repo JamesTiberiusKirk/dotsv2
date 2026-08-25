@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Io
@@ -24,6 +25,7 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-launcher"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+
     property bool dmenu: false
     property string dmenuPrompt: ""
     property string dmenuOut: ""
@@ -47,7 +49,13 @@ PanelWindow {
             query.text = "";
             list.currentIndex = 0;
             query.forceActiveFocus();
+            // any popout goes, which also drops the popout submap — the two
+            // would otherwise fight over Esc
+            Sys.closeAll();
         }
+        // While open, Hyprland sits in the `launcher` submap (binds.lua): the
+        // whole keymap minus the ALT nav layer, so ALT+hjkl reach this surface.
+        Hyprland.dispatch(visible ? 'hl.dsp.submap("launcher")' : 'hl.dsp.submap("reset")');
     }
 
     IpcHandler {
@@ -145,7 +153,15 @@ PanelWindow {
                 const hits = menuItems.map(it => Object.assign({ label: it.path, leaf: true }, it));
                 const appHits = apps.map(a =>
                     ({ label: "apps/" + a.name, app: a, leaf: true }));
-                return ranked(hits.concat(appHits), q);
+                const rows = ranked(hits.concat(appHits), q);
+                // Spotlight-style sum: an arithmetic query gets its answer as
+                // the first row; Return copies it. MenuModel.calc is null for
+                // anything that is not an expression, so searches are untouched.
+                const v = MenuModel.calc(query.text);
+                if (v !== null)
+                    rows.unshift({ label: "= " + v, leaf: true, icon: "calculator", calc: true,
+                                   run: () => Quickshell.execDetached(["wl-copy", "--", String(v)]) });
+                return rows;
             }
             if (menuLevel.length === 1 && menuLevel[0] === "apps")
                 return apps.map(a => ({ label: a.name, app: a, leaf: true }));
@@ -269,16 +285,34 @@ PanelWindow {
             Keys.onDownPressed: list.incrementCurrentIndex()
             Keys.onUpPressed: list.decrementCurrentIndex()
             // Left goes up a level and Right descends, but only with an empty
-            // query — otherwise they fight cursor movement while typing.
-            Keys.onLeftPressed: {
+            // query — otherwise they are cursor keys. A Keys.onXPressed
+            // handler accepts the event whether or not it did anything, so
+            // the pass-through has to be explicit or the caret never moves.
+            Keys.onLeftPressed: event => {
                 if (root.menu && query.text === "") root.menuBack();
+                else event.accepted = false;
             }
-            Keys.onRightPressed: {
-                if (!root.menu || query.text !== "")
-                    return;
+            Keys.onRightPressed: event => {
                 const m = root.matches[list.currentIndex];
-                if (m !== undefined && !m.leaf)
-                    root.activate();
+                if (root.menu && query.text === "" && m !== undefined && !m.leaf) root.activate();
+                else event.accepted = false;
+            }
+            // ALT+hjkl as arrows. Hyprland's nav layer cannot deliver these
+            // here (see the `launcher` submap in binds.lua), so the launcher
+            // takes the raw chord.
+            Keys.onPressed: event => {
+                if (!(event.modifiers & Qt.AltModifier)) return;
+                const k = event.key;
+                if (k === Qt.Key_J) list.incrementCurrentIndex();
+                else if (k === Qt.Key_K) list.decrementCurrentIndex();
+                else if (k === Qt.Key_H) { if (root.menu && query.text === "") root.menuBack(); else query.cursorPosition = Math.max(0, query.cursorPosition - 1); }
+                else if (k === Qt.Key_L) {
+                    const m = root.matches[list.currentIndex];
+                    if (root.menu && query.text === "" && m !== undefined && !m.leaf) root.activate();
+                    else query.cursorPosition = Math.min(query.text.length, query.cursorPosition + 1);
+                }
+                else return;
+                event.accepted = true;
             }
 
             Text {
@@ -353,7 +387,8 @@ PanelWindow {
                     textFormat: Text.StyledText
                     // parents a step lighter than Theme.dim: at 13px on the
                     // island the plain dim dropped out
-                    text: MenuModel.highlight(raw, query.text.toLowerCase(), Qt.lighter(Theme.dim, 1.5), Theme.bright)
+                    text: modelData.calc ? raw
+                        : MenuModel.highlight(raw, query.text.toLowerCase(), Qt.lighter(Theme.dim, 1.5), Theme.bright)
                     elide: Text.ElideRight
                     font.family: Theme.font
                     font.pixelSize: root.menu ? 13 : Theme.fontSize
@@ -366,7 +401,7 @@ PanelWindow {
                     // before and inside the run. Behind the glyphs (z below).
                     FontMetrics { id: fm; font: rowText.font }
                     Repeater {
-                        model: MenuModel.markRuns(rowText.raw, query.text.toLowerCase())
+                        model: modelData.calc ? [] : MenuModel.markRuns(rowText.raw, query.text.toLowerCase())
                         Rectangle {
                             required property var modelData
                             readonly property string shown: MenuModel.displayText(rowText.raw)

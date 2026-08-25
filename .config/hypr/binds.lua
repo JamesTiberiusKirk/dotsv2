@@ -13,9 +13,10 @@ local doc = {}
 -- every reg() call, kept so the popout submap can replay them (see bottom)
 local regs = {}
 
--- reg(prefix, { {KEY, dispatcher, "description", flags?}, ... })
-local function reg(prefix, list)
-    regs[#regs + 1] = { prefix = prefix, list = list }
+-- reg(prefix, { {KEY, dispatcher, "description", flags?}, ... }, opts?)
+-- opts.nav marks the ALT nav layer, which the launcher submap leaves out.
+local function reg(prefix, list, opts)
+    regs[#regs + 1] = { prefix = prefix, list = list, nav = opts and opts.nav }
     for _, b in ipairs(list) do
         local key, dispatcher, desc, flags = b[1], b[2], b[3], b[4]
         flags = flags or {}
@@ -64,7 +65,7 @@ reg("ALT + ", {
     { "J", dsp.send_shortcut({ mods = "", key = "down" }),  "Down (nav layer)",  { repeating = true } },
     { "K", dsp.send_shortcut({ mods = "", key = "up" }),    "Up (nav layer)",    { repeating = true } },
     { "L", dsp.send_shortcut({ mods = "", key = "right" }), "Right (nav layer)", { repeating = true } },
-})
+}, { nav = true })
 
 -- ---- Session (SUPER SHIFT / SUPER CTRL) ----
 reg("SUPER + SHIFT + ", {
@@ -247,13 +248,27 @@ doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with a
 -- and every other binding above went dead with a widget open. So every
 -- reg() call is replayed in here, and Esc goes on top. Registered directly
 -- with hl.bind, not reg(), so the cheatsheet does not list everything twice.
-hl.define_submap("popout", function()
+local function replay(skip_nav)
     for _, r in ipairs(regs) do
-        for _, b in ipairs(r.list) do
-            hl.bind(r.prefix .. b[1], b[2], b[4] or {})
+        if not (skip_nav and r.nav) then
+            for _, b in ipairs(r.list) do
+                hl.bind(r.prefix .. b[1], b[2], b[4] or {})
+            end
         end
     end
+end
+hl.define_submap("popout", function()
+    replay(false)
     hl.bind("escape", dsp.exec_cmd("qs ipc call popouts closeAll"))
     hl.bind("escape", dsp.submap("reset"))
+end)
+
+-- Launcher mode: entered by the launcher while it is open. The ALT nav layer
+-- is a sendshortcut to the active *window*, and the launcher is a layer
+-- surface — so with a menu open ALT+J went to the app behind it. Leaving
+-- the nav layer out of this submap lets the raw chord reach the launcher,
+-- which maps ALT+hjkl to arrows itself (launcher/Launcher.qml).
+hl.define_submap("launcher", function()
+    replay(true)
 end)
 

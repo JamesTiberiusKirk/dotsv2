@@ -184,8 +184,8 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
 
     c:hline(y, "fg=dark_grey"); y = y + 1
     inner:text(1, y - 1, "Clanker", "fg=magenta,bold"); y = y + 1
-    -- State comes from the OSC-0 title: claude & codex put a braille spinner
-    -- (UTF-8 E2 A0-A3 xx, the U+2800 block) in the title while working and drop
+    -- State comes from the OSC-0 title: claude & codex put a spinner glyph (braille
+    -- U+2800 block ≤2.1.227, ◐◓◑◒ U+25D0-25D3 since 2.1.228) in the title while working and drop
     -- it when they stop for you — so no spinner = awaiting input. opencode sets
     -- no title, so its state is unknown (?).
     clankerFrame = clankerFrame + 1
@@ -198,7 +198,10 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
         local glyph, style
         if p.command == "opencode" or p.title == "" then
           glyph, style = "?", "fg=magenta"                    -- state unknown
-        elseif p.title:find("\226[\160-\163]") then           -- spinner = working
+        elseif p.title:find("Action Required", 1, true) then  -- codex: permission prompt
+          clankerDismissed[p.id] = nil
+          glyph, style = "⚠", "fg=yellow,bold"                 -- blocked on you
+        elseif p.title:find("\226[\160-\163]") or p.title:find("^\226\151[\144-\147]") then -- spinner = working (claude: ◐◓◑◒ leading since 2.1.228, braille before; codex: braille anywhere)
           clankerDismissed[p.id] = nil                        -- re-arm for next idle
           glyph = CLANKER_SPINNER and clankerSpin[(clankerFrame % #clankerSpin) + 1] or "~"
           style = "fg=blue"
