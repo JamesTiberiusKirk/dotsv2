@@ -10,9 +10,12 @@ local fileManager = "thunar"
 local dsp         = hl.dsp
 
 local doc = {}
+-- every reg() call, kept so the popout submap can replay them (see bottom)
+local regs = {}
 
 -- reg(prefix, { {KEY, dispatcher, "description", flags?}, ... })
 local function reg(prefix, list)
+    regs[#regs + 1] = { prefix = prefix, list = list }
     for _, b in ipairs(list) do
         local key, dispatcher, desc, flags = b[1], b[2], b[3], b[4]
         flags = flags or {}
@@ -236,9 +239,20 @@ doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with a
 
 -- Popout mode: entered by the shell itself whenever a bar popout or the
 -- notification drawer is open (Sys.anythingOpen), left when the last one
--- closes. Only Esc is bound, so every other key still reaches the app — the
--- popouts take no keyboard focus, and this is how Esc gets to close them.
+-- closes. It exists so Esc can close them — the popouts take no keyboard
+-- focus, so the compositor has to catch the key.
+--
+-- A submap inherits nothing: while it is active the only binds that exist
+-- are the ones declared in it. Keys still reach the app, but SUPER+SHIFT+S
+-- and every other binding above went dead with a widget open. So every
+-- reg() call is replayed in here, and Esc goes on top. Registered directly
+-- with hl.bind, not reg(), so the cheatsheet does not list everything twice.
 hl.define_submap("popout", function()
+    for _, r in ipairs(regs) do
+        for _, b in ipairs(r.list) do
+            hl.bind(r.prefix .. b[1], b[2], b[4] or {})
+        end
+    end
     hl.bind("escape", dsp.exec_cmd("qs ipc call popouts closeAll"))
     hl.bind("escape", dsp.submap("reset"))
 end)

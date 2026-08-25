@@ -63,6 +63,8 @@ Variants {
 
             SystemClock { id: clock; precision: SystemClock.Minutes }
             QtObject { id: sysPopout; property bool open: false }
+            QtObject { id: dockerPopout; property bool open: false }
+            QtObject { id: vmPopout; property bool open: false }
             QtObject {
                 id: dispPopout
                 property bool open: false
@@ -100,6 +102,8 @@ Variants {
                 Notifs.centerOpen = false;
                 calPopout.open = false;
                 sysPopout.open = false;
+                dockerPopout.open = false;
+                vmPopout.open = false;
                 dispPopout.open = false;
                 pwrPopout.open = false;
                 netPopout.open = false;
@@ -112,10 +116,10 @@ Variants {
             // Popouts by the name the menu uses. Same path a cell click takes:
             // close the rest, then flip this one.
             readonly property var popoutsByName: ({
-                calendar: calPopout, system: sysPopout, display: dispPopout, power: pwrPopout,
+                calendar: calPopout, system: sysPopout, docker: dockerPopout, vm: vmPopout, display: dispPopout, power: pwrPopout,
                 network: netPopout, audio: audPopout, bluetooth: btPopout, tailscale: tsPopout, tray: trayPopout
             })
-            readonly property bool anyPopoutOpen: calPopout.open || sysPopout.open || dispPopout.open || pwrPopout.open
+            readonly property bool anyPopoutOpen: calPopout.open || sysPopout.open || dockerPopout.open || vmPopout.open || dispPopout.open || pwrPopout.open
                 || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || trayPopout.open
             onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
 
@@ -401,10 +405,14 @@ Variants {
 
                     width: svcIsland.implicitWidth
                     height: svcIsland.implicitHeight
-                    onClicked: {
-                        const next = !sysPopout.open;
+
+                    // Three things share this island, each with its own
+                    // popout: docker, the VMs, and the machine itself. One
+                    // click used to open a single list of all of it.
+                    function toggle(p) {
+                        const next = !p.open;
                         panel.closeIslandPopouts();
-                        sysPopout.open = next;
+                        p.open = next;
                     }
 
                     Island {
@@ -415,13 +423,36 @@ Variants {
 
                         // Both always shown. Greyed docker means the daemon is
                         // down; normal colour with a 0 means it is up and idle.
-                        Cell { icon: "docker"; text: Sys.docker; color: Sys.dockerUp ? Theme.text : Theme.dim }
+                        Cell {
+                            id: dockerCell
+                            icon: "docker"; text: Sys.docker
+                            color: Sys.dockerUp ? Theme.text : Theme.dim
+                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(dockerPopout) }
+                        }
                         // server, not the memory chip it used to be — that glyph
                         // sat next to the CPU and RAM cells reading as a third one
-                        Cell { icon: "server"; text: Sys.vm }
-                        Cell { icon: "cpu-64-bit"; text: Math.round(Sys.cpu * 100) + "%" }
-                        Cell { visible: Sys.memText !== ""; icon: "memory"; text: Sys.memText }
-                        Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree }
+                        Cell {
+                            id: vmCell
+                            icon: "server"; text: Sys.vm
+                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(vmPopout) }
+                        }
+                        // cpu / mem / disk are one target: they are the same
+                        // machine, and the popout shows the lot
+                        Item {
+                            id: sysCells
+                            width: sysRow.width
+                            height: sysRow.height
+                            anchors.verticalCenter: parent.verticalCenter
+                            // the MouseArea is a sibling of the Row, not a child:
+                            // a Row lays out every child it has, MouseArea included
+                            Row {
+                                id: sysRow
+                                Cell { icon: "cpu-64-bit"; text: Math.round(Sys.cpu * 100) + "%" }
+                                Cell { visible: Sys.memText !== ""; icon: "memory"; text: Sys.memText }
+                                Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree }
+                            }
+                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(sysPopout) }
+                        }
                     }
                 }
             }
@@ -2426,8 +2457,8 @@ Variants {
             PanelWindow {
                 id: resourcePopout
 
-                readonly property real sourceX: leftRow.x + svcWrap.x
-                readonly property real sourceWidth: svcWrap.width
+                readonly property real sourceX: leftRow.x + svcWrap.x + sysCells.x
+                readonly property real sourceWidth: sysCells.width
                 readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
 
                 visible: sysPopout.open
@@ -2511,18 +2542,101 @@ Variants {
                         ResourceInfoRow { visible: Sys.swapText !== ""; label: "swap"; value: Sys.swapText }
                         ResourceInfoRow { label: "disk free"; value: Sys.diskFree }
                         ResourceInfoRow { label: "net"; value: Sys.netText }
-                        ResourceInfoRow { label: "docker"; value: Sys.docker }
-                        Repeater {
-                            model: Sys.dockerList
-                            ResourceInfoRow { label: "  " + modelData.name; value: modelData.status }
+                    }
+                }
+            }
+
+            // ---- docker / vm popouts (click their cells) ----
+            // Same list shape for both: name left, status right, a line of
+            // dim text when there is nothing to list.
+            component ListPopout: PanelWindow {
+                id: lp
+                property bool open: false
+                property Item cell
+                property string title
+                property var rows: []      // [{ name, status }]
+                property string empty: "nothing running"
+
+                readonly property real sourceX: leftRow.x + svcWrap.x + cell.x
+                readonly property real sourceWidth: cell.width
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+
+                visible: open
+                screen: panel.screen
+                anchors { top: true; left: true }
+                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                exclusionMode: ExclusionMode.Ignore
+                WlrLayershell.layer: WlrLayer.Overlay
+                WlrLayershell.namespace: "quickshell-popout"
+                implicitWidth: 320
+                implicitHeight: lpCol.implicitHeight + 28
+                color: "transparent"
+
+                AttachedPanel {
+                    anchors.fill: parent
+                    shown: lp.open
+                    neckX: lp.sourceX - lp.popupX
+                    neckWidth: lp.sourceWidth
+
+                    Column {
+                        id: lpCol
+                        width: parent.width
+                        spacing: 6
+
+                        Text {
+                            text: lp.title
+                            font.family: Theme.font; font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: Theme.bright
                         }
-                        ResourceInfoRow { label: "vm"; value: Sys.vm }
+                        Text {
+                            visible: lp.rows.length === 0
+                            text: lp.empty
+                            font.family: Theme.font; font.pixelSize: 11
+                            color: Theme.dim
+                        }
                         Repeater {
-                            model: Sys.vmList
-                            ResourceInfoRow { label: "  " + modelData.name; value: modelData.status }
+                            model: lp.rows
+                            // Two lines: the name is what you opened this for
+                            // and container names run long, so it gets the
+                            // whole width; the status sits under it.
+                            Column {
+                                required property var modelData
+                                width: lpCol.width
+                                spacing: 1
+                                Text {
+                                    width: parent.width
+                                    text: modelData.name
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: Theme.text
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: modelData.status
+                                    font.family: Theme.font; font.pixelSize: 10
+                                    color: Theme.dim
+                                    elide: Text.ElideRight
+                                }
+                            }
                         }
                     }
                 }
+            }
+
+            ListPopout {
+                open: dockerPopout.open
+                cell: dockerCell
+                title: "docker"
+                rows: Sys.dockerList
+                empty: Sys.dockerUp ? "no containers running" : "daemon is down"
+            }
+            ListPopout {
+                open: vmPopout.open
+                cell: vmCell
+                title: "virtual machines"
+                rows: Sys.vmList
+                empty: "no vms running"
             }
 
         }

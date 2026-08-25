@@ -109,7 +109,7 @@ Singleton {
         // Bar widgets, opened from the keyboard. Toggles, like clicking the
         // cell; the bar picks the panel on the focused screen (Sys.togglePanel).
         for (const [name, icon] of [
-                ["calendar", "calendar"], ["system", "cpu-64-bit"], ["display", "monitor"], ["power", "battery"],
+                ["calendar", "calendar"], ["system", "cpu-64-bit"], ["docker", "docker"], ["vm", "server"], ["display", "monitor"], ["power", "battery"],
                 ["network", "wifi-strength-4"], ["audio", "volume-high"], ["bluetooth", "bluetooth"], ["tailscale", "server"],
                 ["tray", "dots-horizontal"]])
             rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.togglePanel(name) });
