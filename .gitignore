@@ -10,9 +10,9 @@ __pycache__/
 
 # Theme runtime state — swapped by ~/.scripts/theme-apply, sources are tracked.
 .config/alacritty/colors.toml
-.config/dunst/dunstrc
 .config/hypr/colors.conf
-.config/i3/colors.conf
-.config/waybar/style.css
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini
+
+# duo daemon: built by `go build` in duo/, deployed via the host manifest
+duo/duo

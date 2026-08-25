@@ -1,0 +1,13 @@
+# Zenbook Duo detachable keyboard. duo(1) needs its hidraw node to send the ASUS
+# init handshake that turns the Fn/media layer on, to read the brightness and
+# backlight keys (they never reach the input layer), and to set the backlight.
+#
+# Matching on the parent HID device name covers both transports in one form:
+# bus:vendor:product, 0003 = USB (docked on the pogo pins), 0005 = Bluetooth.
+# ATTRS{idVendor} would only work for the USB side — bluetooth HID devices
+# don't expose those attributes at all, which left the wireless node root-only.
+#
+# uaccess hands the node to the active seat's user (elogind); the group is the
+# fallback for logins with no seat.
+KERNEL=="hidraw*", KERNELS=="0003:0B05:1BF2.*", TAG+="uaccess", MODE="0660", GROUP="input"
+KERNEL=="hidraw*", KERNELS=="0005:0B05:1BF3.*", TAG+="uaccess", MODE="0660", GROUP="input"
