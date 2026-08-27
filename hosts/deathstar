@@ -23,7 +23,6 @@
 .scripts/layout-switcher.sh
 .scripts/imports
 .scripts/pg_prettify.sh
-.scripts/ping-latency.sh
 .scripts/qsmenu
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle

@@ -24,7 +24,6 @@
 .scripts/layout-switcher.sh
 .scripts/menu/common
 .scripts/pg_prettify.sh
-.scripts/ping-latency.sh
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle
 .scripts/screenshot.sh

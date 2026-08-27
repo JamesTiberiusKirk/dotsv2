@@ -15,7 +15,6 @@
 .scripts/gomodrename.sh
 .scripts/imports
 .scripts/pg_prettify.sh
-.scripts/ping-latency.sh
 .scripts/sql-align-format
 .scripts/swap-workspaces-mac.sh
 
