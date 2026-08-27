@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -43,6 +44,7 @@ func read(path string) string {
 // placement (USB only), while the Fn layer follows the keyboard being reachable
 // at all — it is just as usable over bluetooth, and was dead there before.
 func watch() error {
+	go watchSleep()
 	// At boot, duo watch starts on hyprland.start before USB has necessarily
 	// finished enumerating the pogo-pin keyboard — a snapshot taken too early
 	// reads undocked even when it's sitting docked, and since the state never
@@ -161,7 +163,10 @@ func applyKbd(present bool) {
 		fmt.Fprintln(os.Stderr, "duo: keyboard handshake:", err)
 		return
 	}
-	kbdCmd("backlight", strconv.Itoa(kbdLevel()))
+	// raw set: restoring the stored level is not a user change, no OSD
+	if err := setKbdBacklight(kbdLevel()); err != nil {
+		fmt.Fprintln(os.Stderr, "duo: keyboard backlight:", err)
+	}
 	// One reader at a time: applyKbd also runs on dock changes, and a second
 	// reader on the same node would double every keypress.
 	if readerRunning.CompareAndSwap(false, true) {
@@ -189,4 +194,47 @@ func followOrientation(current orientation, stable int) (orientation, int) {
 		return current, 0
 	}
 	return now, 0
+}
+
+// watchSleep blanks the keyboard backlight for suspend and brings it back
+// after. The backlight is a vendor HID feature report — there is no LED
+// device for the kernel to switch off at sleep, so a lit keyboard stayed lit
+// with the lid shut. elogind announces both edges on the system bus
+// (PrepareForSleep true/false); a filtered dbus-monitor sits on that one
+// signal, idle between events. On the way back up the keyboard is treated as
+// freshly appeared: the firmware forgets its init across suspend and the Fn
+// row goes dead without the handshake, so applyKbd re-runs the lot — which
+// also restores the stored level, without touching it or flashing the OSD.
+func watchSleep() {
+	for {
+		cmd := exec.Command("dbus-monitor", "--system",
+			"type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'")
+		out, err := cmd.StdoutPipe()
+		if err == nil {
+			err = cmd.Start()
+		}
+		if err != nil {
+			logf("sleep watch: %v", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		sc := bufio.NewScanner(out)
+		for sc.Scan() {
+			line := sc.Text()
+			switch {
+			case strings.Contains(line, "boolean true"):
+				logf("sleep: blanking keyboard backlight")
+				if err := setKbdBacklight(0); err != nil {
+					logf("sleep: backlight off: %v", err)
+				}
+			case strings.Contains(line, "boolean false"):
+				logf("resume: re-initialising keyboard")
+				applyKbd(kbdPresent())
+			}
+		}
+		cmd.Wait()
+		// the bus daemon restarting takes the monitor with it; come back
+		logf("sleep watch: dbus-monitor exited, restarting")
+		time.Sleep(5 * time.Second)
+	}
 }

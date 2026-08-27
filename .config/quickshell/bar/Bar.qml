@@ -62,6 +62,12 @@ Variants {
             PwObjectTracker { objects: [panel.sink] }
 
             SystemClock { id: clock; precision: SystemClock.Minutes }
+            // SystemClock has no resync; toggling it re-reads the wall clock
+            // and re-arms the minute tick from now rather than from before sleep
+            Connections {
+                target: Sys
+                function onResumed() { clock.enabled = false; clock.enabled = true; }
+            }
             QtObject { id: sysPopout; property bool open: false }
             QtObject { id: dockerPopout; property bool open: false }
             QtObject { id: vmPopout; property bool open: false }
@@ -1559,19 +1565,38 @@ Variants {
                             font.family: Theme.font; font.pixelSize: 11
                             color: Theme.dim
                         }
+                        // click copies `value`; the label reads "copied" for a
+                        // second so the click is seen to land. Popout stays open.
+                        component TsCopy: Text {
+                            id: tc
+                            property string value
+                            property string label
+                            text: copied.running ? "copied" : label
+                            elide: Text.ElideRight
+                            font.family: Theme.font; font.pixelSize: 11
+                            color: Theme.dim
+                            Timer { id: copied; interval: 1000 }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    Quickshell.execDetached(["wl-copy", "--", tc.value]);
+                                    copied.restart();
+                                }
+                            }
+                        }
 
                         ToggleRow {
                             label: "tailscale"
                             checked: Sys.tsUp
                             onToggled: value => Sys.tsSetUp(value)
                         }
-                        Text {
+                        Row {
                             visible: Sys.tsUp
                             width: tsCol.width
-                            elide: Text.ElideRight
-                            text: Sys.tsNode + "  \u00b7  " + Sys.tsIp
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
+                            spacing: 6
+                            TsCopy { label: Sys.tsNode; value: Sys.tsDns }
+                            TsHead { text: "\u00b7" }
+                            TsCopy { label: Sys.tsIp; value: Sys.tsIp }
                         }
 
                         // ---- exit node ----
@@ -1690,29 +1715,19 @@ Variants {
                                         width: peerCol.width
                                         height: 20
 
-                                        Text {
+                                        // name copies the full MagicDNS name, ip copies the ip
+                                        TsCopy {
                                             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                             width: parent.width - 120
-                                            elide: Text.ElideRight
-                                            text: (pRow.peer.on ? "\u25cf  " : "\u25cb  ") + pRow.peer.n
-                                            font.family: Theme.font; font.pixelSize: 12
+                                            label: (pRow.peer.on ? "\u25cf  " : "\u25cb  ") + pRow.peer.n
+                                            value: pRow.peer.d
+                                            font.pixelSize: 12
                                             color: pRow.peer.on ? Theme.text : Theme.dim
                                         }
-                                        Text {
+                                        TsCopy {
                                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                            text: pRow.peer.ip
-                                            font.family: Theme.font; font.pixelSize: 11
-                                            color: Theme.dim
-                                        }
-                                        // no other way to get an address out of
-                                        // here, and typing 100.x by hand is worse
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            onClicked: {
-                                                Quickshell.execDetached(["sh", "-c",
-                                                    "printf %s " + pRow.peer.ip + " | wl-copy"]);
-                                                panel.closeIslandPopouts();
-                                            }
+                                            label: pRow.peer.ip
+                                            value: pRow.peer.ip
                                         }
                                     }
                                 }

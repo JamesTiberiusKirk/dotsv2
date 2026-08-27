@@ -36,10 +36,7 @@ func kbdCmd(action, val string) error {
 		if err != nil || n < 0 || n > 3 {
 			return fmt.Errorf("backlight: want 0-3, got %q", val)
 		}
-		// 0x5a 0xba 0xc5 0xc4 <level>, same report as hid-asus uses
-		if err := withKbdDevice(func(f *os.File) error {
-			return setFeature(f, []byte{0x5a, 0xba, 0xc5, 0xc4, byte(n)})
-		}); err != nil {
+		if err := setKbdBacklight(n); err != nil {
 			return err
 		}
 		setKbdLevel(n)
@@ -48,6 +45,18 @@ func kbdCmd(action, val string) error {
 		return nil
 	}
 	return fmt.Errorf("kbd: want handshake|backlight, got %q", action)
+}
+
+// setKbdBacklight sends the level to the keyboard and nothing else: no
+// persisted level, no OSD. The user-facing command layers those on top; the
+// daemon calls this directly when it is restoring a level (startup, resume)
+// or blanking for sleep — neither is a change the user made, so neither
+// should flash the OSD or overwrite what they picked.
+func setKbdBacklight(n int) error {
+	// 0x5a 0xba 0xc5 0xc4 <level>, same report as hid-asus uses
+	return withKbdDevice(func(f *os.File) error {
+		return setFeature(f, []byte{0x5a, 0xba, 0xc5, 0xc4, byte(n)})
+	})
 }
 
 func kbdHandshake() error {

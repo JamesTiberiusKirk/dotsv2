@@ -193,6 +193,43 @@ Singleton {
     // screen, so this cannot reach a popout directly — every panel hears it
     // and only the one on the focused monitor answers. The menu uses it.
     signal togglePanel(string name)
+
+    // Fired when the machine comes back from suspend. Qt timers run on the
+    // monotonic clock, which stops during sleep, so anything scheduled "in
+    // 40 seconds" before the lid closed still has 40 seconds to wait after
+    // it opens — the bar clock showed the pre-sleep minute until then.
+    // elogind announces resume on the system bus (PrepareForSleep false);
+    // there is no D-Bus API in QML, so a filtered dbus-monitor sits on that
+    // one signal. Idle on a socket read between events.
+    signal resumed()
+    signal sleeping()
+    Process {
+        id: sleepWatch
+        running: true
+        command: ["dbus-monitor", "--system",
+                  "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+        stdout: SplitParser {
+            // the signal header line is followed by its one argument:
+            //    boolean true   (going down)   /   boolean false   (back up)
+            onRead: line => {
+                if (line.indexOf("boolean false") !== -1) root.resumed();
+                else if (line.indexOf("boolean true") !== -1) root.sleeping();
+            }
+        }
+        // the bus daemon restarting would take the monitor with it; without
+        // this the hook would silently go dead for the rest of the session
+        onExited: restartWatch.restart()
+    }
+    Timer { id: restartWatch; interval: 5000; onTriggered: sleepWatch.running = true }
+
+    // Outputs off before the machine goes down, on again after. Purely
+    // cosmetic on hibernate: the kernel snapshots memory, then thaws every
+    // device to write the image through the disk driver — the GPU comes
+    // back with them and lights the panel with the frozen desktop for the
+    // ~30 s of the write. DRM restores the state it froze with, so a panel
+    // that was already off stays off through it.
+    onSleeping: Hyprland.dispatch('hl.dsp.dpms("off")')
+    onResumed: Hyprland.dispatch('hl.dsp.dpms("on")')
     // Close every popout and the drawer, on every screen. Bound to Esc via the
     // `popout` submap below; the bar panels listen.
     signal closeAll()
@@ -400,9 +437,10 @@ Singleton {
     property bool tsUp: false
     property string tsNode: ""
     property string tsIp: ""
+    property string tsDns: ""           // full MagicDNS name, host.tailnet.ts.net
     property string tsExit: ""          // exit node in use, by tailnet IP
     property var tsHealth: []
-    property var tsPeerList: []         // [{n, ip, on, ex}]
+    property var tsPeerList: []         // [{n, d, ip, on, ex}]
 
     readonly property int tsPeerCount: tsPeerList.length
     readonly property int tsPeersOnline: tsPeerList.filter(p => p.on).length
@@ -416,10 +454,10 @@ Singleton {
         id: tsProc
         command: ["sh", "-c",
             "tailscale status --json 2>/dev/null | jq -c '{" +
-            "s:.BackendState, n:(.Self.DNSName|split(\".\")[0]), ip:(.Self.TailscaleIPs[0]//\"\")," +
+            "s:.BackendState, n:(.Self.DNSName|split(\".\")[0]), d:(.Self.DNSName|rtrimstr(\".\")), ip:(.Self.TailscaleIPs[0]//\"\")," +
             "ex:((.ExitNodeStatus.TailscaleIPs[0]//\"\")|sub(\"/.*\";\"\"))," +
             "h:(.Health//[])," +
-            "p:[.Peer[]?|{n:(.DNSName|split(\".\")[0]), ip:(.TailscaleIPs[0]//\"\")," +
+            "p:[.Peer[]?|{n:(.DNSName|split(\".\")[0]), d:(.DNSName|rtrimstr(\".\")), ip:(.TailscaleIPs[0]//\"\")," +
             "on:.Online, ex:(.ExitNodeOption//false)}]}' 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -435,6 +473,7 @@ Singleton {
                     root.tsUp = j.s === "Running";
                     root.tsNode = j.n ?? "";
                     root.tsIp = j.ip ?? "";
+                    root.tsDns = j.d ?? "";
                     root.tsExit = j.ex ?? "";
                     root.tsHealth = j.h ?? [];
                     root.tsPeerList = j.p ?? [];

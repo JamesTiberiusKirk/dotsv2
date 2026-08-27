@@ -1,0 +1,17 @@
+#!/bin/sh
+# elogind sleep hook: let the hibernation image be as big as it needs to be.
+#
+# The kernel's default /sys/power/image_size is 2/5 of RAM, and when more than
+# that is in use it "shrinks" the image first — swapping pages out one at a
+# time through the normal swap path before it snapshots. On binstar that was
+# 103 s at 122 MB/s before a single byte of the image was written
+# (dmesg: "Allocated 12680948 kbytes in 103.33 seconds"). The bytes end up on
+# the same SSD either way; the snapshot writes them at full speed and the
+# evicted ones only get faulted back in lazily after resume, so a smaller
+# image is slower going down *and* sluggish coming up. Set the target to all
+# of RAM and the shrink step is skipped. Swap is sized for it (62 GB).
+#
+# Set on every hibernate rather than once at boot: the value is a sysfs knob
+# with no persistent home, and this runs as root right before it matters.
+[ "$1" = "pre" ] && [ "$2" != "suspend" ] || exit 0
+awk '/MemTotal/ { print $2 * 1024 }' /proc/meminfo > /sys/power/image_size

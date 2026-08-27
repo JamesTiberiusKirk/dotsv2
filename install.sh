@@ -132,6 +132,12 @@ if [ -d "$DOTS/system/etc/elogind/sleep.conf.d" ]; then
   sudo mkdir -p /etc/elogind/sleep.conf.d
   sudo cp "$DOTS"/system/etc/elogind/sleep.conf.d/*.conf /etc/elogind/sleep.conf.d/
 fi
+# sleep hooks (hibernate image size); elogind runs these from /lib, not /etc
+if [ -d "$DOTS/system/etc/elogind/system-sleep" ]; then
+  sudo mkdir -p /lib/elogind/system-sleep
+  sudo cp "$DOTS"/system/etc/elogind/system-sleep/* /lib/elogind/system-sleep/
+  sudo chmod +x /lib/elogind/system-sleep/*
+fi
 
 # ---- snapper + bootable snapshots (omarchy-style, no btrfs quotas) ----
 yay -S --needed --noconfirm snapper snap-pac limine-snapper-sync || true

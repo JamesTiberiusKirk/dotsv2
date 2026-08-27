@@ -143,8 +143,12 @@ mkinitcpio -P
 # Limine (UEFI fallback path — no efibootmgr entry needed)
 mkdir -p /boot/EFI/BOOT
 cp /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/
+# quiet + a 1 s timeout: nothing is drawn and the default entry boots, but any
+# key in that second brings the menu up — timeout 0 would boot instantly with
+# no way back to the snapshot entries limine-snapper-sync adds.
 cat > /boot/limine.conf <<EOF
-timeout: 3
+timeout: 1
+quiet: yes
 
 /Artix
     protocol: linux
