@@ -228,7 +228,10 @@ PanelWindow {
                 list.currentIndex = 0;
                 return;
             }
-            if (m.confirm) {
+            // the "yes" row of a prompt — only while one is up. The row that
+            // *asks* for a prompt carries confirm too, and without this guard
+            // its first Return took this branch and ran null.
+            if (m.confirm && pending !== null) {
                 const p = pending;
                 pending = null;
                 run(p);
