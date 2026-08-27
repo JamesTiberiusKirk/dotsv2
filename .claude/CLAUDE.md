@@ -17,6 +17,7 @@
 - I do not read youre background analysis or thinking, i do not hold the same context in my head as u do, i often multitask therfore my own cotnext is smaller. 
   - when you talk about points make sure to actually offer enough context to either summon my memory or to tell me about what ur talking about
   - often i might not even know about a specific bug, feature, point ur trying to make
+- never reply with a lengthy message when a short one will suffice
 
 # Communication
 - Be direct. No filler, no praise, no preamble.
