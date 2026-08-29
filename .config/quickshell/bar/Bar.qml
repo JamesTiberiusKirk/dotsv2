@@ -3084,6 +3084,30 @@ Variants {
                     Rectangle { width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
                     Rectangle { x: bezelChrome.bW - bezelChrome.bT; width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
 
+                    // rounded screen corners at both ends of the bar's edge
+                    // (Frame.qml draws the same on the strips; this window
+                    // paints over them, so it has to carry its own)
+                    Shape {
+                        id: bezelCorners
+                        anchors.fill: parent
+                        preferredRendererType: Shape.CurveRenderer
+                        readonly property real r: Theme.frameRadius
+                        ShapePath {
+                            strokeColor: "transparent"; fillColor: Theme.bezel
+                            startX: 0; startY: bezelCorners.r
+                            PathLine { x: 0; y: 0 }
+                            PathLine { x: bezelCorners.r; y: 0 }
+                            PathArc { x: 0; y: bezelCorners.r; radiusX: bezelCorners.r; radiusY: bezelCorners.r; direction: PathArc.Counterclockwise }
+                        }
+                        ShapePath {
+                            strokeColor: "transparent"; fillColor: Theme.bezel
+                            startX: bezelChrome.bW; startY: bezelCorners.r
+                            PathLine { x: bezelChrome.bW; y: 0 }
+                            PathLine { x: bezelChrome.bW - bezelCorners.r; y: 0 }
+                            PathArc { x: bezelChrome.bW; y: bezelCorners.r; radiusX: bezelCorners.r; radiusY: bezelCorners.r }
+                        }
+                    }
+
                     // stub walls
                     Rectangle { x: bezelChrome.bT - 1; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }
                     Rectangle { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }

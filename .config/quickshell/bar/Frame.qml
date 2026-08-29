@@ -16,6 +16,24 @@ Variants {
 
         required property var modelData
 
+        // Reservation lives in these invisible windows so the visible chrome
+        // can ignore every exclusive zone: a strip that respects the side
+        // band's zone (or vice versa, map order is a race on side switches)
+        // stops short of the screen corner and leaves a hole there.
+        component Reserver: PanelWindow {
+            property string edge
+            screen: scope.modelData
+            visible: ShellState.side !== edge
+            anchors { top: edge !== "bottom"; bottom: edge !== "top"; left: edge !== "right"; right: edge !== "left" }
+            implicitWidth: Theme.frameT
+            implicitHeight: Theme.frameT
+            exclusionMode: ExclusionMode.Normal
+            exclusiveZone: Theme.frameT
+            color: "transparent"
+            mask: Region {}
+            WlrLayershell.namespace: "quickshell-frame"
+        }
+
         component SideBand: PanelWindow {
             id: side
 
@@ -29,6 +47,7 @@ Variants {
                 top: ShellState.side === "top" ? 0 : Theme.frameFillet
             }
             implicitWidth: Theme.frameT
+            exclusionMode: ExclusionMode.Ignore
             color: "transparent"
             WlrLayershell.namespace: "quickshell-frame"
 
@@ -50,8 +69,7 @@ Variants {
             screen: scope.modelData
             anchors { left: true; right: true; bottom: !topSide; top: topSide }
             implicitHeight: Theme.frameT + Theme.frameFillet
-            exclusionMode: ExclusionMode.Normal
-            exclusiveZone: Theme.frameT
+            exclusionMode: ExclusionMode.Ignore
             color: "transparent"
             WlrLayershell.namespace: "quickshell-frame"
 
@@ -76,6 +94,29 @@ Variants {
                     x: bottomChrome.bT + bottomChrome.bf; y: bottomChrome.bf
                     width: bottomChrome.bW - 2 * (bottomChrome.bT + bottomChrome.bf); height: 1
                     color: Theme.islandBorder
+                }
+
+                // rounded screen corners: black outside the arc
+                Shape {
+                    id: corners
+                    anchors.fill: parent
+                    preferredRendererType: Shape.CurveRenderer
+                    readonly property real r: Theme.frameRadius
+                    readonly property real h: bottomChrome.height
+                    ShapePath {
+                        strokeColor: "transparent"; fillColor: Theme.bezel
+                        startX: 0; startY: corners.h - corners.r
+                        PathLine { x: 0; y: corners.h }
+                        PathLine { x: corners.r; y: corners.h }
+                        PathArc { x: 0; y: corners.h - corners.r; radiusX: corners.r; radiusY: corners.r }
+                    }
+                    ShapePath {
+                        strokeColor: "transparent"; fillColor: Theme.bezel
+                        startX: bottomChrome.bW; startY: corners.h - corners.r
+                        PathLine { x: bottomChrome.bW; y: corners.h }
+                        PathLine { x: bottomChrome.bW - corners.r; y: corners.h }
+                        PathArc { x: bottomChrome.bW; y: corners.h - corners.r; radiusX: corners.r; radiusY: corners.r; direction: PathArc.Counterclockwise }
+                    }
                 }
 
                 // concave fillets
@@ -109,6 +150,10 @@ Variants {
 
         }
 
+        Reserver { edge: "top" }
+        Reserver { edge: "bottom" }
+        Reserver { edge: "left" }
+        Reserver { edge: "right" }
         EdgeStrip {}
         EdgeStrip { topSide: true }
         SideBand {}

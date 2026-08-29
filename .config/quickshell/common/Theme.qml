@@ -20,6 +20,9 @@ Singleton {
     // screen bezel: band thickness + concave inner-corner radius
     readonly property int frameT: 2
     readonly property int frameFillet: 8
+    // convex radius of the screen's outer corners, and what shows outside them
+    readonly property int frameRadius: 10
+    readonly property color bezel: "#000000"
     // bar body height (island/capsule height, below the top band)
     readonly property int barBody: 30
     // gap between the bar and anything that hangs off it — popout
