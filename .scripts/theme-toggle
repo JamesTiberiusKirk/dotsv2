@@ -1,19 +1,11 @@
 #!/bin/sh
+# Cycle to the next theme in ~/.config/themes (alphabetical, wraps).
 set -eu
-
-mode_file="$HOME/.theme-mode"
-
-if [ -f "$mode_file" ]; then
-    current_mode=$(cat "$mode_file")
-elif [ "$(readlink -f "$HOME/.config/i3/colors.conf" 2>/dev/null || true)" = "$HOME/.config/i3/colors-light.conf" ]; then
-    current_mode="light"
-else
-    current_mode="dark"
-fi
-
-case "$current_mode" in
-    light) next_mode="dark" ;;
-    *) next_mode="light" ;;
-esac
-
-exec "$HOME/.scripts/theme-apply" "$next_mode"
+cur=$(python3 -c 'import json;print(json.load(open("'"$HOME"'/.theme.json"))["name"])' 2>/dev/null || echo purple)
+set -- $(ls "$HOME/.config/themes"/*.json | xargs -n1 basename | sed 's/\.json$//')
+next=$1
+while [ $# -gt 0 ]; do
+    if [ "$1" = "$cur" ]; then shift; next=${1:-$next}; break; fi
+    shift
+done
+exec "$HOME/.scripts/theme-apply" "$next"

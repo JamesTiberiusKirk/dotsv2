@@ -26,13 +26,19 @@ gtmux.set_option("status_left_length", "150")
 gtmux.set_option("copy_wheel_lines", "5")
 gtmux.set_option("copy_drag_finish", "false")
 
+-- Pane borders: "simple" (straight │/─, tmux-faithful), "joined" (box-drawing
+-- junctions where dividers cross), "framed" (every pane enclosed, content
+-- shrinks 1 cell per side). rounded → ╭╮╰╯ corners.
+gtmux.options.pane_borders = "framed"
+gtmux.options.pane_border_rounded = true
+
 gtmux.options.status_fg = "white"
 gtmux.options.status_bg = "dark_grey"
 
 gtmux.options.active_window_fg = "black"
 gtmux.options.active_window_bg = "green"
 
-gtmux.options.active_border_fg = "green"
+gtmux.options.active_border_fg = "magenta"
 gtmux.options.marked_border_fg = "magenta"
 gtmux.options.fill_fg = "dark_grey"
 
@@ -137,35 +143,86 @@ gtmux.bind_root("C-k", function() gtmux.select_pane_vim("up") end)
 gtmux.bind_root("C-l", function() gtmux.select_pane_vim("right") end)
 gtmux.bind_root("C-\\", function() gtmux.select_pane_vim("last") end)
 
+gtmux.bind_root("C-1", function() gtmux.select_window(1) end)
+gtmux.bind_root("C-2", function() gtmux.select_window(2) end)
+gtmux.bind_root("C-3", function() gtmux.select_window(3) end)
+
 -- Drawn dashboard panel (canvas draw API): a bordered left dock with a live
--- SESSIONS list (current highlighted, click to switch) and a CLAUDE section
--- (every pane running `claude` across all sessions). Click any row naming a
--- session to jump there.
-gtmux.widget{ dock = "left", size = 15, fg = "white", bg = "black", interval = 1,
+-- SESSIONS list (current highlighted, click to switch) and a Clanker section
+-- (every pane running an agent — claude/codex/opencode — across all sessions),
+-- coloured by whether the agent is working or awaiting your input. Click any
+-- row naming a session to jump there.
+--
+-- Clanker display toggles (edit to taste):
+local CLANKER_SPINNER = true   -- animate a spinner glyph on working agents
+local CLANKER_TITLE   = true   -- show the agent's current task title
+-- Per-pane "you've seen it" state + the spinner animation frame, kept in
+-- upvalues so they persist across the 1s redraws. dismissed[id]=true means an
+-- idle agent has been focused since it last stopped (→ grey, not red); it's
+-- re-armed whenever the agent goes back to work.
+local clankerDismissed = {}
+local clankerFrame = 0
+local clankerSpin = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
+  name = "sidebar", min_cols = 110, -- auto-hide on narrow clients; prefix+B toggles
   draw = function(c)
-    c:box(0, 0, c.w, c.h, "fg=cyan,rounded")
+    -- box returns its interior as a clipped child: text drawn through `inner`
+    -- is truncated at the border instead of overwriting it. The title and the
+    -- hline stay on `c` on purpose — the title sits ON the top border row, and
+    -- hline spans the full width so it merges into the sides as tees.
+    local inner = c:box(0, 0, c.w, c.h, "fg=cyan,rounded")
     c:text(2, 0, " gtmux ", "fg=cyan,bold")
 
-    c:text(2, 1, "SESSIONS", "fg=cyan,bold")
-    local cur, y = gtmux.context().session, 2
+    inner:text(1, 0, "SESSIONS", "fg=cyan,bold")
+    local cur, y = gtmux.context().session, 2   -- y stays in PARENT coords
     for _, s in ipairs(gtmux.sessions()) do
       local here = (s.name == cur)
-      c:text(2, y, (here and "> " or "  ") .. s.name .. "(" .. s.windows .. ")",
+      inner:text(1, y - 1, (here and "> " or "  ") .. s.name,
              here and "fg=green,bold" or "fg=white")
       y = y + 1
     end
 
     c:hline(y, "fg=dark_grey"); y = y + 1
-    c:text(2, y, "Clanker", "fg=magenta,bold"); y = y + 1
-    local hits = gtmux.find_panes({ command = "claude" })
-    if #hits == 0 then
-      c:text(2, y, "(none)", "fg=dark_grey")
-    else
-      for _, p in ipairs(hits) do
-        c:text(2, y, p.session .. ":" .. p.window .. "." .. p.number, "fg=magenta")
-        y = y + 1
+    inner:text(1, y - 1, "Clanker", "fg=magenta,bold"); y = y + 1
+    -- State comes from the OSC-0 title: claude & codex put a spinner glyph (braille
+    -- U+2800 block ≤2.1.227, ◐◓◑◒ U+25D0-25D3 since 2.1.228) in the title while working and drop
+    -- it when they stop for you — so no spinner = awaiting input. opencode sets
+    -- no title, so its state is unknown (?).
+    clankerFrame = clankerFrame + 1
+    local focused = gtmux.context().pane
+    local tags = { claude = "cl", codex = "cx", opencode = "oc" }
+    local shown = 0
+    for _, p in ipairs(gtmux.find_panes({})) do
+      local tag = tags[p.command]
+      if tag then
+        local glyph, style
+        if p.command == "opencode" or p.title == "" then
+          glyph, style = "?", "fg=magenta"                    -- state unknown
+        elseif p.title:find("Action Required", 1, true) then  -- codex: permission prompt
+          clankerDismissed[p.id] = nil
+          glyph, style = "⚠", "fg=yellow,bold"                 -- blocked on you
+        elseif p.title:find("\226[\160-\163]") or p.title:find("^\226\151[\144-\147]") then -- spinner = working (claude: ◐◓◑◒ leading since 2.1.228, braille before; codex: braille anywhere)
+          clankerDismissed[p.id] = nil                        -- re-arm for next idle
+          glyph = CLANKER_SPINNER and clankerSpin[(clankerFrame % #clankerSpin) + 1] or "~"
+          style = "fg=blue"
+        else                                                  -- no spinner = idle
+          if focused == ("%" .. p.id) then clankerDismissed[p.id] = true end
+          if clankerDismissed[p.id] then
+            glyph, style = "·", "fg=dark_grey"                -- seen it → dismissed
+          else
+            glyph, style = "!", "fg=red,bold"                 -- awaiting you
+          end
+        end
+        local row = tag .. " " .. glyph .. " " .. p.session .. ":" .. p.window .. "." .. p.number
+        if CLANKER_TITLE and glyph ~= "?" then
+          local disp = p.title:match("[%w].*")                -- strip leading status glyph
+          if disp and disp ~= "" then row = row .. " " .. disp end
+        end
+        inner:text(1, y - 1, row, style)
+        y = y + 1; shown = shown + 1
       end
     end
+    if shown == 0 then inner:text(1, y - 1, "(none)", "fg=dark_grey") end
   end,
   on_click = function(hit)
     -- switch to whichever session name appears on the clicked row
@@ -175,3 +232,10 @@ gtmux.widget{ dock = "left", size = 15, fg = "white", bg = "black", interval = 1
       end
     end
   end }
+
+-- Responsive: below 90 cols keep the active pane maximized (phone attach);
+-- Tab cycles panes keeping the zoom. prefix+B force-shows/hides the sidebar
+-- over its min_cols breakpoint.
+gtmux.responsive{ cols_below = 90 }
+gtmux.bind("Tab", function() gtmux.next_pane() end)
+gtmux.bind("B", function() gtmux.toggle_dock("sidebar") end)

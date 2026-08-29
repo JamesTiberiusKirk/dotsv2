@@ -32,6 +32,9 @@ if hl.plugin.hyprglass then
     -- pixels outright rather than leaving them un-glassed, and at 0.6 it ate
     -- both the picker's scrim and the band's own islandBorder (alpha 0.53).
     hg.layer("quickshell-wallpaper", { mask_threshold = 0.3 })
+    -- Wallpaper caption (wallpaper/Info.qml): a 0.35-alpha pane, so the
+    -- threshold only has to clear the transparent margin.
+    hg.layer("quickshell-wallinfo", { mask_threshold = 0.05 })
 
     -- Launcher gets a frostier pane than the stock default (blur_strength 2.0).
     hg.preset("launcher", {

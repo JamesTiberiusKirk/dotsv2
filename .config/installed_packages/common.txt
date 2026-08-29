@@ -15,6 +15,7 @@ btop
 bun
 caja
 ccache
+cdrtools
 cloudflared
 cmake
 ddccontrol
@@ -22,6 +23,7 @@ dhcpcd
 dhcpcd-runit
 discord
 displaylink
+dnsmasq
 docker
 docker-buildx
 docker-compose
@@ -68,6 +70,8 @@ kvantum-qt5
 lazydocker
 lazygit
 libnotify
+libvirt
+libvirt-runit
 linux-lts-headers
 litecli
 logiops
@@ -76,6 +80,7 @@ luarocks
 lxappearance
 man-db
 materia-gtk-theme
+matugen
 minikube
 mkdocs
 mkdocs-material
@@ -96,6 +101,7 @@ noto-fonts-emoji
 npm
 ntp
 ntp-runit
+openbsd-netcat
 openresolv
 openssh
 otf-font-awesome
@@ -120,11 +126,13 @@ python-pymdown-extensions
 python-sqlparse
 python-virtualenv
 qemu-base
+qemu-full
 qemu-ui-gtk
 qrcodegen
 qrencode
 qt5ct
 qt6ct-kde
+qt6-doc
 quickshell
 raw-thumbnailer
 raylib
@@ -169,6 +177,7 @@ usbutils
 vencord-bin
 vertex-themes
 vim
+virt-install
 vulkan-intel
 wezterm
 wireplumber

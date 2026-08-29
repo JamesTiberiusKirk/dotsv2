@@ -23,6 +23,7 @@
 .scripts/imports
 .scripts/layout-switcher.sh
 .scripts/menu/common
+.scripts/agent-usage
 .scripts/pg_prettify.sh
 .scripts/random-wallpaper.sh
 .scripts/redshift-toggle
@@ -31,6 +32,7 @@
 .scripts/script-menu.sh
 .scripts/sql-align-format
 .scripts/theme-apply
+.scripts/theme-from-wallpaper
 .scripts/theme-toggle
 .scripts/touchpad-fix
 .scripts/trackpoint-scroll
@@ -48,6 +50,7 @@
 .config/gtk-3.0
 .config/gtmux
 .config/hypr
+.config/themes
 .config/hyprland-autoname-workspaces
 .config/installed_packages
 .config/keyd

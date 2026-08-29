@@ -1,0 +1,27 @@
+# Qt's LSP module (qtlanguageserver). Arch doesn't package it: qt6-declarative
+# links it statically into its qmlls and ships nothing. Needed to build the
+# qmlls help plugin (pkgbuilds/qt6-qmlls-helpplugin). Bump pkgver with qt6-base.
+pkgname=qt6-languageserver
+_qtver=6.11.2
+pkgver=${_qtver/-/}
+pkgrel=1
+arch=(x86_64)
+url='https://www.qt.io'
+license=(GPL-3.0-only LGPL-3.0-only)
+pkgdesc='An implementation of the Language Server Protocol (Qt module, static)'
+depends=(qt6-base)
+makedepends=(cmake ninja)
+groups=(qt6)
+_pkgfn=qtlanguageserver-everywhere-src-$_qtver
+source=(https://download.qt.io/official_releases/qt/${pkgver%.*}/$_qtver/submodules/$_pkgfn.tar.xz)
+sha256sums=('38bc4272ecf4ca0eb1927227053e52be6b2e05733f46d03422306aace511fc5e')
+
+build() {
+  cmake -B build -S $_pkgfn -G Ninja -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 $_pkgfn/LICENSES/LGPL-3.0-only.txt -t "$pkgdir/usr/share/licenses/$pkgname"
+}

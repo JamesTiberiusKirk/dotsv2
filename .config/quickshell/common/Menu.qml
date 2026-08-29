@@ -113,6 +113,8 @@ Singleton {
                 ["network", "wifi-strength-4"], ["audio", "volume-high"], ["bluetooth", "bluetooth"], ["tailscale", "server"],
                 ["tray", "dots-horizontal"]])
             rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.togglePanel(name) });
+        for (const [side, icon] of [["top", "arrow-up"], ["bottom", "arrow-down"], ["left", "arrow-left"], ["right", "arrow-right"]])
+            rows.push({ path: "bar/side/" + side + " " + mark(ShellState.side === side), icon: icon, run: () => ShellState.side = side });
 
         return rows;
     }

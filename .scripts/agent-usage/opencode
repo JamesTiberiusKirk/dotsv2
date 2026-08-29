@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+"""Print the OpenCode usage record as JSON (same contract as the other collectors).
+
+Local stats: every assistant message in ~/.local/share/opencode/opencode.db,
+any provider — the anthropic ones also land in the Claude record, which is
+fine: this tab is "what opencode did", that one is "what the subscription paid for".
+Limits: the OpenCode Go endpoint with the key opencode itself stores.
+"""
+
+import datetime as dt
+import json
+import os
+import sqlite3
+import sys
+import urllib.request
+from pathlib import Path
+
+DATA = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "opencode"
+USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
+LIMITS_ONLY = "--limits-only" in sys.argv
+
+TOKEN_KEYS = ("inputTokens", "outputTokens", "cacheCreationInputTokens", "cacheReadInputTokens")
+
+
+def day_of(ms):
+  return dt.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d")
+
+
+def scan():
+  today = dt.date.today()
+  recent = {(today - dt.timedelta(days=i)).strftime("%Y-%m-%d"): 0 for i in range(6, -1, -1)}
+  today_s = today.strftime("%Y-%m-%d")
+  by_model, today_by_model = {}, {}
+  sessions, today_sessions, active = set(), set(), set()
+  prompts = today_prompts = today_total = 0
+  try:
+    conn = sqlite3.connect(f"file:{DATA / 'opencode.db'}?mode=ro", uri=True)
+    rows = conn.execute("SELECT session_id, data FROM message").fetchall()
+  except Exception:
+    rows = []
+  for session_id, raw in rows:
+    try:
+      m = json.loads(raw)
+      if m.get("role") != "assistant":
+        continue
+      t = m.get("tokens") or {}
+      c = t.get("cache") or {}
+      inp, out = int(t.get("input") or 0), int(t.get("output") or 0) + int(t.get("reasoning") or 0)
+      cr, cw = int(c.get("read") or 0), int(c.get("write") or 0)
+      total = inp + out + cr + cw
+      if total <= 0:
+        continue
+      day = day_of(int((m.get("time") or {}).get("created") or 0)) if (m.get("time") or {}).get("created") else today_s
+      model = str(m.get("modelID") or "?").split("/")[-1]
+    except Exception:
+      continue
+    sessions.add(session_id)
+    active.add(day)
+    prompts += 1
+    b = by_model.setdefault(model, dict.fromkeys(TOKEN_KEYS, 0))
+    b["inputTokens"] += inp
+    b["outputTokens"] += out
+    b["cacheReadInputTokens"] += cr
+    b["cacheCreationInputTokens"] += cw
+    if day in recent:
+      recent[day] += total
+    if day == today_s:
+      today_prompts += 1
+      today_sessions.add(session_id)
+      today_total += total
+      today_by_model[model] = today_by_model.get(model, 0) + total
+  return {
+    "hasLocalStats": bool(rows),
+    "recentDays": [{"date": d, "messageCount": n} for d, n in recent.items()],
+    "modelUsage": by_model,
+    "todayTokensByModel": today_by_model,
+    "todayTotalTokens": today_total,
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDates": sorted(active),
+    "activeDays": len(active),
+  }
+
+
+def limits():
+  try:
+    key = json.loads((DATA / "auth.json").read_text())["opencode-go"]["key"]
+  except Exception:
+    return [], "", "OpenCode Go key missing"
+  try:
+    req = urllib.request.Request(USAGE_URL, headers={"Authorization": "Bearer " + key, "User-Agent": "agent-usage/1"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+      usage = json.load(r)["usage"]
+  except Exception as e:
+    return [], "", f"OpenCode usage unavailable ({type(e).__name__})"
+  out = []
+  for k, label in (("rolling", "Session (5-hour)"), ("weekly", "Weekly (7-day)"), ("monthly", "Monthly")):
+    w = usage.get(k)
+    if w and w.get("percent") is not None:
+      out.append({"label": label, "percent": float(w["percent"]) / 100, "resetsAt": w.get("resetsAt")})
+  return out, "Go", ""
+
+
+record = {
+  "schemaVersion": 1,
+  "id": "opencode",
+  "name": "OpenCode",
+  "ready": True,
+  "authHelpText": "Run `opencode auth login` and pick OpenCode Go.",
+  "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+}
+record["limits"], record["tierLabel"], record["usageStatusText"] = limits()
+if not LIMITS_ONLY:
+  record.update(scan())
+json.dump(record, sys.stdout)

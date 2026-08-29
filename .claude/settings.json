@@ -25,7 +25,7 @@
     "clangd-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "ponytail@ponytail": true,
-    "voicemode@voicemode": true
+    "voicemode@voicemode": false
   },
   "extraKnownMarketplaces": {
     "ponytail": {

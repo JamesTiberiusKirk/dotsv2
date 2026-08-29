@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.16)
+project(qmllshelpplugin LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 REQUIRED COMPONENTS Core Help QmlLSPrivate)
+qt_add_plugin(helpplugin SHARED CLASS_NAME QHelpEnginePlugin
+    qhelpengineplugin.h qhelpengineplugin.cpp)
+string(REPLACE "." "," _v "${QT_VERSION}")
+target_compile_definitions(helpplugin PRIVATE "QT_ENABLE_STRICT_MODE_UP_TO=QT_VERSION_CHECK(${_v})")
+target_link_libraries(helpplugin PRIVATE Qt6::Core Qt6::Help Qt6::QmlLSPrivate)
+install(TARGETS helpplugin LIBRARY DESTINATION lib/qt6/plugins/help)

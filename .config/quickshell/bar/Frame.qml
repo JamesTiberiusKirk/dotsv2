@@ -4,9 +4,10 @@ import QtQuick
 import QtQuick.Shapes
 import "../common"
 
-// Screen bezel: solid side and bottom bands that reserve space, molded into
-// the bar's top band. Inner corners get the same concave fillets as the
-// notches. The top band + top corners are drawn by Bar.qml.
+// Screen bezel: solid bands that reserve space on the three edges the bar is
+// not on, molded into the bar's own band. Inner corners get the same concave
+// fillets as the notches. The bar's edge (band + its corners) is drawn by
+// Bar.qml; ShellState.side says which one that is.
 Variants {
     model: Quickshell.screens
 
@@ -20,8 +21,13 @@ Variants {
 
             property bool rightSide: false
             screen: scope.modelData
+            visible: ShellState.side !== (rightSide ? "right" : "left")
             anchors { top: true; bottom: true; left: !rightSide; right: rightSide }
-            margins { bottom: Theme.frameFillet } // bottom strip's fillets take over
+            // the strips' fillets take over at the corners they own
+            margins {
+                bottom: ShellState.side === "bottom" ? 0 : Theme.frameFillet
+                top: ShellState.side === "top" ? 0 : Theme.frameFillet
+            }
             implicitWidth: Theme.frameT
             color: "transparent"
             WlrLayershell.namespace: "quickshell-frame"
@@ -35,11 +41,14 @@ Variants {
             }
         }
 
-        // bottom strip maps FIRST so it spans the full screen width — the side
-        // bands' reserved zones would otherwise inset it away from the corners
-        PanelWindow {
+        // strips map FIRST so they span the full screen width — the side
+        // bands' reserved zones would otherwise inset them away from the corners
+        component EdgeStrip: PanelWindow {
+            id: strip
+            property bool topSide: false
+            visible: ShellState.side !== (topSide ? "top" : "bottom")
             screen: scope.modelData
-            anchors { left: true; right: true; bottom: true }
+            anchors { left: true; right: true; bottom: !topSide; top: topSide }
             implicitHeight: Theme.frameT + Theme.frameFillet
             exclusionMode: ExclusionMode.Normal
             exclusiveZone: Theme.frameT
@@ -51,6 +60,8 @@ Variants {
             Item {
                 id: bottomChrome
                 anchors.fill: parent
+                // drawn as the bottom strip, flipped for the top one
+                transform: Scale { origin.y: bottomChrome.height / 2; yScale: strip.topSide ? -1 : 1 }
                 readonly property real bT: Theme.frameT
                 readonly property real bf: Theme.frameFillet
                 readonly property real bW: width
@@ -98,6 +109,8 @@ Variants {
 
         }
 
+        EdgeStrip {}
+        EdgeStrip { topSide: true }
         SideBand {}
         SideBand { rightSide: true }
     }

@@ -1,0 +1,92 @@
+#!/usr/bin/python3
+"""Print the agent records the bar shows, as one JSON array.
+
+Local records come from ~/.local/state/agents/usage/. If a sync dir exists
+(~/Documents/agent-usage, owncloud), every other host's snapshot there is
+merged in: tokens by day and by model, today's prompt/session counts, and
+active days are summed; limits and plan stay local (they are per account,
+the same number on every machine). Agents only ever run on another host
+still get a tab, with blank limits.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+HOST = Path("/etc/hostname").read_text().strip() if Path("/etc/hostname").exists() else os.uname().nodename
+LOCAL = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "agents/usage"
+SYNC = Path.home() / "Documents/agent-usage"
+
+TOKEN_KEYS = ("inputTokens", "outputTokens", "cacheCreationInputTokens", "cacheReadInputTokens")
+
+
+def load(path):
+  try:
+    return json.loads(path.read_text())
+  except Exception:
+    return None
+
+
+def has_data(r):
+  return bool(r.get("limits")) or r.get("balance") is not None or any(
+    (r.get(k) or 0) > 0 for k in ("activeDays", "todayPrompts", "todaySessions", "totalPrompts", "totalSessions"))
+
+
+def add_remote(acc, r):
+  days = {d["date"]: d for d in acc.get("recentDays", [])}
+  for d in r.get("recentDays", []):
+    days.setdefault(d["date"], {"date": d["date"], "messageCount": 0})["messageCount"] += d.get("messageCount") or 0
+  acc["recentDays"] = sorted(days.values(), key=lambda d: d["date"])
+  mu = acc.setdefault("modelUsage", {})
+  for model, u in (r.get("modelUsage") or {}).items():
+    m = mu.setdefault(model, {k: 0 for k in TOKEN_KEYS})
+    for k in TOKEN_KEYS:
+      m[k] = (m.get(k) or 0) + (u.get(k) or 0)
+  for k in ("todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions"):
+    acc[k] = (acc.get(k) or 0) + (r.get(k) or 0)
+  dates = set(acc.get("activeDates") or []) | set(r.get("activeDates") or [])
+  acc["activeDates"] = sorted(dates)
+  acc["activeDays"] = max(len(dates), acc.get("activeDays") or 0)
+  acc["hosts"] = sorted(set(acc.get("hosts") or [HOST]) | {r.get("host") or "?"})
+
+
+
+def main():
+  records = {}
+  for f in LOCAL.glob("*.json"):
+    r = load(f)
+    if r:
+      r["host"] = HOST
+      records[r["id"]] = r
+
+  if SYNC.is_dir():
+    for hostdir in SYNC.iterdir():
+      if hostdir.name == HOST or not hostdir.is_dir():
+        continue
+      for f in hostdir.glob("*.json"):
+        r = load(f)
+        if not r:
+          continue
+        r["host"] = hostdir.name
+        if r["id"] in records:
+          add_remote(records[r["id"]], r)
+        else:
+          r["limits"], r["balance"], r["tierLabel"], r["usageStatusText"] = [], None, "", ""
+          r["hosts"] = [hostdir.name]
+          records[r["id"]] = r
+
+  out = [r for r in sorted(records.values(), key=lambda r: r["id"]) if has_data(r)]
+  json.dump(out, sys.stdout)
+
+
+def selftest():
+  a = {"id": "x", "recentDays": [{"date": "2026-01-01", "messageCount": 1}], "modelUsage": {"m": {"inputTokens": 1}}, "todayPrompts": 1, "activeDates": ["2026-01-01"]}
+  add_remote(a, {"host": "h", "recentDays": [{"date": "2026-01-01", "messageCount": 2}, {"date": "2026-01-02", "messageCount": 3}], "modelUsage": {"m": {"outputTokens": 5}}, "todayPrompts": 2, "activeDates": ["2026-01-02"]})
+  assert [d["messageCount"] for d in a["recentDays"]] == [3, 3]
+  assert a["modelUsage"]["m"]["inputTokens"] == 1 and a["modelUsage"]["m"]["outputTokens"] == 5
+  assert a["todayPrompts"] == 3 and a["activeDays"] == 2
+
+
+if __name__ == "__main__":
+  selftest() if os.environ.get("MERGE_SELFTEST") else main()

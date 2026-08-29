@@ -1,0 +1,63 @@
+{
+  "mode": "light",
+  "shell": {
+    "island": "#D9eceff4",
+    "islandBorder": "#88c2cbd8",
+    "surface": "#D9e5e9f0",
+    "text": "#4c566a",
+    "bright": "#2e3440",
+    "dim": "#7b88a1",
+    "accent": "#5e81ac",
+    "accentText": "#eceff4",
+    "track": "#d8dee9",
+    "ok": "#5f8a3c",
+    "warn": "#b8860b",
+    "urgent": "#bf616a"
+  },
+  "hypr": {
+    "active_border": [
+      "rgba(5e81acaa)",
+      "rgba(81a1c1aa)"
+    ],
+    "inactive_border": "rgba(c2cbd8aa)",
+    "group_active": "rgba(5e81acaa)",
+    "group_inactive": "rgba(d8dee9cc)",
+    "group_locked_active": "rgba(bf616aaa)",
+    "group_locked_inactive": "rgba(d8dee9cc)",
+    "groupbar_active": "rgba(5e81acff)",
+    "groupbar_inactive": "rgba(d8dee9ff)",
+    "groupbar_locked_active": "rgba(bf616aff)",
+    "groupbar_locked_inactive": "rgba(d8dee9ff)",
+    "groupbar_text": "rgba(2e3440ff)",
+    "groupbar_text_inactive": "rgba(4c566aff)"
+  },
+  "term": {
+    "background": "#eceff4",
+    "foreground": "#2e3440",
+    "cursor": "#5e81ac",
+    "cursor_text": "#eceff4",
+    "selection": "#d8dee9",
+    "selection_text": "#2e3440",
+    "titlebar": "#e5e9f0",
+    "normal": [
+      "#3b4252",
+      "#bf616a",
+      "#5f8a3c",
+      "#b8860b",
+      "#5e81ac",
+      "#b48ead",
+      "#5f8f96",
+      "#d8dee9"
+    ],
+    "bright": [
+      "#4c566a",
+      "#bf616a",
+      "#5f8a3c",
+      "#b8860b",
+      "#5e81ac",
+      "#b48ead",
+      "#5f8f96",
+      "#eceff4"
+    ]
+  }
+}

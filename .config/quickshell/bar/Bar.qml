@@ -11,6 +11,7 @@ import Quickshell.Widgets
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Shapes
+import QtQuick.Layouts
 import "../common"
 
 Variants {
@@ -24,11 +25,64 @@ Variants {
             id: panel
 
             screen: barScope.modelData
-            anchors { top: true; left: true; right: true }
-            readonly property int barBodyHeight: Theme.barBody
+            // ShellState.side picks the edge. The bar owns the frame band on
+            // whichever edge it sits on (Frame.qml drops its strip there), so
+            // the capsules hang off the band the same way on every side.
+            readonly property bool vertical: ShellState.vertical
+            readonly property bool far: ShellState.far
+            anchors {
+                top: vertical || ShellState.side === "top"
+                bottom: vertical || ShellState.side === "bottom"
+                left: !vertical || ShellState.side === "left"
+                right: !vertical || ShellState.side === "right"
+            }
+            // A side switch unmaps the layer, moves it, maps it again: flipping
+            // the anchors of a mapped layer surface has crashed Hyprland.
+            // The bezel remaps a beat after the bar so it stacks above it, as
+            // it does at startup (declared later in this file): remapped on the
+            // same tick the order flipped and the glassed bar hid the band.
+            property bool mapped: true
+            property bool bezelMapped: true
+            visible: mapped
+            Connections {
+                target: ShellState
+                function onSideChanged() {
+                    panel.closeIslandPopouts();
+                    panel.mapped = false;
+                    panel.bezelMapped = false;
+                    remap.start();
+                }
+            }
+            Timer { id: remap; interval: 80; onTriggered: { panel.mapped = true; remapBezel.start(); } }
+            Timer { id: remapBezel; interval: 60; onTriggered: panel.bezelMapped = true }
+
+            readonly property int barBodyHeight: ShellState.barBody
             readonly property int barHeight: barBodyHeight + Theme.frameT
+            // island offset inside the window on the cross axis (the band is at
+            // the far edge of the window on right/bottom), and from the screen
+            // corners along the bar
+            readonly property int edgeIn: far ? 0 : Theme.frameT
+            readonly property int gutter: Theme.frameT + Theme.frameFillet + 12
+            readonly property real along: vertical ? height : width
+            // Chrome (capsules, band, fillets) is drawn once in top-bar
+            // coordinates — x along the bar, y inward from the edge — and this
+            // maps it onto the actual edge: mirrored for bottom, transposed
+            // for left, transposed + mirrored for right.
+            readonly property matrix4x4 chromeMatrix: {
+                const T = barHeight;
+                switch (ShellState.side) {
+                case "bottom": return Qt.matrix4x4(1, 0, 0, 0,  0, -1, 0, T,  0, 0, 1, 0,  0, 0, 0, 1);
+                case "left":   return Qt.matrix4x4(0, 1, 0, 0,  1, 0, 0, 0,   0, 0, 1, 0,  0, 0, 0, 1);
+                case "right":  return Qt.matrix4x4(0, -1, 0, T, 1, 0, 0, 0,   0, 0, 1, 0,  0, 0, 0, 1);
+                default:       return Qt.matrix4x4();
+                }
+            }
+            // main-axis position / extent of a bar item, whichever axis the bar runs on
+            function pos(it) { return vertical ? it.y : it.x; }
+            function ext(it) { return vertical ? it.height : it.width; }
 
             implicitHeight: barHeight
+            implicitWidth: barHeight
             color: "transparent"
             exclusionMode: ExclusionMode.Normal
             // hidden: islands slide up into the band and fade, windows reclaim
@@ -37,15 +91,17 @@ Variants {
             // hidden: windows reclaim the bar body, so drop the input region
             // too — otherwise the invisible surface eats clicks in that strip
             mask: Region {
-                width: ShellState.hidden ? 0 : panel.width
-                height: ShellState.hidden ? 0 : panel.barHeight
+                width: ShellState.hidden ? 0 : (panel.vertical ? panel.barHeight : panel.width)
+                height: ShellState.hidden ? 0 : (panel.vertical ? panel.height : panel.barHeight)
             }
 
             // shared island entrance/exit: transform + opacity only (GPU),
             // no Canvas repaints during the animation
             property real islandFade: ShellState.hidden ? 0 : 1
             Behavior on islandFade { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-            property real islandLift: ShellState.hidden ? -(barBodyHeight * 0.7) : 0
+            property real islandLift: ShellState.hidden ? -(barBodyHeight * 0.7) * (far ? -1 : 1) : 0
+            readonly property real liftX: vertical ? islandLift : 0
+            readonly property real liftY: vertical ? 0 : islandLift
             Behavior on islandLift { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             WlrLayershell.namespace: "quickshell"
 
@@ -83,6 +139,7 @@ Variants {
             }
             QtObject { id: tsPopout; property bool open: false }
             QtObject { id: trayPopout; property bool open: false }
+            QtObject { id: clankerPopout; property bool open: false }
             QtObject {
                 id: btPopout
                 property bool open: false
@@ -117,16 +174,17 @@ Variants {
                 btPopout.open = false;
                 tsPopout.open = false;
                 trayPopout.open = false;
+                clankerPopout.open = false;
             }
 
             // Popouts by the name the menu uses. Same path a cell click takes:
             // close the rest, then flip this one.
             readonly property var popoutsByName: ({
                 calendar: calPopout, system: sysPopout, docker: dockerPopout, vm: vmPopout, display: dispPopout, power: pwrPopout,
-                network: netPopout, audio: audPopout, bluetooth: btPopout, tailscale: tsPopout, tray: trayPopout
+                network: netPopout, audio: audPopout, bluetooth: btPopout, tailscale: tsPopout, tray: trayPopout, clanker: clankerPopout
             })
             readonly property bool anyPopoutOpen: calPopout.open || sysPopout.open || dockerPopout.open || vmPopout.open || dispPopout.open || pwrPopout.open
-                || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || trayPopout.open
+                || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || trayPopout.open || clankerPopout.open
             onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
 
             Connections {
@@ -175,11 +233,22 @@ Variants {
                 return "cog";
             }
 
-            function attachedPanelX(sourceX, sourceWidth, popupWidth) {
+            // Popout placement along the bar's axis, centred on its cell and
+            // kept off the screen corners. popoutTop/Left turn that into
+            // window margins for whichever edge the bar is on.
+            function attachedPanelX(sourceX, sourceWidth, popupExt) {
                 const gutter = Theme.frameT + Theme.frameFillet + 8;
-                return clamp(sourceX + sourceWidth / 2 - popupWidth / 2,
+                return clamp(sourceX + sourceWidth / 2 - popupExt / 2,
                              gutter,
-                             panel.width - popupWidth - gutter);
+                             (vertical ? panel.height : panel.width) - popupExt - gutter);
+            }
+            function popoutTop(along, w, h) {
+                if (vertical) return along;
+                return far ? panel.screen.height - barHeight - Theme.popoutGap - h : barHeight + Theme.popoutGap;
+            }
+            function popoutLeft(along, w, h) {
+                if (!vertical) return along;
+                return far ? panel.screen.width - barHeight - Theme.popoutGap - w : barHeight + Theme.popoutGap;
             }
 
             // Text-as-root with the pill drawn behind it: sizing an outer
@@ -206,6 +275,10 @@ Variants {
             // string as a nerd-font glyph; icons are SVG now, so the two are
             // separate items and the icon no longer depends on whichever font
             // fontconfig happened to resolve for the label.
+            // vform is the vertical-bar form: "icon" drops the label, "stack"
+            // puts the label under the icon in a smaller face, "rot" turns the
+            // label on its side (reads bottom-up on a left bar, top-down on a
+            // right one, like a book spine).
             component Cell: Item {
                 id: cell
 
@@ -215,35 +288,58 @@ Variants {
                 property color color: Theme.text
                 property int leftPadding: 8
                 property int rightPadding: 8
+                property string vform: "icon"
+                // extra height above the row on a vertical bar, for a glyph the
+                // caller draws itself (backlight's two-panel indicator)
+                property int topSlot: 0
 
-                implicitWidth: cellRow.implicitWidth + leftPadding + rightPadding
-                implicitHeight: Theme.fontSize + 14
+                readonly property bool v: panel.vertical
+                readonly property bool stacked: v && vform === "stack" && text !== ""
+                readonly property bool rot: v && vform === "rot" && text !== ""
+                readonly property bool showLabel: text !== "" && (!v || stacked || rot)
 
-                Row {
+                implicitWidth: v ? panel.barBodyHeight - 6 : cellRow.implicitWidth + leftPadding + rightPadding
+                implicitHeight: v ? cellRow.implicitHeight + 8 + topSlot : Theme.fontSize + 14
+
+                Grid {
                     id: cellRow
 
-                    anchors {
-                        left: parent.left
-                        leftMargin: cell.leftPadding
-                        verticalCenter: parent.verticalCenter
-                    }
-                    spacing: 5
+                    // x/y, not anchors: swapping anchors on a flip left the
+                    // row parked at the old anchor's position
+                    x: cell.v ? (cell.width - width) / 2 : cell.leftPadding
+                    y: (cell.height - height + (cell.v ? cell.topSlot : 0)) / 2
+                    flow: cell.stacked ? Grid.TopToBottom : Grid.LeftToRight
+                    columns: cell.stacked ? 1 : 999
+                    spacing: cell.stacked ? 1 : 5
+                    verticalItemAlignment: Grid.AlignVCenter
+                    horizontalItemAlignment: Grid.AlignHCenter
 
                     Icon {
                         name: cell.icon
                         color: cell.color
-                        // Row drops invisible children and their spacing, so a
-                        // label-only Cell costs no leading gap
+                        // positioners drop invisible children and their spacing,
+                        // so a label-only Cell costs no leading gap
                         visible: cell.icon !== ""
-                        anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text {
-                        id: cellLabel
+                    // the label's footprint, swapped when it is rotated so the
+                    // positioner lays out the visual box, not the unrotated one
+                    // visibility lives here, not on the Text: a child reads as
+                    // invisible while its parent is, so binding the wrapper to
+                    // the label's own `visible` latches it hidden
+                    Item {
+                        visible: cell.showLabel
+                        width: cell.rot ? cellLabel.height : cellLabel.width
+                        height: cell.rot ? cellLabel.width : cellLabel.height
+                        Text {
+                            id: cellLabel
 
-                        font.family: Theme.font
-                        font.pixelSize: Theme.fontSize
-                        color: cell.color
-                        anchors.verticalCenter: parent.verticalCenter
+                            anchors.centerIn: parent
+                            rotation: cell.rot ? (panel.far ? 90 : -90) : 0
+                            horizontalAlignment: Text.AlignHCenter
+                            font.family: Theme.font
+                            font.pixelSize: cell.stacked ? 10 : Theme.fontSize
+                            color: cell.color
+                        }
                     }
                 }
             }
@@ -251,11 +347,11 @@ Variants {
             // [x, width, visible] per island in panel coords — reactive,
             // shared by the capsule canvas (this window) and the bezel window
             readonly property var islandGeom: [
-                [leftRow.x + wsIsland.x, wsIsland.width, wsIsland.visible],
-                [leftRow.x + svcWrap.x, svcWrap.width, svcWrap.visible],
-                [titleIsland.x, titleIsland.width, titleIsland.visible],
-                [rightRow.x + powerIsland.x, powerIsland.width, powerIsland.visible],
-                [rightRow.x + trayIsland.x, trayIsland.width, trayIsland.visible]
+                [pos(leftRow) + pos(wsIsland), ext(wsIsland), wsIsland.visible],
+                [pos(leftRow) + pos(svcWrap), ext(svcWrap), svcWrap.visible],
+                [pos(titleIsland), ext(titleIsland), titleIsland.visible],
+                [pos(rightRow) + pos(powerIsland), ext(powerIsland), powerIsland.visible],
+                [pos(rightRow) + pos(trayIsland), ext(trayIsland), trayIsland.visible]
             ]
             readonly property int notchFillet: 8 // notch fillet (Island.qml)
 
@@ -267,9 +363,12 @@ Variants {
                 id: topEdge
                 visible: opacity > 0
                 opacity: panel.islandFade
-                transform: Translate { y: panel.islandLift }
-                width: panel.width
-                height: panel.implicitHeight
+                width: panel.along
+                height: panel.barHeight
+                transform: [
+                    Matrix4x4 { matrix: panel.chromeMatrix },
+                    Translate { x: panel.liftX; y: panel.liftY }
+                ]
 
                 // Shape, not Canvas: Canvas AA edges composite with a premultiply
                 // mismatch on nvidia (dark fringe around every path edge)
@@ -290,6 +389,11 @@ Variants {
                         anchors.fill: parent
                         preferredRendererType: Shape.CurveRenderer
 
+                        // fill under the band too: hyprglass highlights the edge
+                        // of this layer's content, and with the fill starting
+                        // at y = T that edge ran along the band, through every
+                        // capsule. Pushed to the screen edge it hides under the bezel.
+                        Rectangle { x: ix - nf; y: 0; width: iw + 2 * nf; height: nT; color: Theme.island }
                         // capsule fill — auto-closes along y = T, flush under the band
                         ShapePath {
                             strokeColor: "transparent"
@@ -324,13 +428,16 @@ Variants {
 
 
             // ---- left: layout + workspaces + submap, then services/system ----
-            Row {
+            GridLayout {
                 id: leftRow
                 visible: opacity > 0
                 opacity: panel.islandFade
-                transform: Translate { y: panel.islandLift }
-                anchors { left: parent.left; top: parent.top; leftMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
-                spacing: 10
+                transform: Translate { x: panel.liftX; y: panel.liftY }
+                x: panel.vertical ? panel.edgeIn : panel.gutter
+                y: panel.vertical ? panel.gutter : panel.edgeIn
+                flow: panel.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                rowSpacing: 10
+                columnSpacing: 10
 
                 // hyprland's IPC reports the wrong name for lua layouts (always
                 // the first one registered), so read layout-switcher.sh's
@@ -345,6 +452,7 @@ Variants {
                 Island {
                     id: wsIsland
                     Cell {
+                        vform: "rot"
                         text: {
                             const ws = Hyprland.monitorFor(panel.screen)?.activeWorkspace?.id;
                             let def = "dwindle", cur = "";
@@ -363,8 +471,10 @@ Variants {
                             }
                         }
                     }
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
+                    Grid {
+                        Layout.alignment: Qt.AlignCenter
+                        flow: panel.vertical ? Grid.TopToBottom : Grid.LeftToRight
+                        columns: panel.vertical ? 1 : 999
                         spacing: 3
                         padding: 4
                         Repeater {
@@ -408,8 +518,9 @@ Variants {
                 MouseArea {
                     id: svcWrap
 
-                    width: svcIsland.implicitWidth
-                    height: svcIsland.implicitHeight
+                    // implicit, not width/height: GridLayout sizes children by these
+                    implicitWidth: svcIsland.implicitWidth
+                    implicitHeight: svcIsland.implicitHeight
 
                     // Three things share this island, each with its own
                     // popout: docker, the VMs, and the machine itself. One
@@ -423,14 +534,14 @@ Variants {
                     Island {
                         id: svcIsland
 
-                        width: svcWrap.width
-                        height: panel.barBodyHeight
+                        width: panel.vertical ? panel.barBodyHeight : svcWrap.width
+                        height: panel.vertical ? svcWrap.height : panel.barBodyHeight
 
                         // Both always shown. Greyed docker means the daemon is
                         // down; normal colour with a 0 means it is up and idle.
                         Cell {
                             id: dockerCell
-                            icon: "docker"; text: Sys.docker
+                            icon: "docker"; text: Sys.docker; vform: "stack"
                             color: Sys.dockerUp ? Theme.text : Theme.dim
                             MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(dockerPopout) }
                         }
@@ -438,25 +549,37 @@ Variants {
                         // sat next to the CPU and RAM cells reading as a third one
                         Cell {
                             id: vmCell
-                            icon: "server"; text: Sys.vm
+                            icon: "server"; text: Sys.vm; vform: "stack"
                             MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(vmPopout) }
                         }
                         // cpu / mem / disk are one target: they are the same
                         // machine, and the popout shows the lot
                         Item {
                             id: sysCells
-                            width: sysRow.width
-                            height: sysRow.height
-                            anchors.verticalCenter: parent.verticalCenter
-                            // the MouseArea is a sibling of the Row, not a child:
-                            // a Row lays out every child it has, MouseArea included
-                            Row {
+                            implicitWidth: sysRow.width
+                            implicitHeight: sysRow.height
+                            Layout.alignment: Qt.AlignCenter
+                            // the MouseArea is a sibling of the Grid, not a child:
+                            // a positioner lays out every child it has, MouseArea included
+                            Grid {
                                 id: sysRow
-                                Cell { icon: "cpu-64-bit"; text: Math.round(Sys.cpu * 100) + "%" }
-                                Cell { visible: Sys.memText !== ""; icon: "memory"; text: Sys.memText }
-                                Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree }
+                                flow: panel.vertical ? Grid.TopToBottom : Grid.LeftToRight
+                                columns: panel.vertical ? 1 : 999
+                                Cell { icon: "cpu-64-bit"; text: Math.round(Sys.cpu * 100) + "%"; vform: "stack" }
+                                Cell { visible: Sys.memText !== ""; icon: "memory"; text: panel.vertical ? Sys.memText.split("/")[0] : Sys.memText; vform: "stack" }
+                                Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree; vform: "stack" }
                             }
                             MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(sysPopout) }
+                        }
+                        // AI agents: worst limit across every subscription.
+                        // Hidden until some collector has found usage.
+                        Cell {
+                            id: clankerCell
+                            visible: Clanker.agents.length > 0
+                            icon: Clanker.agent ? "agent-" + Clanker.agent.id : "robot"; vform: "stack"
+                            text: Clanker.worst >= 0 ? Math.round(Clanker.worst * 100) + "%" : ""
+                            color: Clanker.alarming ? Theme.urgent : Theme.text
+                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(clankerPopout) }
                         }
                     }
                 }
@@ -468,10 +591,11 @@ Variants {
             // centered. Clicking a pill focuses that window.
             Island {
                 id: titleIsland
-                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: Theme.frameT }
+                x: panel.vertical ? panel.edgeIn : (panel.width - width) / 2
+                y: panel.vertical ? (panel.height - height) / 2 : panel.edgeIn
                 visible: opacity > 0 && carousel.wins.length > 0
                 opacity: panel.islandFade
-                transform: Translate { y: panel.islandLift }
+                transform: Translate { x: panel.liftX; y: panel.liftY }
 
                 Item {
                     id: carousel
@@ -491,9 +615,12 @@ Variants {
                         return -1;
                     }
 
-                    width: Math.min(strip.width, panel.width * 0.4)
-                    height: panel.barBodyHeight
-                    clip: true
+                    // laid out unrotated, then the viewport inside turns on its
+                    // side for a vertical bar (spine direction per side)
+                    readonly property real along: Math.min(strip.width, (panel.vertical ? panel.height : panel.width) * 0.4)
+                    implicitWidth: panel.vertical ? panel.barBodyHeight : along
+                    implicitHeight: panel.vertical ? along : panel.barBodyHeight
+                    Layout.alignment: Qt.AlignCenter
 
                     Connections {
                         target: Hyprland
@@ -512,12 +639,20 @@ Variants {
                     function recenter() {
                         const it = pills.itemAt(activeIndex);
                         if (it)
-                            strip.x = width / 2 - (it.x + it.width / 2);
+                            strip.x = along / 2 - (it.x + it.width / 2);
                         else if (wins.length === 0)
                             strip.x = 0;
                     }
                     onActiveIndexChanged: recenter()
-                    onWidthChanged: recenter()
+                    onAlongChanged: recenter()
+
+                    Item {
+                        id: viewport
+                        anchors.centerIn: parent
+                        width: carousel.along
+                        height: panel.barBodyHeight
+                        rotation: panel.vertical ? (panel.far ? 90 : -90) : 0
+                        clip: true
 
                     Row {
                         id: strip
@@ -585,17 +720,21 @@ Variants {
                             }
                         }
                     }
+                    }
                 }
             }
 
             // ---- right: status cluster + audio/power + tray/clock ----
-            Row {
+            GridLayout {
                 id: rightRow
                 visible: opacity > 0
                 opacity: panel.islandFade
-                transform: Translate { y: panel.islandLift }
-                anchors { right: parent.right; top: parent.top; rightMargin: Theme.frameT + Theme.frameFillet + 12; topMargin: Theme.frameT }
-                spacing: 10
+                transform: Translate { x: panel.liftX; y: panel.liftY }
+                x: panel.vertical ? panel.edgeIn : panel.width - width - panel.gutter
+                y: panel.vertical ? panel.height - height - panel.gutter : panel.edgeIn
+                flow: panel.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                rowSpacing: 10
+                columnSpacing: 10
 
                 Island {
                     id: powerIsland
@@ -640,12 +779,14 @@ Variants {
                         visible: Sys.corne !== ""
                         icon: "keyboard"
                         text: Sys.corne
+                        vform: "rot"
                         color: Theme.bright
                     }
 
                     // battery — click opens the power-profile panel
                     Cell {
                         id: batteryCell
+                        vform: "stack"
                         readonly property var dev: UPower.displayDevice
                         visible: (dev?.isLaptopBattery ?? false)
                         readonly property real pct: dev ? (dev.percentage > 1 ? dev.percentage : dev.percentage * 100) : 0
@@ -676,6 +817,7 @@ Variants {
                     // backlight — click opens the display panel
                     Cell {
                         id: backlightCell
+                        vform: "stack"
                         visible: Sys.backlight >= 0
                         // On the Duo the sun becomes two stacked halves, one per
                         // panel, so the bar says at a glance whether the bottom
@@ -684,6 +826,7 @@ Variants {
                         // installed here, and half-block characters are exactly
                         // the kind of thing a fallback face renders wrong.
                         leftPadding: Sys.isDuo ? 22 : 8
+                        topSlot: Sys.isDuo ? 16 : 0
                         icon: Sys.isDuo ? "" : "white-balance-sunny"
                         text: Math.round(Sys.backlight * 100) + "%"
 
@@ -691,11 +834,10 @@ Variants {
                             visible: Sys.isDuo
                             width: 10
                             height: 14
-                            anchors {
-                                left: parent.left
-                                leftMargin: 8
-                                verticalCenter: parent.verticalCenter
-                            }
+                            // left of the label on a horizontal bar, above it on
+                            // a vertical one (x/y, not anchors — see cellRow)
+                            x: panel.vertical ? (parent.width - width) / 2 : 8
+                            y: panel.vertical ? 5 : (parent.height - height) / 2
                             // top panel: always on, or the bar would not be drawn
                             Rectangle {
                                 anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -726,6 +868,7 @@ Variants {
                         visible: Sys.duoKbd
                         icon: "keyboard"
                         text: Sys.kbdBacklight === 0 ? "off" : Sys.kbdBacklight + "/3"
+                        vform: "stack"
                         color: Sys.kbdBacklight === 0 ? Theme.dim : Theme.text
                         MouseArea {
                             anchors.fill: parent
@@ -741,6 +884,7 @@ Variants {
                     // the two, and the panel is where the devices live.
                     Cell {
                         id: volCell
+                        vform: "stack"
                         readonly property var av: Audio.sink?.audio ?? null
                         icon: av ? Audio.volIcon(av.volume, av.muted) : ""
                         text: av ? (av.muted ? "\u2013" : Math.round(av.volume * 100) + "%") : ""
@@ -764,6 +908,7 @@ Variants {
                     // reached for here is switching audio to a headset
                     Cell {
                         id: btCell
+                        vform: "stack"
                         visible: Bt.present
                         icon: Bt.icon
                         text: Bt.connectedDevices.length > 1 ? "" + Bt.connectedDevices.length : ""
@@ -803,6 +948,7 @@ Variants {
                     // not drawn in its own language.
                     Cell {
                         id: trayCell
+                        vform: "stack"
                         readonly property int count: SystemTray.items.values.length
                         visible: count > 0
                         icon: "dots-horizontal"
@@ -820,6 +966,7 @@ Variants {
                     // notification bell → history panel
                     Cell {
                         id: notifBellCell
+                        vform: "stack"
 
                         // history, not the daemon's tracked set — the two stopped
                         // being the same thing once history outlived a restart
@@ -851,8 +998,8 @@ Variants {
                     }
                     Cell {
                         id: clockCell
-
-                        text: Qt.formatDateTime(clock.date, "ddd d · HH:mm")
+                        vform: "stack"
+                        text: Qt.formatDateTime(clock.date, panel.vertical ? "HH:mm\nd" : "ddd d · HH:mm")
                         color: Theme.bright
                         MouseArea {
                             anchors.fill: parent
@@ -881,10 +1028,15 @@ Variants {
 
             // ---- click-away backdrop for the bar popouts ----
             PanelWindow {
-                visible: calPopout.open || sysPopout.open || dispPopout.open || pwrPopout.open || netPopout.open || audPopout.open || btPopout.open || tsPopout.open
+                visible: calPopout.open || sysPopout.open || dispPopout.open || pwrPopout.open || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || clankerPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true; right: true; bottom: true }
-                margins { top: panel.barHeight }
+                margins {
+                    top: ShellState.side === "top" ? panel.barHeight : 0
+                    bottom: ShellState.side === "bottom" ? panel.barHeight : 0
+                    left: ShellState.side === "left" ? panel.barHeight : 0
+                    right: ShellState.side === "right" ? panel.barHeight : 0
+                }
                 color: "transparent"
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Top
@@ -900,14 +1052,14 @@ Variants {
             PanelWindow {
                 id: trayPanel
 
-                readonly property real sourceX: rightRow.x + trayIsland.x + trayCell.x
-                readonly property real sourceWidth: trayCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(trayIsland) + panel.pos(trayCell)
+                readonly property real sourceWidth: panel.ext(trayCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: trayPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -987,15 +1139,15 @@ Variants {
 
                 property bool open: false
                 property date shown: new Date()
-                readonly property real sourceX: rightRow.x + trayIsland.x + clockCell.x
-                readonly property real sourceWidth: clockCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(trayIsland) + panel.pos(clockCell)
+                readonly property real sourceWidth: panel.ext(clockCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
                 onOpenChanged: if (open) shown = new Date()
 
                 visible: open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -1089,14 +1241,14 @@ Variants {
             PanelWindow {
                 id: displayPopout
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + backlightCell.x
-                readonly property real sourceWidth: backlightCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(backlightCell)
+                readonly property real sourceWidth: panel.ext(backlightCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: dispPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -1302,9 +1454,9 @@ Variants {
             PanelWindow {
                 id: powerPopout
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + batteryCell.x
-                readonly property real sourceWidth: batteryCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(batteryCell)
+                readonly property real sourceWidth: panel.ext(batteryCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 readonly property var dev: Sys.batteryDevice
                 readonly property bool charging: dev ? dev.state === UPowerDeviceState.Charging : false
@@ -1312,7 +1464,7 @@ Variants {
                 visible: pwrPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -1531,14 +1683,14 @@ Variants {
             PanelWindow {
                 id: tsPanel
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + tsCell.x
-                readonly property real sourceWidth: tsCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(tsCell)
+                readonly property real sourceWidth: panel.ext(tsCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: tsPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -1755,14 +1907,14 @@ Variants {
             PanelWindow {
                 id: btPanel
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + btCell.x
-                readonly property real sourceWidth: btCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(btCell)
+                readonly property real sourceWidth: panel.ext(btCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: btPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -1891,14 +2043,14 @@ Variants {
             PanelWindow {
                 id: audioPopout
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + volCell.x
-                readonly property real sourceWidth: volCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(volCell)
+                readonly property real sourceWidth: panel.ext(volCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: audPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -2129,14 +2281,14 @@ Variants {
             PanelWindow {
                 id: networkPopout
 
-                readonly property real sourceX: rightRow.x + powerIsland.x + netCell.x
-                readonly property real sourceWidth: netCell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(netCell)
+                readonly property real sourceWidth: panel.ext(netCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: netPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -2148,8 +2300,16 @@ Variants {
                 // the panel — the second click never reached the bar. OnDemand,
                 // not Exclusive, so the compositor's own bindings keep working
                 // while the field is up.
+                // Hyprland only hands an OnDemand layer focus on map or on a click
+                // into it; flipping the mode after the row click is ignored, so the
+                // grab is what actually moves the keyboard here.
                 property bool wantKeys: false
                 WlrLayershell.keyboardFocus: netPopout.open && wantKeys ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+                HyprlandFocusGrab {
+                    windows: [networkPopout]
+                    active: netPopout.open && networkPopout.wantKeys
+                    onCleared: netPopout.open = false
+                }
                 implicitWidth: 320
                 implicitHeight: netCol.implicitHeight + 28
                 color: "transparent"
@@ -2459,14 +2619,14 @@ Variants {
             PanelWindow {
                 id: resourcePopout
 
-                readonly property real sourceX: leftRow.x + svcWrap.x + sysCells.x
-                readonly property real sourceWidth: sysCells.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(sysCells)
+                readonly property real sourceWidth: panel.ext(sysCells)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: sysPopout.open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -2548,6 +2708,225 @@ Variants {
                 }
             }
 
+            // ---- clanker panel (click the robot cell) ----
+            // omarchy's agents panel, in this bar's idiom: tab chips per
+            // agent, plan line, limit meters with reset countdowns, then
+            // tokens by day and by model. Hover a token row for the split.
+            PanelWindow {
+                id: clankerPanel
+
+                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(clankerCell)
+                readonly property real sourceWidth: panel.ext(clankerCell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
+                readonly property var a: Clanker.agent
+
+                visible: clankerPopout.open
+                screen: panel.screen
+                anchors { top: true; left: true }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
+                exclusionMode: ExclusionMode.Ignore
+                WlrLayershell.layer: WlrLayer.Overlay
+                WlrLayershell.namespace: "quickshell-popout"
+                implicitWidth: 340
+                implicitHeight: clankerCol.implicitHeight + 28
+                color: "transparent"
+
+                AttachedPanel {
+                    anchors.fill: parent
+                    shown: clankerPopout.open
+                    neckX: clankerPanel.sourceX - clankerPanel.popupX
+                    neckWidth: clankerPanel.sourceWidth
+
+                    Column {
+                        id: clankerCol
+                        width: parent.width
+                        spacing: 8
+
+                        // label left, bar + value right; hover text swaps the value
+                        component TokenRow: Item {
+                            property string label
+                            property real value       // 0..1 of the heaviest row
+                            property string detail
+                            property string hover: ""
+                            property bool bold: false
+                            width: clankerCol.width
+                            height: 16
+                            Text {
+                                text: label
+                                font.family: Theme.font; font.pixelSize: 11; font.bold: bold
+                                color: Theme.text
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Rectangle {
+                                anchors { right: tvalue.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                                width: 90; height: 4; radius: 2
+                                color: Theme.track
+                                Rectangle { width: parent.width * Math.max(0, Math.min(1, value)); height: parent.height; radius: 2; color: Theme.accent }
+                            }
+                            Text {
+                                id: tvalue
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                text: tHover.containsMouse && hover !== "" ? hover : detail
+                                font.family: Theme.font; font.pixelSize: 11
+                                color: Theme.dim
+                            }
+                            MouseArea { id: tHover; anchors.fill: parent; hoverEnabled: true }
+                        }
+                        component SectionHead: Text {
+                            font.family: Theme.font; font.pixelSize: 10
+                            color: Theme.dim
+                            topPadding: 4
+                        }
+
+                        // tab chips: only when there is something to switch between
+                        Item {
+                            visible: Clanker.agents.length > 1
+                            width: clankerCol.width; height: 22
+                            Row {
+                                spacing: 14
+                                Repeater {
+                                    model: Clanker.agents
+                                    Item {
+                                        required property var modelData
+                                        required property int index
+                                        readonly property bool on: index === Clanker.current
+                                        width: tabText.width; height: 22
+                                        Text {
+                                            id: tabText
+                                            text: modelData.name || modelData.id
+                                            font.family: Theme.font; font.pixelSize: 11; font.bold: on
+                                            color: on ? Theme.bright : Theme.dim
+                                        }
+                                        Rectangle {
+                                            anchors.bottom: parent.bottom
+                                            width: parent.width; height: 2
+                                            color: Theme.accent
+                                            visible: on
+                                        }
+                                        MouseArea { anchors.fill: parent; onClicked: Clanker.select(modelData.id) }
+                                    }
+                                }
+                            }
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.track }
+                        }
+
+                        // hero: name + plan, or the auth problem in its place
+                        Item {
+                            width: clankerCol.width; height: 30
+                            Icon { id: heroIcon; name: clankerPanel.a ? "agent-" + clankerPanel.a.id : "robot"; size: 22; color: Theme.bright; anchors.verticalCenter: parent.verticalCenter }
+                            Column {
+                                anchors { left: heroIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                                Text {
+                                    text: clankerPanel.a ? clankerPanel.a.name : ""
+                                    font.family: Theme.font; font.pixelSize: 13; font.bold: true
+                                    color: Theme.bright
+                                }
+                                Text {
+                                    readonly property string status: clankerPanel.a ? (clankerPanel.a.usageStatusText || "") : ""
+                                    text: status !== "" ? status : (clankerPanel.a ? (clankerPanel.a.tierLabel || "") : "")
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: status !== "" ? Theme.warn : Theme.dim
+                                }
+                            }
+                            Icon {
+                                name: "refresh"; size: 14; color: Theme.dim
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                MouseArea { anchors.fill: parent; onClicked: Clanker.refresh() }
+                            }
+                        }
+
+                        // limits could not be fetched: say how to fix it
+                        Rectangle {
+                            readonly property string help: clankerPanel.a && clankerPanel.a.usageStatusText ? (clankerPanel.a.authHelpText || "") : ""
+                            visible: help !== ""
+                            width: clankerCol.width; height: helpText.height + 12; radius: 6
+                            color: Theme.track
+                            Text {
+                                id: helpText
+                                x: 8; y: 6; width: parent.width - 16
+                                text: parent.help
+                                wrapMode: Text.WordWrap
+                                font.family: Theme.font; font.pixelSize: 11
+                                color: Theme.warn
+                            }
+                        }
+
+                        // limits: % of each allowance and the time to reset
+                        Repeater {
+                            model: clankerPanel.a ? (clankerPanel.a.limits || []) : []
+                            TokenRow {
+                                required property var modelData
+                                readonly property real pct: Number(modelData.percent)
+                                readonly property string reset: Clanker.untilText(modelData.resetsAt)
+                                label: modelData.title || modelData.label
+                                value: pct
+                                detail: (pct >= 0 ? Math.round(pct * 100) + "%" : "--") + (reset !== "" ? "  ·  " + reset : "")
+                            }
+                        }
+
+                        // prepaid agents report a balance instead of limits
+                        TokenRow {
+                            readonly property var b: clankerPanel.a ? clankerPanel.a.balance : null
+                            visible: !!b
+                            label: "balance"
+                            value: b && b.funded > 0 ? b.remaining / b.funded : 0
+                            detail: b ? b.remaining.toFixed(2) + " " + (b.currency || "") + (b.estimated ? " ~" : "") : ""
+                            hover: b ? b.spent.toFixed(2) + " of " + b.funded.toFixed(2) + " spent" : ""
+                        }
+
+                        // tokens by day, last week, today bold at the bottom
+                        SectionHead {
+                            visible: dayRep.count > 0
+                            readonly property var hosts: clankerPanel.a ? (clankerPanel.a.hosts || []) : []
+                            text: "tokens by day" + (hosts.length > 1 ? "  ·  " + hosts.join(" + ") : "")
+                        }
+                        Repeater {
+                            id: dayRep
+                            readonly property var days: clankerPanel.a ? (clankerPanel.a.recentDays || []) : []
+                            readonly property real peak: days.reduce((m, d) => Math.max(m, Number(d.messageCount) || 0), 0)
+                            model: days
+                            TokenRow {
+                                required property var modelData
+                                required property int index
+                                readonly property bool today: modelData.date === Clanker.todayStr()
+                                label: new Date(modelData.date + "T00:00").toLocaleDateString(Qt.locale(), "ddd d")
+                                bold: today
+                                value: dayRep.peak > 0 ? (Number(modelData.messageCount) || 0) / dayRep.peak : 0
+                                detail: Clanker.tokText(modelData.messageCount)
+                                hover: today && clankerPanel.a ? clankerPanel.a.todayPrompts + " prompts · " + clankerPanel.a.todaySessions + " sessions" : ""
+                            }
+                        }
+
+                        // tokens by model, heaviest first, hover for the split
+                        SectionHead { visible: modelRep.count > 0; text: "tokens by model" }
+                        Repeater {
+                            id: modelRep
+                            readonly property var rows: {
+                                const mu = clankerPanel.a ? (clankerPanel.a.modelUsage || {}) : {};
+                                const out = [];
+                                for (const k in mu) {
+                                    const u = mu[k];
+                                    const total = (u.inputTokens || 0) + (u.outputTokens || 0) + (u.cacheCreationInputTokens || 0) + (u.cacheReadInputTokens || 0);
+                                    out.push({ model: k, total: total, u: u });
+                                }
+                                out.sort((x, y) => y.total - x.total);
+                                return out;
+                            }
+                            readonly property real peak: rows.length ? rows[0].total : 0
+                            model: rows
+                            TokenRow {
+                                required property var modelData
+                                label: modelData.model
+                                value: modelRep.peak > 0 ? modelData.total / modelRep.peak : 0
+                                detail: Clanker.tokText(modelData.total)
+                                hover: "in " + Clanker.tokText(modelData.u.inputTokens) + " · out " + Clanker.tokText(modelData.u.outputTokens)
+                                    + " · cache " + Clanker.tokText((modelData.u.cacheCreationInputTokens || 0) + (modelData.u.cacheReadInputTokens || 0))
+                            }
+                        }
+                    }
+                }
+            }
+
             // ---- docker / vm popouts (click their cells) ----
             // Same list shape for both: name left, status right, a line of
             // dim text when there is nothing to list.
@@ -2559,14 +2938,14 @@ Variants {
                 property var rows: []      // [{ name, status }]
                 property string empty: "nothing running"
 
-                readonly property real sourceX: leftRow.x + svcWrap.x + cell.x
-                readonly property real sourceWidth: cell.width
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, implicitWidth)
+                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(cell)
+                readonly property real sourceWidth: panel.ext(cell)
+                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
 
                 visible: open
                 screen: panel.screen
                 anchors { top: true; left: true }
-                margins { top: panel.barHeight + Theme.popoutGap; left: popupX }
+                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
@@ -2648,9 +3027,16 @@ Variants {
             PanelWindow {
                 id: bezelWin
 
+                visible: panel.bezelMapped
                 screen: panel.screen
-                anchors { top: true; left: true; right: true }
+                anchors {
+                    top: panel.vertical || ShellState.side === "top"
+                    bottom: panel.vertical || ShellState.side === "bottom"
+                    left: !panel.vertical || ShellState.side === "left"
+                    right: !panel.vertical || ShellState.side === "right"
+                }
                 implicitHeight: panel.barHeight
+                implicitWidth: panel.barHeight
                 color: "transparent"
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.namespace: "quickshell-frame"
@@ -2658,17 +3044,23 @@ Variants {
 
                 Item {
                     id: bezelChrome
-                    anchors.fill: parent
+                    // full edge length: this window reaches the screen corners
+                    width: panel.vertical ? bezelWin.height : bezelWin.width
+                    height: panel.barHeight
+                    transform: Matrix4x4 { matrix: panel.chromeMatrix }
                     readonly property real bT: Theme.frameT
                     readonly property real bf: Theme.frameFillet
-                    readonly property real bW: bezelWin.width
+                    readonly property real bW: width
+                    // the bar panel is inset by the other strips' exclusive zones;
+                    // this window is not, so island positions shift by the inset
+                    readonly property real off: (bW - panel.along) / 2
                     readonly property real bH: panel.barHeight
 
                     // band line segments between the hanging capsules
                     readonly property var bandSegs: {
                         const nf = panel.notchFillet;
                         const gaps = panel.islandGeom.filter(i => i[2])
-                            .map(i => [i[0] - nf, i[0] + i[1] + nf])
+                            .map(i => [i[0] - nf + off, i[0] + i[1] + nf + off])
                             .sort((a, b) => a[0] - b[0]);
                         const merged = [];
                         for (const g of gaps) {

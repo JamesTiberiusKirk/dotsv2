@@ -1,0 +1,40 @@
+# qmlls hover-documentation plugin (qttools/src/assistant/plugins/help).
+# Arch's qt6-tools skips it because Qt6LanguageServerPrivate is absent at
+# build time. Loads from /usr/lib/qt6/plugins/help; hover text comes from
+# the .qch files in qt6-doc (point qmlls at them: docDir=/usr/share/doc/qt6
+# in .qmlls.ini). Links private Qt API: rebuild on every qt6 bump.
+pkgname=qt6-qmlls-helpplugin
+_qtver=6.11.2
+pkgver=${_qtver/-/}
+pkgrel=1
+arch=(x86_64)
+url='https://www.qt.io'
+license=(GPL-3.0-only)
+pkgdesc='Documentation hover plugin for qmlls'
+depends=(qt6-base qt6-declarative qt6-tools)
+makedepends=(cmake ninja qt6-languageserver)
+optdepends=('qt6-doc: the documentation qmlls serves on hover')
+_raw=https://raw.githubusercontent.com/qt/qttools/v$_qtver/src/assistant/plugins/help
+source=("qhelpengineplugin-$_qtver.h::$_raw/qhelpengineplugin.h"
+        "qhelpengineplugin-$_qtver.cpp::$_raw/qhelpengineplugin.cpp"
+        CMakeLists.txt)
+sha256sums=('1a5714bab3eaa739357a868505cc12b52f000bd1e33a9f2c672c4877814fca8c'
+            '540dc47d5dfb6927de9c1d56c0be1cc3cf91d1b7a3dada588442f09858e82749'
+            'SKIP')
+
+prepare() {
+  mkdir -p src
+  cp qhelpengineplugin-$_qtver.h src/qhelpengineplugin.h
+  cp qhelpengineplugin-$_qtver.cpp src/qhelpengineplugin.cpp
+  cp CMakeLists.txt src/
+}
+
+build() {
+  cmake -B build -S src -G Ninja -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr \
+    -DQT_VERSION="$_qtver"
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

@@ -16,5 +16,6 @@ ShellRoot {
     Launcher {}
     Osd {}
     Picker {}
+    Info {}
     BatteryGuard {}
 }

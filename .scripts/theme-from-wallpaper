@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""theme-from-wallpaper <image>  — matugen (>=4) palette -> ~/.config/themes/wallpaper.json
+
+Material "surface" roles fill the shell/hypr slots. Terminal ANSI keeps stock
+readable hues (matugen's base16 accents come out near-black) and only tints
+blue/magenta/cyan from primary/tertiary/secondary; background forced to black
+for the OLED.
+"""
+import json, subprocess, sys
+from pathlib import Path
+
+img = sys.argv[1]
+out = subprocess.run(["matugen", "image", img, "--json", "hex", "--dry-run", "--prefer=saturation"],
+                     capture_output=True, text=True, check=True).stdout
+d = json.loads(out)
+# bright pictures go system-light; the OLED wants black under anything else
+LIGHT_ABOVE = 0.45  # mean luminance 0..1
+lum = float(subprocess.run(["magick", img, "-resize", "64x64!", "-colorspace", "gray", "-format", "%[fx:mean]", "info:"],
+                           capture_output=True, text=True, check=True).stdout)
+mode = "light" if lum > LIGHT_ABOVE else "dark"
+c = {k: v[mode]["color"] for k, v in d["colors"].items()}
+a = lambda hex6, alpha: f"#{alpha:02X}{hex6.lstrip('#')}"
+h = lambda hex6, alpha="ff": f"rgba({hex6.lstrip('#').lower()}{alpha})"
+if mode == "dark":
+    bg = "#000000"
+    normal = ["#000000", "#CC0000", "#00CC66", "#D7AF00", c["primary"], c["tertiary"], c["secondary"], c["on_surface_variant"]]
+    bright = ["#4D4D4D", "#FF3333", "#33FF99", "#FFD700", c["primary_fixed_dim"], c["tertiary_fixed_dim"], c["secondary_fixed_dim"], c["on_surface"]]
+else:  # gruvbox-light's ansi, tinted the same way
+    bg = c["surface"]
+    normal = [c["on_surface"], "#9d0006", "#79740e", "#b57614", c["primary"], c["tertiary"], c["secondary"], c["on_surface_variant"]]
+    bright = [c["outline"], "#cc241d", "#98971a", "#d79921", c["primary_container"], c["tertiary_container"], c["secondary_container"], c["on_surface"]]
+theme = {
+    "mode": mode,
+    "shell": {
+        "island": a(c["surface_container_low"], 0xD9), "islandBorder": a(c["outline_variant"], 0x88),
+        "surface": a(c["surface_container"], 0xD9),
+        "text": c["on_surface_variant"], "bright": c["on_surface"], "dim": c["outline"],
+        "accent": c["primary"], "accentText": c["on_primary"], "track": c["surface_container_high"],
+        "ok": "#7DD87D" if mode == "dark" else "#79740E", "warn": "#FBBF24" if mode == "dark" else "#D79921", "urgent": c["error"],
+    },
+    "hypr": {
+        "active_border": [h(c["primary"], "aa"), h(c["tertiary"], "aa")],
+        "inactive_border": h(c["outline_variant"], "aa"),
+        "group_active": h(c["primary"], "aa"), "group_inactive": h(c["surface_container"], "cc"),
+        "group_locked_active": h(c["error"], "aa"), "group_locked_inactive": h(c["surface_container"], "cc"),
+        "groupbar_active": h(c["primary"]), "groupbar_inactive": h(c["surface_container"]),
+        "groupbar_locked_active": h(c["error"]), "groupbar_locked_inactive": h(c["surface_container"]),
+        "groupbar_text": h(c["on_surface"]), "groupbar_text_inactive": h(c["on_surface_variant"]),
+    },
+    "term": {
+        "background": bg, "foreground": c["on_surface"],
+        "cursor": c["primary"], "cursor_text": c["on_primary"],
+        "selection": c["surface_container_high"], "selection_text": c["on_surface"],
+        "titlebar": c["surface_container_low"],
+        "normal": normal, "bright": bright,
+    },
+}
+Path.home().joinpath(".config/themes/wallpaper.json").write_text(json.dumps(theme, indent=2) + "\n")

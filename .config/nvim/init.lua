@@ -755,6 +755,11 @@ vim.lsp.config('tailwindcss', {
 
 vim.lsp.config('templ', {})
 
+-- QML (Quickshell): system qmlls from qt6-declarative, same Qt as the runtime,
+-- so it resolves /usr/lib/qt6/qml modules without extra import paths.
+vim.lsp.config('qmlls', { cmd = { '/usr/lib/qt6/bin/qmlls' } })
+vim.lsp.enable('qmlls')
+
 vim.lsp.config('html', {
   filetypes = { "html", "templ" },
 })

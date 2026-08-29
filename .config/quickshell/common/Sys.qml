@@ -523,7 +523,7 @@ Singleton {
         id: vmListProc
         // qemu VM names from -name (libvirt sets guest=X); nameless qemu shows "qemu"
         command: ["sh", "-c",
-            "for p in $(pgrep -f '[q]emu-system-'); do " + // bracket dodges self-match
+            "for p in $(pgrep 'qemu-system-'); do " + // comm match, not -f: cmdline text (libvirt caps probes, greps) is not a VM
             "tr '\\0' '\\n' < /proc/$p/cmdline 2>/dev/null | " +
             "awk '$0==\"-name\"{getline;sub(/^guest=/,\"\");sub(/,.*/,\"\");print;f=1;exit} END{if(!f)print \"qemu\"}'; " +
             "done"]

@@ -51,6 +51,10 @@ for p in $aur; do
   yay -S --needed --noconfirm "$p" || failed="$failed $p"
 done
 [ -z "$failed" ] || echo "WARN: AUR packages failed:$failed — rerun install.sh later"
+# local PKGBUILDs (pkgbuilds/): dirs sort so deps build first
+for d in "$DOTS"/pkgbuilds/*/; do
+  (cd "$d" && makepkg -si --needed ${DOTS_NOCONFIRM:+--noconfirm}) || echo "WARN: $d failed"
+done
 
 # ---- login shell: zsh (arrives with the package pass; useradd left bash) ----
 [ "$(getent passwd "$USER" | cut -d: -f7)" = /usr/bin/zsh ] || sudo chsh -s /usr/bin/zsh "$USER"

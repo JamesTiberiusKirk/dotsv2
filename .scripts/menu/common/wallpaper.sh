@@ -74,3 +74,13 @@ elif [ "$TRANSITION" = "grow" ] || [ "$TRANSITION" = "outer" ]; then
 fi
 
 "$BIN" img "${ARGS[@]}" -- "${WALLS[$IDX]}" >/dev/null
+
+# "wallpaper" is a theme like any other (themes/wallpaper.json), regenerated
+# from every applied picture so the picker card previews it; re-applied only
+# when it is the theme in use
+if command -v matugen >/dev/null && "$HOME/.scripts/theme-from-wallpaper" "${WALLS[$IDX]}"; then
+    [ "$(python3 -c 'import json;print(json.load(open("'"$HOME"'/.theme.json"))["name"])' 2>/dev/null)" = wallpaper ] \
+        && "$HOME/.scripts/theme-apply" wallpaper >/dev/null
+fi
+# caption widget (quickshell wallpaper/Info.qml) re-reads awww query
+qs ipc call wallinfo refresh >/dev/null 2>&1

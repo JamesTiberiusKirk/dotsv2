@@ -3,13 +3,16 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// One palette for the whole shell. Mode follows ~/.theme-mode (written by
-// ~/.scripts/theme-apply) — dark = purple/black over blur, light = gruvbox.
+// One palette for the whole shell, read from ~/.theme.json — written by
+// ~/.scripts/theme-apply from ~/.config/themes/<name>.json. Defaults below
+// are the purple theme, so the shell paints before the file lands.
 Singleton {
     id: root
 
+    property string name: "purple"
     property string mode: "dark"
     readonly property bool dark: mode !== "light"
+    property var c: ({})
 
     readonly property string font: "JetBrainsMono Nerd Font"
     readonly property int fontSize: 12
@@ -23,26 +26,30 @@ Singleton {
     // cards and notification toasts sit on the same line
     readonly property int popoutGap: 14
 
-    readonly property color island:       dark ? "#D90C0716" : "#D9FBF1C7"
-    readonly property color islandBorder: dark ? "#884A3870" : "#AAD5C4A1"
-    readonly property color surface:      dark ? "#D9120A22" : "#E6FBF1C7"
-    readonly property color text:         dark ? "#D0B8F0"   : "#504945"
-    readonly property color bright:       dark ? "#F0E8FF"   : "#3C3836"
-    readonly property color dim:          dark ? "#5A3A7A"   : "#BDAE93"
-    readonly property color accent:       dark ? "#A000FF"   : "#B57614"
-    readonly property color accentText:   dark ? "#FFFFFF"   : "#FBF1C7"
-    readonly property color track:        dark ? "#2A1A45"   : "#E0D2AC"
-    readonly property color ok:           dark ? "#7DD87D"   : "#79740E"
-    readonly property color warn:         dark ? "#FBBF24"   : "#D79921"
-    readonly property color urgent:       dark ? "#F87171"   : "#CC241D"
+    readonly property color island: c.island || "#D90C0716"
+    readonly property color islandBorder: c.islandBorder || "#884A3870"
+    readonly property color surface: c.surface || "#D9120A22"
+    readonly property color text: c.text || "#D0B8F0"
+    readonly property color bright: c.bright || "#F0E8FF"
+    readonly property color dim: c.dim || "#5A3A7A"
+    readonly property color accent: c.accent || "#A000FF"
+    readonly property color accentText: c.accentText || "#FFFFFF"
+    readonly property color track: c.track || "#2A1A45"
+    readonly property color ok: c.ok || "#7DD87D"
+    readonly property color warn: c.warn || "#FBBF24"
+    readonly property color urgent: c.urgent || "#F87171"
 
     FileView {
-        path: Quickshell.env("HOME") + "/.theme-mode"
+        path: Quickshell.env("HOME") + "/.theme.json"
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
-            const t = text().trim();
-            root.mode = (t === "light") ? "light" : "dark";
+            try {
+                const t = JSON.parse(text());
+                root.c = t;
+                root.name = t.name || "";
+                root.mode = t.mode === "light" ? "light" : "dark";
+            } catch (e) { console.warn("Theme: bad ~/.theme.json:", e); }
         }
     }
 }
