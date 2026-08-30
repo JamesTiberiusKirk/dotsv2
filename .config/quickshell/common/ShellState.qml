@@ -19,6 +19,13 @@ Singleton {
     // a vertical bar is one column of stacked/rotated cells; wider than the band
     readonly property int barBody: vertical ? 44 : Theme.barBody
 
+    // OSD capsule per screen name: [width, protrusion] of the bottom-centre
+    // card. The chrome (bar/Chrome.qml) draws it as part of the one screen
+    // shape; the OSD window only paints its content. Reassigned whole so
+    // bindings see the change.
+    property var osd: ({})
+    function setOsd(screen, g) { const o = Object.assign({}, osd); o[screen] = g; osd = o; }
+
     FileView {
         id: sideFile
         path: Quickshell.env("HOME") + "/.local/state/qs-bar-side"

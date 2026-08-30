@@ -40,7 +40,7 @@ Scope {
         visible: Notifs.centerOpen
         screen: Notifs.centerScreen || Quickshell.screens[0]
         anchors { top: true; right: true; bottom: true; left: true }
-        margins { top: Theme.barBody + Theme.frameT }
+        margins { top: Theme.barBody }
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Top
@@ -81,7 +81,7 @@ Scope {
         // island, so the window is a fillet taller at each end than the island
         // itself and the content insets by that much.
         margins {
-            top: Theme.barBody + Theme.frameT + Theme.popoutGap - root.fillet
+            top: Theme.barBody + Theme.popoutGap - root.fillet
             right: Theme.frameT
             bottom: Theme.frameT + Theme.frameFillet + Theme.popoutGap - root.fillet
         }

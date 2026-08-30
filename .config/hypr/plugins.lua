@@ -21,6 +21,7 @@ if hl.plugin.hyprglass then
     -- Bar: mask_threshold sits above the bar's shadow alpha so shadows
     -- don't get boxed in glass.
     hg.layer("quickshell", { mask_threshold = 0.05 })
+    hg.layer("quickshell-frame", { mask_threshold = 0.05 })
     -- Keep animated quickshell popups out of hyprglass; layer-surface glass is
     -- noticeably expensive and creates colored edge artifacts while panels move.
     -- hg.layer("quickshell-notifs", { mask_threshold = 0.05 })

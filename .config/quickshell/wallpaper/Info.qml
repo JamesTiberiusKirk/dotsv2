@@ -47,8 +47,8 @@ Scope {
             anchors { bottom: true; left: true }
             // clear the bar when it sits on this corner's edges
             margins {
-                bottom: 18 + (ShellState.side === "bottom" ? ShellState.barBody + Theme.frameT : 0)
-                left: 18 + (ShellState.side === "left" ? ShellState.barBody + Theme.frameT : 0)
+                bottom: 18 + (ShellState.side === "bottom" ? ShellState.barBody : 0)
+                left: 18 + (ShellState.side === "left" ? ShellState.barBody : 0)
             }
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Bottom

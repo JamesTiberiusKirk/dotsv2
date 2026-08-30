@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
 # Swap visible workspaces between focused monitor and the one in given direction.
-# Usage: swap-workspaces.sh <left|right|up|down>
+# Usage: swap-workspaces.sh [left|right|up|down]   (no arg: swap the two monitors)
 set -u
 
-DIRECTION="${1:?Usage: $0 <left|right|up|down>}"
+DIRECTION="${1:-}"
 
 MONS=$(hyprctl monitors -j)
 
 focused=$(printf '%s' "$MONS" | jq -r '.[] | select(.focused) | .name')
+
+# No direction: with exactly two monitors there is only one other, swap it.
+# More than two, fall back to the direction submap.
+if [ -z "$DIRECTION" ]; then
+    if [ "$(printf '%s' "$MONS" | jq -r 'length')" -ne 2 ]; then
+        hyprctl dispatch submap swap >/dev/null
+        exit 0
+    fi
+    other=$(printf '%s' "$MONS" | jq -r --arg n "$focused" '.[] | select(.name != $n) | .name')
+    hyprctl dispatch "hl.dsp.workspace.swap_monitors({monitor1=\"$focused\", monitor2=\"$other\"})" >/dev/null
+    exit 0
+fi
 fx=$(printf '%s' "$MONS" | jq -r --arg n "$focused" '.[] | select(.name == $n) | (.x + .width / 2) | floor')
 fy=$(printf '%s' "$MONS" | jq -r --arg n "$focused" '.[] | select(.name == $n) | (.y + .height / 2) | floor')
 

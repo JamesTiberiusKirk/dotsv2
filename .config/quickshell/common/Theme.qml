@@ -18,7 +18,7 @@ Singleton {
     readonly property int fontSize: 12
 
     // screen bezel: band thickness + concave inner-corner radius
-    readonly property int frameT: 2
+    readonly property int frameT: 10
     readonly property int frameFillet: 8
     // convex radius of the screen's outer corners, and what shows outside them
     readonly property int frameRadius: 10

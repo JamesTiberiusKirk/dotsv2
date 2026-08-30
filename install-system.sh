@@ -146,6 +146,9 @@ cp /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/
 # quiet + a 1 s timeout: nothing is drawn and the default entry boots, but any
 # key in that second brings the menu up — timeout 0 would boot instantly with
 # no way back to the snapshot entries limine-snapper-sync adds.
+# nvme_core.default_ps_max_latency_us=5500 blocks the deepest APST state: the
+# WD SN740 firmware wakes from it, completes the I/O and never signals the
+# kernel, so every fresh boot ate a full 30 s nvme io_timeout mid-mount.
 cat > /boot/limine.conf <<EOF
 timeout: 1
 quiet: yes
@@ -153,7 +156,7 @@ quiet: yes
 /Artix
     protocol: linux
     path: boot():/vmlinuz-linux
-    cmdline: root=UUID=$UUID rootflags=subvol=@ rw quiet${RESUME_OFFSET:+ resume=UUID=$UUID resume_offset=$RESUME_OFFSET}
+    cmdline: root=UUID=$UUID rootflags=subvol=@ rw quiet nvme_core.default_ps_max_latency_us=5500${RESUME_OFFSET:+ resume=UUID=$UUID resume_offset=$RESUME_OFFSET}
     module_path: boot():/initramfs-linux.img
 EOF
 

@@ -81,14 +81,24 @@ PanelWindow {
     IpcHandler {
         target: "menu"
         function toggle(): void {
-            if (root.visible) {
-                root.finish(null);
-                return;
-            }
-            root.menuLevel = [];
-            root.menu = true;
-            root.visible = true;
+            root.openMenu("");
         }
+        // Open straight at a level, e.g. `qs ipc call menu at power` from the
+        // laptop's power key (binds.lua) — elogind ignores that key so it
+        // lands here instead of powering the machine off.
+        function at(path: string): void {
+            root.openMenu(path);
+        }
+    }
+
+    function openMenu(path) {
+        if (visible) {
+            finish(null);
+            return;
+        }
+        menuLevel = path === "" ? [] : path.split("/");
+        menu = true;
+        visible = true;
     }
 
     Process {

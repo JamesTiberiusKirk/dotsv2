@@ -21,6 +21,8 @@ Variants {
         Scope {
             id: barScope
             required property var modelData
+        // declared first so it maps first: the chrome is the cells' background
+        Chrome { bar: panel }
         PanelWindow {
             id: panel
 
@@ -38,31 +40,33 @@ Variants {
             }
             // A side switch unmaps the layer, moves it, maps it again: flipping
             // the anchors of a mapped layer surface has crashed Hyprland.
-            // The bezel remaps a beat after the bar so it stacks above it, as
-            // it does at startup (declared later in this file): remapped on the
-            // same tick the order flipped and the glassed bar hid the band.
+            // The chrome (Chrome.qml) remaps a beat before the bar so it stacks
+            // below it, as it does at startup (declared first).
             property bool mapped: true
-            property bool bezelMapped: true
+            property bool chromeMapped: true
             visible: mapped
             Connections {
                 target: ShellState
                 function onSideChanged() {
                     panel.closeIslandPopouts();
                     panel.mapped = false;
-                    panel.bezelMapped = false;
-                    remap.start();
+                    panel.chromeMapped = false;
+                    remapChrome.start();
                 }
             }
-            Timer { id: remap; interval: 80; onTriggered: { panel.mapped = true; remapBezel.start(); } }
-            Timer { id: remapBezel; interval: 60; onTriggered: panel.bezelMapped = true }
+            Timer { id: remapChrome; interval: 80; onTriggered: { panel.chromeMapped = true; remap.start(); } }
+            Timer { id: remap; interval: 60; onTriggered: panel.mapped = true }
 
             readonly property int barBodyHeight: ShellState.barBody
-            readonly property int barHeight: barBodyHeight + Theme.frameT
+            readonly property int barHeight: barBodyHeight
             // island offset inside the window on the cross axis (the band is at
             // the far edge of the window on right/bottom), and from the screen
             // corners along the bar
-            readonly property int edgeIn: far ? 0 : Theme.frameT
-            readonly property int gutter: Theme.frameT + Theme.frameFillet + 12
+            readonly property int edgeIn: 0
+            // 0: the end islands run into the screen corners and are capped
+            // there (see the capsule Shape) — corner-most edge is the screen
+            // edge itself, so island and frame are one piece
+            readonly property int gutter: 0
             readonly property real along: vertical ? height : width
             // Chrome (capsules, band, fillets) is drawn once in top-bar
             // coordinates — x along the bar, y inward from the edge — and this
@@ -86,7 +90,7 @@ Variants {
             color: "transparent"
             exclusionMode: ExclusionMode.Normal
             // hidden: islands slide up into the band and fade, windows reclaim
-            // the bar body; the thin frame stays (bezelWin), like the bottom strip
+            // the bar body; the thin frame stays (Chrome.qml)
             exclusiveZone: ShellState.hidden ? Theme.frameT : barHeight
             // hidden: windows reclaim the bar body, so drop the input region
             // too — otherwise the invisible surface eats clicks in that strip
@@ -309,7 +313,10 @@ Variants {
                     x: cell.v ? (cell.width - width) / 2 : cell.leftPadding
                     y: (cell.height - height + (cell.v ? cell.topSlot : 0)) / 2
                     flow: cell.stacked ? Grid.TopToBottom : Grid.LeftToRight
-                    columns: cell.stacked ? 1 : 999
+                    // exact count, not a big number: Grid reserves one spacing
+                    // for the column after the last item, so an over-declared
+                    // count pads the row and pushes it off centre
+                    columns: cell.stacked ? 1 : Math.max(1, cellRow.visibleChildren.length)
                     spacing: cell.stacked ? 1 : 5
                     verticalItemAlignment: Grid.AlignVCenter
                     horizontalItemAlignment: Grid.AlignHCenter
@@ -344,8 +351,8 @@ Variants {
                 }
             }
 
-            // [x, width, visible] per island in panel coords — reactive,
-            // shared by the capsule canvas (this window) and the bezel window
+            // [x, width, visible] per island in panel coords — reactive; the
+            // chrome window shapes its capsules from this
             readonly property var islandGeom: [
                 [pos(leftRow) + pos(wsIsland), ext(wsIsland), wsIsland.visible],
                 [pos(leftRow) + pos(svcWrap), ext(svcWrap), svcWrap.visible],
@@ -353,79 +360,6 @@ Variants {
                 [pos(rightRow) + pos(powerIsland), ext(powerIsland), powerIsland.visible],
                 [pos(rightRow) + pos(trayIsland), ext(trayIsland), trayIsland.visible]
             ]
-            readonly property int notchFillet: 8 // notch fillet (Island.qml)
-
-            // ---- island capsules: the only pixels hyprglass touches ----
-            // The band/stubs/corner fillets live in the separate bezel window
-            // below (namespace quickshell-frame, unglassed) — glass edge
-            // refraction on the 2px chrome smeared the screen corners.
-            Item {
-                id: topEdge
-                visible: opacity > 0
-                opacity: panel.islandFade
-                width: panel.along
-                height: panel.barHeight
-                transform: [
-                    Matrix4x4 { matrix: panel.chromeMatrix },
-                    Translate { x: panel.liftX; y: panel.liftY }
-                ]
-
-                // Shape, not Canvas: Canvas AA edges composite with a premultiply
-                // mismatch on nvidia (dark fringe around every path edge)
-                // stable count model: geometry changes (clock tick, cpu% width)
-                // rebind ix/iw in place instead of rebuilding the delegates
-                Repeater {
-                    model: panel.islandGeom.length
-                    Shape {
-                        required property int index
-                        readonly property var g: panel.islandGeom[index]
-                        visible: g[2]
-                        readonly property real ix: g[0]
-                        readonly property real iw: g[1]
-                        readonly property real nT: Theme.frameT
-                        readonly property real nf: panel.notchFillet
-                        readonly property real cr: 12
-                        readonly property real ch: panel.barBodyHeight
-                        anchors.fill: parent
-                        preferredRendererType: Shape.CurveRenderer
-
-                        // fill under the band too: hyprglass highlights the edge
-                        // of this layer's content, and with the fill starting
-                        // at y = T that edge ran along the band, through every
-                        // capsule. Pushed to the screen edge it hides under the bezel.
-                        Rectangle { x: ix - nf; y: 0; width: iw + 2 * nf; height: nT; color: Theme.island }
-                        // capsule fill — auto-closes along y = T, flush under the band
-                        ShapePath {
-                            strokeColor: "transparent"
-                            fillColor: Theme.island
-                            startX: ix - nf; startY: nT
-                            PathArc { x: ix; y: nT + nf; radiusX: nf; radiusY: nf }
-                            PathLine { x: ix; y: nT + ch - cr }
-                            PathArc { x: ix + cr; y: nT + ch; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
-                            PathLine { x: ix + iw - cr; y: nT + ch }
-                            PathArc { x: ix + iw; y: nT + ch - cr; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
-                            PathLine { x: ix + iw; y: nT + nf }
-                            PathArc { x: ix + iw + nf; y: nT; radiusX: nf; radiusY: nf }
-                        }
-                        // outline — same run, left open at the top edge
-                        ShapePath {
-                            strokeColor: Theme.islandBorder
-                            strokeWidth: 1
-                            fillColor: "transparent"
-                            startX: ix - nf; startY: nT
-                            PathArc { x: ix; y: nT + nf; radiusX: nf; radiusY: nf }
-                            PathLine { x: ix; y: nT + ch - cr }
-                            PathArc { x: ix + cr; y: nT + ch; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
-                            PathLine { x: ix + iw - cr; y: nT + ch }
-                            PathArc { x: ix + iw; y: nT + ch - cr; radiusX: cr; radiusY: cr; direction: PathArc.Counterclockwise }
-                            PathLine { x: ix + iw; y: nT + nf }
-                            PathArc { x: ix + iw + nf; y: nT; radiusX: nf; radiusY: nf }
-                        }
-                    }
-                }
-            }
-
-
 
             // ---- left: layout + workspaces + submap, then services/system ----
             GridLayout {
@@ -474,10 +408,14 @@ Variants {
                     Grid {
                         Layout.alignment: Qt.AlignCenter
                         flow: panel.vertical ? Grid.TopToBottom : Grid.LeftToRight
-                        columns: panel.vertical ? 1 : 999
+                        // wsRep.count, not visibleChildren: the Repeater is a
+                        // child of the Grid too, so counting children over-counts
+                        // by one and pads the row (see cellRow)
+                        columns: panel.vertical ? 1 : Math.max(1, wsRep.count)
                         spacing: 3
                         padding: 4
                         Repeater {
+                            id: wsRep
                             model: Hyprland.workspaces.values
                                 .filter(w => w.id > 0 && w.monitor?.name === panel.screen.name)
                                 .sort((a, b) => a.id - b.id)
@@ -564,7 +502,7 @@ Variants {
                             Grid {
                                 id: sysRow
                                 flow: panel.vertical ? Grid.TopToBottom : Grid.LeftToRight
-                                columns: panel.vertical ? 1 : 999
+                                columns: panel.vertical ? 1 : Math.max(1, sysRow.visibleChildren.length)
                                 Cell { icon: "cpu-64-bit"; text: Math.round(Sys.cpu * 100) + "%"; vform: "stack" }
                                 Cell { visible: Sys.memText !== ""; icon: "memory"; text: panel.vertical ? Sys.memText.split("/")[0] : Sys.memText; vform: "stack" }
                                 Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree; vform: "stack" }
@@ -617,7 +555,14 @@ Variants {
 
                     // laid out unrotated, then the viewport inside turns on its
                     // side for a vertical bar (spine direction per side)
-                    readonly property real along: Math.min(strip.width, (panel.vertical ? panel.height : panel.width) * 0.4)
+                    // capped at a fraction of the bar, and never past the free
+                    // run between the left and right clusters (island stays
+                    // centred, so the tighter side bounds both; 12 = Island
+                    // chrome, 10 = gap to each neighbour)
+                    readonly property real barLen: panel.vertical ? panel.height : panel.width
+                    readonly property real free: 2 * Math.min(barLen / 2 - (panel.pos(leftRow) + panel.ext(leftRow)),
+                                                              panel.pos(rightRow) - barLen / 2) - 12 - 20
+                    readonly property real along: Math.max(0, Math.min(strip.width, barLen * 0.25, free))
                     implicitWidth: panel.vertical ? panel.barBodyHeight : along
                     implicitHeight: panel.vertical ? along : panel.barBodyHeight
                     Layout.alignment: Qt.AlignCenter
@@ -3021,137 +2966,6 @@ Variants {
             }
 
         }
-            // ---- bezel chrome: band, stubs, concave corner fillets ----
-            // Own layer surface so hyprglass (which whitelists "quickshell")
-            // never refracts the thin chrome; input-masked to stay click-through.
-            PanelWindow {
-                id: bezelWin
-
-                visible: panel.bezelMapped
-                screen: panel.screen
-                anchors {
-                    top: panel.vertical || ShellState.side === "top"
-                    bottom: panel.vertical || ShellState.side === "bottom"
-                    left: !panel.vertical || ShellState.side === "left"
-                    right: !panel.vertical || ShellState.side === "right"
-                }
-                implicitHeight: panel.barHeight
-                implicitWidth: panel.barHeight
-                color: "transparent"
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.namespace: "quickshell-frame"
-                mask: Region {}
-
-                Item {
-                    id: bezelChrome
-                    // full edge length: this window reaches the screen corners
-                    width: panel.vertical ? bezelWin.height : bezelWin.width
-                    height: panel.barHeight
-                    transform: Matrix4x4 { matrix: panel.chromeMatrix }
-                    readonly property real bT: Theme.frameT
-                    readonly property real bf: Theme.frameFillet
-                    readonly property real bW: width
-                    // the bar panel is inset by the other strips' exclusive zones;
-                    // this window is not, so island positions shift by the inset
-                    readonly property real off: (bW - panel.along) / 2
-                    readonly property real bH: panel.barHeight
-
-                    // band line segments between the hanging capsules
-                    readonly property var bandSegs: {
-                        const nf = panel.notchFillet;
-                        const gaps = panel.islandGeom.filter(i => i[2])
-                            .map(i => [i[0] - nf + off, i[0] + i[1] + nf + off])
-                            .sort((a, b) => a[0] - b[0]);
-                        const merged = [];
-                        for (const g of gaps) {
-                            if (merged.length && g[0] <= merged[merged.length - 1][1])
-                                merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], g[1]);
-                            else
-                                merged.push(g);
-                        }
-                        const segs = [];
-                        let x = bT + bf;
-                        for (const g of merged) {
-                            if (g[0] > x) segs.push([x, Math.min(g[0], bW - bT - bf)]);
-                            x = Math.max(x, g[1]);
-                        }
-                        if (x < bW - bT - bf) segs.push([x, bW - bT - bf]);
-                        return segs;
-                    }
-
-                    // band + stubs
-                    Rectangle { width: bezelChrome.bW; height: bezelChrome.bT; color: Theme.island }
-                    Rectangle { width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
-                    Rectangle { x: bezelChrome.bW - bezelChrome.bT; width: bezelChrome.bT; height: bezelChrome.bH; color: Theme.island }
-
-                    // rounded screen corners at both ends of the bar's edge
-                    // (Frame.qml draws the same on the strips; this window
-                    // paints over them, so it has to carry its own)
-                    Shape {
-                        id: bezelCorners
-                        anchors.fill: parent
-                        preferredRendererType: Shape.CurveRenderer
-                        readonly property real r: Theme.frameRadius
-                        ShapePath {
-                            strokeColor: "transparent"; fillColor: Theme.bezel
-                            startX: 0; startY: bezelCorners.r
-                            PathLine { x: 0; y: 0 }
-                            PathLine { x: bezelCorners.r; y: 0 }
-                            PathArc { x: 0; y: bezelCorners.r; radiusX: bezelCorners.r; radiusY: bezelCorners.r; direction: PathArc.Counterclockwise }
-                        }
-                        ShapePath {
-                            strokeColor: "transparent"; fillColor: Theme.bezel
-                            startX: bezelChrome.bW; startY: bezelCorners.r
-                            PathLine { x: bezelChrome.bW; y: 0 }
-                            PathLine { x: bezelChrome.bW - bezelCorners.r; y: 0 }
-                            PathArc { x: bezelChrome.bW; y: bezelCorners.r; radiusX: bezelCorners.r; radiusY: bezelCorners.r }
-                        }
-                    }
-
-                    // stub walls
-                    Rectangle { x: bezelChrome.bT - 1; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }
-                    Rectangle { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; width: 1; height: bezelChrome.bH - bezelChrome.bT - bezelChrome.bf; color: Theme.islandBorder }
-
-                    // band line with gaps where the capsules hang
-                    Repeater {
-                        model: bezelChrome.bandSegs
-                        Rectangle {
-                            required property var modelData
-                            x: modelData[0]; y: bezelChrome.bT; width: modelData[1] - modelData[0]; height: 1
-                            color: Theme.islandBorder
-                        }
-                    }
-
-                    // concave corner fillets
-                    Shape {
-                        anchors.fill: parent
-                        preferredRendererType: Shape.CurveRenderer
-                        ShapePath {
-                            strokeColor: "transparent"; fillColor: Theme.island
-                            startX: bezelChrome.bT; startY: bezelChrome.bT + bezelChrome.bf
-                            PathArc { x: bezelChrome.bT + bezelChrome.bf; y: bezelChrome.bT; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
-                            PathLine { x: bezelChrome.bT; y: bezelChrome.bT }
-                        }
-                        ShapePath {
-                            strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
-                            startX: bezelChrome.bT; startY: bezelChrome.bT + bezelChrome.bf
-                            PathArc { x: bezelChrome.bT + bezelChrome.bf; y: bezelChrome.bT; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
-                        }
-                        ShapePath {
-                            strokeColor: "transparent"; fillColor: Theme.island
-                            startX: bezelChrome.bW - bezelChrome.bT - bezelChrome.bf; startY: bezelChrome.bT
-                            PathArc { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
-                            PathLine { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT }
-                        }
-                        ShapePath {
-                            strokeColor: Theme.islandBorder; strokeWidth: 1; fillColor: "transparent"
-                            startX: bezelChrome.bW - bezelChrome.bT - bezelChrome.bf; startY: bezelChrome.bT
-                            PathArc { x: bezelChrome.bW - bezelChrome.bT; y: bezelChrome.bT + bezelChrome.bf; radiusX: bezelChrome.bf; radiusY: bezelChrome.bf }
-                        }
-                    }
-                }
-
-            }
         }
     }
 }

@@ -179,6 +179,7 @@ vertex-themes
 vim
 virt-install
 vulkan-intel
+wayfreeze
 wezterm
 wireplumber
 wkhtmltopdf-bin

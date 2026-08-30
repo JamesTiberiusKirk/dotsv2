@@ -224,8 +224,8 @@ hl.device({
 -- hyprglass decoration shows through; a compositor opacity rule would fade the
 -- glass along with the window.
 hl.window_rule({
-    name  = "firefox-picture-in-picture",
-    match = { class = "^(firefox)$", title = "^(Picture-in-Picture)$" },
+    name  = "picture-in-picture",
+    match = { title = "^([Pp]icture.in.[Pp]icture)$" },
     float = true,
     pin   = true,
     size  = { 800, 450 },

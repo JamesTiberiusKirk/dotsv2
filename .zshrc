@@ -146,4 +146,4 @@ export PATH=$HOME/.opencode/bin:$PATH
 source <(fzf --zsh)
 
 # Local overrides (not tracked in dots repo)
-[[ -f ~/.profile.local ]] && source ~/.profile.local
+if [[ -f ~/.profile.local ]]; then source ~/.profile.local; fi

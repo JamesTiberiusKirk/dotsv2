@@ -47,6 +47,15 @@ reg("SUPER + ", {
     { "W",      dsp.exec_cmd("qs ipc call wallpaper toggle"), "Wallpaper picker" },
 })
 
+-- ---- Power key ----
+-- elogind hands this key over (/etc/elogind/logind.conf.d/20-powerkey.conf sets
+-- HandlePowerKey=ignore), so a tap opens the power menu instead of shutting the
+-- laptop down. Every destructive entry there confirms first. Holding the key
+-- still powers off, via HandlePowerKeyLongPress.
+reg("", {
+    { "XF86PowerOff", dsp.exec_cmd("qs ipc call menu at power"), "Power menu" },
+})
+
 -- ---- Nav layer: ALT + hjkl -> arrow keys ----
 -- Done here rather than in keyd because keyd claims a whole device id, and the
 -- bluetooth keyboard (0b05:1bf3) publishes its touchpad under the same id with
@@ -219,11 +228,13 @@ end)
 doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active window (accordion: peek width); Esc/Enter to exit" }
 
 -- Swap-visible-workspaces mode (i3-style). Enter with SUPER Tab.
-reg("SUPER + ", { { "Tab", dsp.submap("swap"), "Swap workspaces mode" } })
+local swap_script = "~/.config/hypr/scripts/swap-workspaces.sh "
+-- Bare Tab: two monitors swap outright, more than two the script enters the
+-- direction submap itself.
+reg("SUPER + ", { { "Tab", dsp.exec_cmd(swap_script), "Swap visible workspaces (3+ monitors: pick a direction)" } })
 -- Each key swaps then exits the submap. Two descriptor binds per key: a
 -- function-action inside a submap is silently dropped on Hyprland 0.55, so we
 -- bind the exec and the submap-reset as separate dispatchers (same as resize).
-local swap_script = "~/.config/hypr/scripts/swap-workspaces.sh "
 hl.define_submap("swap", function()
     hl.bind("h",        dsp.exec_cmd(swap_script .. "left"))
     hl.bind("h",        dsp.submap("reset"))

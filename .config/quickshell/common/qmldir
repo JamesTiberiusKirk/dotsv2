@@ -11,3 +11,4 @@ Island 1.0 Island.qml
 ToggleRow 1.0 ToggleRow.qml
 singleton Menu 1.0 Menu.qml
 singleton Clanker 1.0 Clanker.qml
+singleton Media 1.0 Media.qml

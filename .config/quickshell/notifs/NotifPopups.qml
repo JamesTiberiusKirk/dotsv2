@@ -23,7 +23,7 @@ PanelWindow {
     screen: [...Quickshell.screens].find(s => s.name === Hyprland.focusedMonitor?.name)
             ?? Quickshell.screens[0]
     anchors { top: true; right: true; bottom: true }
-    margins { top: Theme.barBody + Theme.frameT + Theme.popoutGap; right: 12 }
+    margins { top: Theme.barBody + Theme.popoutGap; right: 12 }
     implicitWidth: 320
     // The strip is transparent below the cards but it is still an Overlay
     // surface; without this it would eat every click in the column beneath
