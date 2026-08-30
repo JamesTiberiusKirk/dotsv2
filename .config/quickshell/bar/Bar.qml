@@ -1413,7 +1413,7 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
-                implicitWidth: 300
+                implicitWidth: 360
                 implicitHeight: pwrCol.implicitHeight + 28
                 color: "transparent"
 
@@ -1522,21 +1522,27 @@ Variants {
                             width: pwrCol.width
                             spacing: 4
 
-                            readonly property var profiles: PowerProfiles.hasPerformanceProfile
+                            // "ultra" is not a daemon profile: it runs ~/.scripts/powersave
+                            // (power-saver + turbo off + 60Hz + no eye-candy), see Sys.ultraSave.
+                            readonly property var profiles: ["ultra"].concat(PowerProfiles.hasPerformanceProfile
                                 ? [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance]
-                                : [PowerProfile.PowerSaver, PowerProfile.Balanced]
+                                : [PowerProfile.PowerSaver, PowerProfile.Balanced])
 
                             Repeater {
                                 model: profRow.profiles
                                 Rectangle {
                                     id: seg
-                                    readonly property bool active: PowerProfiles.profile === modelData
+                                    readonly property bool ultra: modelData === "ultra"
+                                    readonly property bool active: ultra ? Sys.ultraSave
+                                        : !Sys.ultraSave && PowerProfiles.profile === modelData
                                     readonly property string icon:
-                                        modelData === PowerProfile.PowerSaver ? "leaf"
+                                        ultra ? "sleep"
+                                        : modelData === PowerProfile.PowerSaver ? "leaf"
                                         : modelData === PowerProfile.Performance ? "rocket-launch"
                                         : "scale-balance"
                                     readonly property string name:
-                                        modelData === PowerProfile.PowerSaver ? "saver"
+                                        ultra ? "ultra"
+                                        : modelData === PowerProfile.PowerSaver ? "saver"
                                         : modelData === PowerProfile.Performance ? "turbo"
                                         : "balanced"
                                     property bool hovered: false
@@ -1574,7 +1580,15 @@ Variants {
                                         hoverEnabled: true
                                         onEntered: seg.hovered = true
                                         onExited: seg.hovered = false
-                                        onClicked: PowerProfiles.profile = modelData
+                                        onClicked: {
+                                            if (seg.ultra) { Sys.setUltraSave(true); return; }
+                                            if (Sys.ultraSave) {
+                                                Sys.setUltraSave(false, modelData === PowerProfile.PowerSaver ? "power-saver"
+                                                    : modelData === PowerProfile.Performance ? "performance" : "balanced");
+                                                return;
+                                            }
+                                            PowerProfiles.profile = modelData;
+                                        }
                                     }
                                 }
                             }

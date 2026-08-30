@@ -1,0 +1,3 @@
+# Let the video group (the desktop user) flip turbo / cap CPU freq without
+# sudo — used by ~/.scripts/powersave. cpu0's add event fires at coldplug.
+ACTION!="remove", SUBSYSTEM=="cpu", KERNEL=="cpu0", RUN+="/bin/sh -c 'chgrp video /sys/devices/system/cpu/intel_pstate/no_turbo /sys/devices/system/cpu/intel_pstate/max_perf_pct && chmod g+w /sys/devices/system/cpu/intel_pstate/no_turbo /sys/devices/system/cpu/intel_pstate/max_perf_pct'"

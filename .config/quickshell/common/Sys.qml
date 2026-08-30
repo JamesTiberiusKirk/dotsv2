@@ -300,6 +300,26 @@ Singleton {
     // sharing it would fork hyprctl+jq every 2s for a panel that shows neither.
     property bool powerPanelOpen: false
 
+    // Ultra power-save (~/.scripts/powersave): true while its state file exists.
+    // Set optimistically on click; the FileView only seeds the value at start
+    // (and after a quickshell restart), so a toggle from the shell shows up on
+    // the next panel open via reload().
+    property bool ultraSave: false
+    FileView {
+        id: ultraSaveFile
+        path: Quickshell.env("XDG_RUNTIME_DIR") + "/ultrasave"
+        onLoaded: root.ultraSave = true
+        onLoadFailed: root.ultraSave = false
+    }
+    onPowerPanelOpenChanged: if (powerPanelOpen) ultraSaveFile.reload()
+    // off takes the daemon profile to land on, so the script's own
+    // `powerprofilesctl set` cannot race a segment click that follows it.
+    function setUltraSave(on, profile) {
+        ultraSave = on;
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.scripts/powersave"]
+            .concat(on ? ["on"] : ["off", profile ?? "balanced"]));
+    }
+
     // Charging ceiling, as a percentage. -1 when the machine has no such node
     // (desktops, and laptops whose firmware does not expose one), 100 when
     // nothing is capping. This is the applied value, not the configured one:

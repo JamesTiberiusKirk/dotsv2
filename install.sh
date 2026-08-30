@@ -98,7 +98,7 @@ fi
 if [ -d "$DOTS/system/etc/udev/rules.d" ]; then
   sudo cp "$DOTS"/system/etc/udev/rules.d/*.rules /etc/udev/rules.d/
   sudo udevadm control --reload
-  sudo udevadm trigger --subsystem-match=hidraw
+  sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=cpu --subsystem-match=pci --subsystem-match=usb
 fi
 
 # ---- DNS: stop tailscale mistaking Artix for a systemd box ----

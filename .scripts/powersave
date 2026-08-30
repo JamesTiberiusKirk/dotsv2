@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Ultra power-save toggle: everything power-profiles-daemon's power-saver does
+# not touch. Sudoless — the intel_pstate nodes are group-writable via
+# system/etc/udev/rules.d/91-intel-pstate-video.rules.
+set -euo pipefail
+
+MAX_PERF=50   # % of max CPU freq while on — the calibration knob
+STATE="${XDG_RUNTIME_DIR:-/tmp}/ultrasave"
+PSTATE=/sys/devices/system/cpu/intel_pstate
+
+wifi_con() { nmcli -t -f NAME,TYPE con show --active | awk -F: '$2=="802-11-wireless"{print $1; exit}'; }
+
+on() {
+  powerprofilesctl set power-saver
+  echo 1 > $PSTATE/no_turbo
+  echo $MAX_PERF > $PSTATE/max_perf_pct
+  # lua config: `hyprctl keyword` is a no-op, hl.* through eval is the live path
+  hyprctl eval 'hl.monitor({ output = "eDP-1", mode = "2880x1800@60", position = "0x0", scale = 1.5 })
+    hl.config({ decoration = { blur = { enabled = false }, shadow = { enabled = false } },
+                animations = { enabled = false } })' >/dev/null
+  w=$(wifi_con); [ -z "$w" ] || nmcli con modify "$w" wifi.powersave 3
+  touch "$STATE"
+}
+
+off() {
+  echo 0 > $PSTATE/no_turbo
+  echo 100 > $PSTATE/max_perf_pct
+  hyprctl reload >/dev/null          # one call reverts everything eval set above
+  w=$(wifi_con); [ -z "$w" ] || nmcli con modify "$w" wifi.powersave 2
+  powerprofilesctl set "${1:-balanced}"
+  rm -f "$STATE"
+}
+
+case "${1:-toggle}" in
+  on) on ;;
+  off) off "${2:-}" ;;
+  status) [ -f "$STATE" ] && echo on || echo off ;;
+  toggle) [ -f "$STATE" ] && off || on ;;
+  *) echo "usage: powersave [on|off [profile]|toggle|status]" >&2; exit 2 ;;
+esac

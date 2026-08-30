@@ -26,6 +26,7 @@
 .scripts/agent-usage
 .scripts/pg_prettify.sh
 .scripts/random-wallpaper.sh
+.scripts/powersave
 .scripts/redshift-toggle
 .scripts/screenshot.sh
 .scripts/menu-run

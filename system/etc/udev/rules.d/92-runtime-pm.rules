@@ -1,0 +1,4 @@
+# Runtime PM on for everything — what `powertop --auto-tune` does, made
+# permanent. If a USB mouse/dongle lags on wake, drop the usb line.
+ACTION!="remove", SUBSYSTEM=="pci", ATTR{power/control}="auto"
+ACTION!="remove", SUBSYSTEM=="usb", ATTR{power/control}="auto"
