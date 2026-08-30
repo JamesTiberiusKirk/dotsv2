@@ -39,8 +39,19 @@ return {
         end
         -- The regenerated builtin schemes (e.g. elflord) bake guibg=#000000 into
         -- every group; strip those so transparency shows through everywhere.
+        -- Same for the generated base16 palette's base00/base01 (Normal and
+        -- the LineNr/CursorLine/TabLine/StatusLine tier): in dark themes they
+        -- vanish into the transparent bg, in light themes they are near-white
+        -- and paint opaque stripes over the glass.
+        local strip = { [0] = true }
+        local ok, gen = pcall(dofile, vim.fn.expand("~/.config/nvim/colors.lua"))
+        if ok and type(gen) == "table" and gen.palette then
+          for _, k in ipairs({ "base00", "base01" }) do
+            strip[tonumber(gen.palette[k]:sub(2), 16)] = true
+          end
+        end
         for name, hl in pairs(vim.api.nvim_get_hl(0, {})) do
-          if hl.bg == 0 then
+          if strip[hl.bg] then
             hl.bg = nil
             hl.ctermbg = nil
             vim.api.nvim_set_hl(0, name, hl)

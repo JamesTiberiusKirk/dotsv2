@@ -40,11 +40,20 @@ gtmux.options.copy_drag_finish = false
 gtmux.options.pane_borders = "framed"
 gtmux.options.pane_border_rounded = true
 
-gtmux.options.status_fg = "white"
-gtmux.options.status_bg = "dark_grey"
+-- Colours are ANSI names, so the terminal palette swaps under them. In light
+-- themes every one of the 16 names is dark, so chrome goes "default" — the
+-- terminal's own fg/bg. ~/.theme-mode is written by theme-apply.
+-- pcall: a failure here must not abort the rest of this file.
+local light = false
+pcall(function()
+    local f = io.open(os.getenv("HOME") .. "/.theme-mode")
+    if f then light = (f:read("*l") == "light"); f:close() end
+end)
+gtmux.options.status_fg = light and "default" or "white"
+gtmux.options.status_bg = light and "default" or "dark_grey"
 
-gtmux.options.active_window_fg = "black"
-gtmux.options.active_window_bg = "green"
+gtmux.options.active_window_fg = light and "blue" or "black"
+gtmux.options.active_window_bg = light and "default" or "green"
 
 gtmux.options.active_border_fg = "magenta"
 gtmux.options.marked_border_fg = "magenta"
@@ -168,6 +177,9 @@ gtmux.bind_root("C-3", function() gtmux.select_window(3) end)
 -- Clanker display toggles (edit to taste):
 local CLANKER_SPINNER = true   -- animate a spinner glyph on working agents
 local CLANKER_TITLE   = true   -- show the agent's current task title
+-- Row template; "\n" starts a new line. Fields: {tag} {glyph} {session}
+-- {window} {pane} {title} {command}. {title} is dropped when unknown.
+local CLANKER_FMT     = "{tag}{glyph}{session}:{window}.{pane}\n  {title}"
 -- Per-pane "you've seen it" state lives on the SERVER as a global user option
 -- (@seen_<paneid> = "1"), so every attached client, in any session, agrees:
 -- an idle agent focused from anywhere goes grey everywhere. Set/unset via
@@ -190,6 +202,8 @@ local function setSeen(id, v)
   end
 end
 local clankerFrame = 0
+-- line -> session for on_click: a title line carries no session name
+local lineSession = {}
 local clankerSpin = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
   name = "sidebar", min_cols = 110, -- auto-hide on narrow clients; prefix+B toggles
@@ -217,6 +231,7 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
     -- it when they stop for you — so no spinner = awaiting input. opencode sets
     -- no title, so its state is unknown (?).
     clankerFrame = clankerFrame + 1
+    lineSession = {}
     local focused = gtmux.context().pane
     local tags = { claude = "cl", codex = "cx", opencode = "oc" }
     local shown = 0
@@ -241,18 +256,29 @@ gtmux.widget{ dock = "left", size = 25, fg = "white", bg = "", interval = 1,
             glyph, style = "!", "fg=red,bold"                 -- awaiting you
           end
         end
-        local row = tag .. " " .. glyph .. " " .. p.session .. ":" .. p.window .. "." .. p.number
+        local disp = ""
         if CLANKER_TITLE and glyph ~= "?" then
-          local disp = p.title:match("[%w].*")                -- strip leading status glyph
-          if disp and disp ~= "" then row = row .. " " .. disp end
+          disp = p.title:match("[%w].*") or ""                -- strip leading status glyph
         end
-        inner:text(1, y - 1, row, style)
-        y = y + 1; shown = shown + 1
+        local f = { tag = tag, glyph = glyph, session = p.session, window = tostring(p.window),
+                    pane = tostring(p.number), title = disp, command = p.command }
+        local rows = CLANKER_FMT:gsub("{(%w+)}", function(k) return f[k] or "" end)
+        for line in (rows .. "\n"):gmatch("(.-)\n") do
+          if line:match("%S") then                            -- skip a line that emptied out
+            inner:text(1, y - 1, line, style)
+            lineSession[y] = p.session
+            y = y + 1
+          end
+        end
+        y = y + 1                                             -- blank line between agents
+        shown = shown + 1
       end
     end
     if shown == 0 then inner:text(1, y - 1, "(none)", "fg=dark_grey") end
   end,
   on_click = function(hit)
+    local ls = lineSession[hit.line]
+    if ls then gtmux.switch_session(ls); return end
     -- switch to whichever session name appears on the clicked row
     for _, s in ipairs(gtmux.sessions()) do
       if hit.line_text:find(s.name, 1, true) then

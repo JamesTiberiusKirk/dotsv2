@@ -28,7 +28,10 @@ if mode == "dark":
 else:  # gruvbox-light's ansi, tinted the same way
     bg = c["surface"]
     normal = [c["on_surface"], "#9d0006", "#79740e", "#b57614", c["primary"], c["tertiary"], c["secondary"], c["on_surface_variant"]]
-    bright = [c["outline"], "#cc241d", "#98971a", "#d79921", c["primary_container"], c["tertiary_container"], c["secondary_container"], c["on_surface"]]
+    # light-mode bright reuses the normal hues, not the *_container roles: those
+    # are near-white pastels (#cee5ff and friends) that theme-apply's contrast
+    # clamp can only turn into grey. Same hue here, the clamp supplies the depth.
+    bright = [c["outline"], "#cc241d", "#98971a", "#d79921", c["primary"], c["tertiary"], c["secondary"], c["on_surface"]]
 theme = {
     "mode": mode,
     "shell": {

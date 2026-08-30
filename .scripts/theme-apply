@@ -7,6 +7,7 @@ One palette file per theme; this writes every per-app copy from it:
   ~/.config/hypr/colors.lua        required by hyprland.lua
   ~/.config/alacritty/colors.toml  imported by alacritty.toml
   ~/.config/wezterm/colors.lua     required by wezterm.lua
+  ~/.config/nvim/colors.lua        base16 palette read by custom/theme_sync.lua
 then pokes the running apps. `dark`/`light` still work as aliases so old
 callers keep going. A wallpaper-derived theme is just another json here
 (wallpaper.sh regenerates themes/wallpaper.json per picture).
@@ -22,7 +23,80 @@ def rgba(hex8):  # "#RRGGBBAA" or "#RRGGBB" -> hyprland rgba(rrggbbaa)
     h = hex8.lstrip("#")
     return f"rgba({h}ff)" if len(h) == 6 else f"rgba({h})"
 
+# --- light-mode contrast clamp ---------------------------------------------
+# Light palettes are authored against a white canvas, but wezterm paints the
+# background at window_background_opacity (0.50) while glyphs stay opaque — so
+# the real canvas is the background blended halfway into the wallpaper, a mid
+# grey. Measured there, every light theme's bright[] ramp and its greys fall to
+# 1.2-2.3:1 (the unreadable dim text in Claude/gtmux). Darken anything under
+# MIN_CONTRAST until it clears, against that pessimistic canvas.
+# ponytail: one threshold for normal+bright, so the two ramps can collapse to
+# the same lightness; split into two targets if the tiers stop reading apart.
+MIN_CONTRAST = 4.5
+BLEND_ALPHA = 0.5        # wezterm window_background_opacity
+BLEND_OVER = (128, 128, 128)  # assumed mid-grey wallpaper
+
+def _rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+def _lum(rgb):
+    f = lambda c: (c / 255 / 12.92) if c / 255 <= 0.04045 else ((c / 255 + 0.055) / 1.055) ** 2.4
+    r, g, b = map(f, rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+def _contrast(a, b):
+    la, lb = _lum(a), _lum(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+def _darken_to(hexc, canvas):
+    rgb = _rgb(hexc)
+    if _contrast(rgb, canvas) >= MIN_CONTRAST:
+        return hexc
+    k = 1.0
+    while k > 0:
+        scaled = tuple(round(c * k) for c in rgb)
+        if _contrast(scaled, canvas) >= MIN_CONTRAST:
+            return "#%02x%02x%02x" % scaled
+        k -= 0.02
+    return "#000000"
+
+def clamp_light(tm):
+    """Darken term fg/normal/bright until readable on the blended canvas."""
+    bg = _rgb(tm["background"])
+    canvas = tuple(round(b * BLEND_ALPHA + o * (1 - BLEND_ALPHA)) for b, o in zip(bg, BLEND_OVER))
+    tm["foreground"] = _darken_to(tm["foreground"], canvas)
+    for ramp in ("normal", "bright"):
+        tm[ramp] = [_darken_to(c, canvas) for c in tm[ramp]]
+
+def clamp_shell(sh):
+    """Same for the bar/nvim-grey tokens, on the island's own (85%) canvas.
+    island is #AARRGGBB; text/bright/dim also feed nvim base03-07."""
+    a = int(sh["island"][1:3], 16) / 255
+    bg = _rgb(sh["island"][3:])
+    canvas = tuple(round(b * a + o * (1 - a)) for b, o in zip(bg, BLEND_OVER))
+    for k in ("text", "bright", "dim"):
+        sh[k] = _darken_to(sh[k], canvas)
+
+def selftest():
+    canvas = _rgb("#b0bab4")
+    assert round(_contrast(_rgb("#ffffff"), _rgb("#000000")), 1) == 21.0
+    assert _contrast(_rgb("#efdbff"), canvas) < 2          # the unreadable purple
+    assert _contrast(_rgb(_darken_to("#efdbff", canvas)), canvas) >= MIN_CONTRAST
+    assert _darken_to("#181c20", canvas) == "#181c20"      # already dark: untouched
+    tm = {"background": "#f7f9ff", "foreground": "#181c20",
+          "normal": ["#181c20"] * 8, "bright": ["#efdbff"] * 8}
+    clamp_light(tm)
+    assert tm["bright"][0] != "#efdbff" and tm["normal"][0] == "#181c20"
+    sh = {"island": "#D9f1f3f9", "text": "#42474e", "bright": "#181c20", "dim": "#BDAE93"}
+    clamp_shell(sh)
+    assert sh["dim"] != "#BDAE93" and sh["bright"] == "#181c20"
+    print("ok")
+
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "--selftest":
+        return selftest()
     if len(sys.argv) != 2:
         names = sorted(p.stem for p in THEMES.glob("*.json"))
         sys.exit(f"usage: theme-apply <{'|'.join(names)}>")
@@ -33,6 +107,9 @@ def main():
     t = json.loads(src.read_text())
     mode = t.get("mode", "dark")
     sh, hy, tm = t["shell"], t["hypr"], t["term"]
+    if mode == "light":
+        clamp_light(tm)
+        clamp_shell(sh)
 
     (HOME / ".theme.json").write_text(json.dumps({"name": name, "mode": mode, **sh}, indent=2))
     (HOME / ".theme-mode").write_text(mode + "\n")
@@ -118,6 +195,17 @@ return {{
   }},
 }}
 """)
+
+    # base16 from the palette: ansi hues for base08-0F, shell greys for base00-07.
+    b16 = [tm["background"], sh["track"], tm["selection"], sh["dim"],
+           sh["text"], tm["foreground"], sh["bright"], sh["bright"],
+           tm["normal"][1], sh["accent"], tm["normal"][3], tm["normal"][2],
+           tm["normal"][6], tm["normal"][4], tm["normal"][5], tm["bright"][1]]
+    (HOME / ".config/nvim/colors.lua").write_text(
+        f"-- generated by ~/.scripts/theme-apply from themes/{name}.json — do not edit\n"
+        f"return {{\n  mode = '{mode}',\n  palette = {{\n"
+        + "".join(f"    base{i:02X} = '{c}',\n" for i, c in enumerate(b16))
+        + "  },\n}\n")
 
     # ---- poke the running apps ----
     run = lambda *a: subprocess.run(a, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

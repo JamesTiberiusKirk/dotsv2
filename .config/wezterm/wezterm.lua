@@ -18,7 +18,7 @@ config.tab_bar_at_bottom = false
 config.hide_tab_bar_if_only_one_tab = true
 
 config.window_decorations = 'TITLE | RESIZE'
-config.window_background_opacity = 0.50
+config.window_background_opacity = 0.50 -- light mode bumps this in apply_theme
 config.macos_window_background_blur = 0
 
 config.default_cursor_style = 'BlinkingBlock'
@@ -46,6 +46,8 @@ local function apply_theme()
   local ok, t = pcall(dofile, os.getenv 'HOME' .. '/.config/wezterm/colors.lua')
   if not ok then return 'dark' end
   config.colors = t.colors
+  -- a light bg at 0.50 lands mid-grey over most wallpapers; give it more body
+  config.window_background_opacity = t.mode == 'light' and 0.70 or 0.50
   config.window_frame = { active_titlebar_bg = t.titlebar, inactive_titlebar_bg = t.titlebar }
   return t.mode
 end

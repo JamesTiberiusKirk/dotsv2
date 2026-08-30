@@ -12,6 +12,7 @@ __pycache__/
 .config/alacritty/colors.toml
 .config/hypr/colors.lua
 .config/wezterm/colors.lua
+.config/nvim/colors.lua
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini
 
