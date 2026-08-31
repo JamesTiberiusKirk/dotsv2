@@ -301,5 +301,6 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh")
     hl.exec_cmd("~/.scripts/menu/common/wallpaper.sh --current") -- swww, daemon spawned by the script
     hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
+    hl.exec_cmd("~/.config/hypr/scripts/idle start") -- hypridle from generated conf
     hl.exec_cmd("cornd")
 end)

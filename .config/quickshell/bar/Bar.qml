@@ -515,7 +515,7 @@ Variants {
                             id: clankerCell
                             visible: Clanker.agents.length > 0
                             icon: Clanker.agent ? "agent-" + Clanker.agent.id : "robot"; vform: "stack"
-                            text: Clanker.worst >= 0 ? Math.round(Clanker.worst * 100) + "%" : ""
+                            text: Clanker.shown >= 0 ? Math.round(Clanker.shown * 100) + "%" : ""
                             color: Clanker.alarming ? Theme.urgent : Theme.text
                             MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(clankerPopout) }
                         }
@@ -1369,6 +1369,119 @@ Variants {
                             maxValue: 6500   // neutral daylight, no visible shift
                             suffix: "K"
                             onCommit: v => Sys.setNightTemp(v)
+                        }
+
+                        // ---- idle ladder (hypridle) ----
+                        // One row per stage: label, ∓5 min stepper, enable
+                        // switch. Stepping a disabled stage re-enables it
+                        // (matching the script: `set` implies on). "keep
+                        // awake" drops all the timeouts — the ladder greys.
+                        component StepBtn: Rectangle {
+                            id: sb
+                            property string glyph
+                            signal clicked
+                            width: 16; height: 16; radius: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: sbArea.containsMouse ? Theme.track : "transparent"
+                            Text {
+                                anchors.centerIn: parent
+                                text: sb.glyph
+                                font.family: Theme.font; font.pixelSize: 12
+                                color: Theme.text
+                            }
+                            MouseArea {
+                                id: sbArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: sb.clicked()
+                            }
+                        }
+                        component IdleRow: Item {
+                            id: ir
+                            property string label
+                            property int minutes
+                            property bool on
+                            signal toggled(bool v)
+                            signal setMinutes(int m)
+
+                            width: dispCol.width
+                            height: 20
+                            opacity: (Sys.idleRunning && !Sys.idleAwake) ? 1 : 0.4
+
+                            Text {
+                                text: ir.label
+                                anchors.verticalCenter: parent.verticalCenter
+                                font.family: Theme.font; font.pixelSize: 11
+                                color: ir.on ? Theme.text : Theme.dim
+                            }
+                            Row {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                spacing: 6
+
+                                StepBtn {
+                                    glyph: "−"
+                                    onClicked: ir.setMinutes(Math.max(1, ir.minutes - 5))
+                                }
+                                Text {
+                                    // fixed width so +/- don't shift as digits change
+                                    width: 44
+                                    horizontalAlignment: Text.AlignHCenter
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: ir.minutes + " min"
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: ir.on ? Theme.text : Theme.dim
+                                }
+                                StepBtn {
+                                    glyph: "+"
+                                    onClicked: ir.setMinutes(Math.min(180, ir.minutes + 5))
+                                }
+                                // same switch as ToggleRow, its own hit area
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 30; height: 16; radius: 8
+                                    color: ir.on ? Theme.accent : Theme.track
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Rectangle {
+                                        x: ir.on ? parent.width - width - 2 : 2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 12; height: 12; radius: 6
+                                        color: ir.on ? Theme.accentText : Theme.bright
+                                        Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: ir.toggled(!ir.on)
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: dispCol.width; height: 1
+                            color: Theme.islandBorder
+                        }
+                        ToggleRow {
+                            label: "keep awake"
+                            checked: Sys.idleAwake
+                            onToggled: v => Sys.setIdleAwake(v)
+                        }
+                        IdleRow {
+                            label: "lock"
+                            minutes: Sys.idleLock; on: Sys.idleLockOn
+                            onToggled: v => Sys.setIdleStage("lock", v)
+                            onSetMinutes: m => Sys.setIdleMinutes("lock", m)
+                        }
+                        IdleRow {
+                            label: "screen off"
+                            minutes: Sys.idleScreen; on: Sys.idleScreenOn
+                            onToggled: v => Sys.setIdleStage("screen", v)
+                            onSetMinutes: m => Sys.setIdleMinutes("screen", m)
+                        }
+                        IdleRow {
+                            label: "suspend"
+                            minutes: Sys.idleSuspend; on: Sys.idleSuspendOn
+                            onToggled: v => Sys.setIdleStage("suspend", v)
+                            onSetMinutes: m => Sys.setIdleMinutes("suspend", m)
                         }
 
                         Rectangle {
@@ -2708,6 +2821,7 @@ Variants {
                             property string detail
                             property string hover: ""
                             property bool bold: false
+                            signal tapped()
                             width: clankerCol.width
                             height: 16
                             Text {
@@ -2729,7 +2843,7 @@ Variants {
                                 font.family: Theme.font; font.pixelSize: 11
                                 color: Theme.dim
                             }
-                            MouseArea { id: tHover; anchors.fill: parent; hoverEnabled: true }
+                            MouseArea { id: tHover; anchors.fill: parent; hoverEnabled: true; onClicked: parent.tapped() }
                         }
                         component SectionHead: Text {
                             font.family: Theme.font; font.pixelSize: 10
@@ -2810,16 +2924,20 @@ Variants {
                             }
                         }
 
-                        // limits: % of each allowance and the time to reset
+                        // limits: % of each allowance and the time to reset;
+                        // click a row to pin it as the bar cell's stat (bold = pinned)
                         Repeater {
                             model: clankerPanel.a ? (clankerPanel.a.limits || []) : []
                             TokenRow {
                                 required property var modelData
+                                required property int index
                                 readonly property real pct: Number(modelData.percent)
                                 readonly property string reset: Clanker.untilText(modelData.resetsAt)
                                 label: modelData.title || modelData.label
+                                bold: index === Clanker.limitIndex
                                 value: pct
                                 detail: (pct >= 0 ? Math.round(pct * 100) + "%" : "--") + (reset !== "" ? "  ·  " + reset : "")
+                                onTapped: Clanker.selectLimit(index)
                             }
                         }
 

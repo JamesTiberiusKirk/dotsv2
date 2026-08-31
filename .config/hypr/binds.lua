@@ -79,6 +79,9 @@ reg("ALT + ", {
 -- ---- Session (SUPER SHIFT / SUPER CTRL) ----
 reg("SUPER + SHIFT + ", {
     { "Q", dsp.window.close(), "Close window" },
+    -- hyprlock directly, not loginctl lock-session: that signal needs a
+    -- running hypridle, and the bind should lock even if it died
+    { "L", dsp.exec_cmd("pidof hyprlock || hyprlock"), "Lock screen" },
     { "M", dsp.exec_cmd("zenity --question --title=\"Exit Hyprland\" --text=\"Really exit Hyprland?\" && hyprctl dispatch 'hl.dsp.exit()'"), "Exit Hyprland (confirm)" },
 })
 reg("SUPER + CTRL + ", {

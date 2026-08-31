@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Idle ladder (hypridle): lock -> screen off -> suspend, each stage its own
+# timeout, settable from the bar's display panel.
+#
+# Settings live in ~/.local/state/idle/settings (key=value); hypridle.conf is
+# generated from them next to it and hypridle runs against that file, so the
+# repo carries no hypridle config to drift from the state. Any settings change
+# regenerates + restarts hypridle (it has no live reload; restart is instant).
+#
+# "keep awake" drops the timeout listeners but keeps hypridle alive: the
+# general block's before_sleep_cmd must keep locking ahead of any suspend
+# (lid, manual bind), or waking from an awake-mode sleep lands on an unlocked
+# desktop. The flag lives in the runtime dir so a fresh login starts managed.
+#
+# Usage: idle [start|stop|apply|status|set <lock|screen|suspend> <min>|on|off <stage>|awake <on|off>]
+set -u
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/idle"
+SETTINGS="$STATE/settings"
+CONF="$STATE/hypridle.conf"
+AWAKE="${XDG_RUNTIME_DIR:-/tmp}/idle-awake"
+
+# defaults; overridden by the settings file
+lock=5      lock_on=1
+screen=10   screen_on=1
+suspend=30  suspend_on=0  # off by default: incoming ssh/remote sessions make no seat input
+
+load() {
+    # shellcheck disable=SC1090  # trusted key=value file we wrote ourselves
+    [ -r "$SETTINGS" ] && . "$SETTINGS"
+}
+
+save() {
+    mkdir -p "$STATE"
+    printf '%s=%s\n' lock "$lock" lock_on "$lock_on" \
+        screen "$screen" screen_on "$screen_on" \
+        suspend "$suspend" suspend_on "$suspend_on" >"$SETTINGS"
+}
+
+gen() {
+    mkdir -p "$STATE"
+    {
+        printf 'general {\n'
+        printf '    lock_cmd = pidof hyprlock || hyprlock\n'
+        printf '    before_sleep_cmd = loginctl lock-session\n'
+        printf '    after_sleep_cmd = hyprctl dispatch dpms on\n'
+        printf '}\n'
+        if [ ! -e "$AWAKE" ]; then
+            [ "$lock_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = loginctl lock-session\n}\n' $((lock * 60))
+            [ "$screen_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = hyprctl dispatch dpms off\n    on-resume = hyprctl dispatch dpms on\n}\n' $((screen * 60))
+            [ "$suspend_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = loginctl suspend\n}\n' $((suspend * 60))
+        fi
+    } >"$CONF"
+}
+
+running() { pgrep -x hypridle >/dev/null 2>&1; }
+
+start() {
+    running && return 0
+    command -v hypridle >/dev/null 2>&1 || { notify-send "hypridle not installed" 2>/dev/null || true; exit 1; }
+    gen
+    nohup hypridle -c "$CONF" >/dev/null 2>&1 &
+}
+
+stop() { running && pkill -x hypridle; return 0; }
+
+apply() { gen; if running; then stop; sleep 0.1; nohup hypridle -c "$CONF" >/dev/null 2>&1 & fi; }
+
+clampmin() { # minutes: 1..180, garbage -> default given in $2
+    local v=$1
+    case $v in '' | *[!0-9]*) v=$2 ;; esac
+    [ "$v" -lt 1 ] && v=1
+    [ "$v" -gt 180 ] && v=180
+    printf '%s' "$v"
+}
+
+load
+case "${1:-status}" in
+start) start ;;
+stop) stop ;;
+apply) apply ;;
+set)
+    case "${2:-}" in
+    lock) lock=$(clampmin "${3:-}" 5); lock_on=1 ;;
+    screen) screen=$(clampmin "${3:-}" 10); screen_on=1 ;;
+    suspend) suspend=$(clampmin "${3:-}" 30); suspend_on=1 ;;
+    *) echo "idle set: want lock|screen|suspend <min>" >&2; exit 1 ;;
+    esac
+    save; apply
+    ;;
+on | off)
+    v=$([ "$1" = on ] && echo 1 || echo 0)
+    case "${2:-}" in
+    lock) lock_on=$v ;;
+    screen) screen_on=$v ;;
+    suspend) suspend_on=$v ;;
+    *) echo "idle $1: want lock|screen|suspend" >&2; exit 1 ;;
+    esac
+    save; apply
+    ;;
+awake)
+    case "${2:-on}" in on) touch "$AWAKE" ;; *) rm -f "$AWAKE" ;; esac
+    if running; then apply; else start; fi
+    ;;
+status)
+    printf 'running=%s\n' "$(running && echo 1 || echo 0)"
+    printf 'awake=%s\n' "$([ -e "$AWAKE" ] && echo 1 || echo 0)"
+    printf '%s=%s\n' lock "$lock" lock_on "$lock_on" \
+        screen "$screen" screen_on "$screen_on" \
+        suspend "$suspend" suspend_on "$suspend_on"
+    ;;
+*)
+    echo "idle: want start|stop|apply|status|set <stage> <min>|on|off <stage>|awake on|off" >&2
+    exit 1
+    ;;
+esac

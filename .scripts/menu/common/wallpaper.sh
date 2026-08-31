@@ -75,6 +75,9 @@ fi
 
 "$BIN" img "${ARGS[@]}" -- "${WALLS[$IDX]}" >/dev/null
 
+# stable path to the applied image; hyprlock.conf uses it as its background
+ln -sfn "${WALLS[$IDX]}" "$STATE_DIR/wallpaper-current"
+
 # "wallpaper" is a theme like any other (themes/wallpaper.json), regenerated
 # from every applied picture so the picker card previews it; re-applied only
 # when it is the theme in use

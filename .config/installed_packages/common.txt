@@ -53,8 +53,10 @@ hey-git
 hicolor-icon-theme
 htop
 httpie
+hypridle
 hyprland
 hyprland-autoname-workspaces-git
+hyprlock
 hyprshade
 hyprsunset
 imagemagick

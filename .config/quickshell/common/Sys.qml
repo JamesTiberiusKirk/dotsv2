@@ -434,6 +434,67 @@ Singleton {
             "~/.config/hypr/scripts/nightlight set " + k]);
     }
 
+    // ---- idle ladder (hypridle via scripts/idle) ----
+    // key=value lines from `idle status`; the script owns the settings file
+    // and the generated hypridle.conf. "keep awake" (idleAwake) drops the
+    // timeout listeners but keeps hypridle alive so suspend still locks first.
+    property bool idleRunning: true
+    property bool idleAwake: false
+    property int idleLock: 5
+    property bool idleLockOn: true
+    property int idleScreen: 10
+    property bool idleScreenOn: true
+    property int idleSuspend: 30
+    property bool idleSuspendOn: false
+    Process {
+        id: idleProbe
+        command: ["sh", "-c", "~/.config/hypr/scripts/idle status 2>/dev/null"]
+        stdout: SplitParser {
+            onRead: data => {
+                const [k, v] = data.trim().split("=");
+                switch (k) {
+                case "running": root.idleRunning = v === "1"; break;
+                case "awake": root.idleAwake = v === "1"; break;
+                case "lock": root.idleLock = Number(v); break;
+                case "lock_on": root.idleLockOn = v === "1"; break;
+                case "screen": root.idleScreen = Number(v); break;
+                case "screen_on": root.idleScreenOn = v === "1"; break;
+                case "suspend": root.idleSuspend = Number(v); break;
+                case "suspend_on": root.idleSuspendOn = v === "1"; break;
+                }
+            }
+        }
+    }
+    // Optimistic local set + fire the script, like the night light setters;
+    // the panel-open probe below re-syncs from the file afterwards.
+    function setIdleAwake(on) {
+        idleAwake = on;
+        Quickshell.execDetached(["sh", "-c",
+            "~/.config/hypr/scripts/idle awake " + (on ? "on" : "off")]);
+    }
+    function setIdleStage(stage, on) {
+        if (stage === "lock") idleLockOn = on;
+        else if (stage === "screen") idleScreenOn = on;
+        else idleSuspendOn = on;
+        Quickshell.execDetached(["sh", "-c",
+            "~/.config/hypr/scripts/idle " + (on ? "on " : "off ") + stage]);
+    }
+    // Dragging a stage's timeout also enables it, matching the script (and
+    // the temperature slider): a minute count nothing applies means nothing.
+    function setIdleMinutes(stage, min) {
+        if (stage === "lock") { idleLock = min; idleLockOn = true; }
+        else if (stage === "screen") { idleScreen = min; idleScreenOn = true; }
+        else { idleSuspend = min; idleSuspendOn = true; }
+        Quickshell.execDetached(["sh", "-c",
+            "~/.config/hypr/scripts/idle set " + stage + " " + min]);
+    }
+    // Only polled while the display panel is open — nothing in the bar itself
+    // shows idle state, so the always-on 5s tick stays out of it.
+    Timer {
+        interval: 3000; running: root.panelOpen; repeat: true; triggeredOnStart: true
+        onTriggered: idleProbe.running = true
+    }
+
     // Service statuses. These used to shell out to ~/.scripts/waybar/*.sh for a
     // JSON blob with a .text field; that whole directory is gone, so the three
     // probes had been forking every five seconds to produce empty strings. The

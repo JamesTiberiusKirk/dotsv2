@@ -11,6 +11,7 @@ __pycache__/
 # Theme runtime state — swapped by ~/.scripts/theme-apply, sources are tracked.
 .config/alacritty/colors.toml
 .config/hypr/colors.lua
+.config/hypr/colors-hyprlock.conf
 .config/wezterm/colors.lua
 .config/nvim/colors.lua
 .config/gtk-3.0/settings.ini

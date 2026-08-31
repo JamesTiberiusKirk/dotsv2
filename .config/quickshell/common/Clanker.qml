@@ -18,9 +18,24 @@ Singleton {
     readonly property int current: Math.max(0, agents.findIndex(a => a.id === selectedId))
     readonly property var agent: agents[current] || null
 
-    // what the bar cell shows: the selected agent's fullest window
+    // which limit the bar cell shows, per agent: index into agent.limits,
+    // default 0 (collectors list the 5h window first). Not persisted — a
+    // restart falls back to the 5h default anyway.
+    property var limitSel: ({})
+    readonly property int limitIndex: agent ? Math.min(limitSel[agent.id] || 0, ((agent.limits || []).length) - 1) : -1
+    readonly property var limit: limitIndex >= 0 ? agent.limits[limitIndex] : null
+    // bar cell text: the pinned limit; balance-only agents fall back to headline
+    readonly property real shown: limit ? Number(limit.percent) : headline(agent)
+    // alarm still watches the fullest window so a maxed weekly can't hide
     readonly property real worst: headline(agent)
     readonly property bool alarming: worst >= 0.9
+
+    function selectLimit(i) {
+        if (!agent) return;
+        const m = Object.assign({}, limitSel);
+        m[agent.id] = i;
+        limitSel = m;
+    }
 
     // minute tick so "resets in 2h 13m" stays true while the popout is open
     property real nowMs: Date.now()
