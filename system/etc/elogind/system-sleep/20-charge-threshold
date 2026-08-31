@@ -1,0 +1,13 @@
+#!/bin/sh
+# elogind sleep hook: re-apply the battery charge limit after suspend/hibernate.
+#
+# The ASUS EC forgets charge_control_end_threshold across any sleep state.
+# upowerd only re-writes it at daemon start (so reboots are covered), and
+# asus_wmi's sysfs read returns the driver's cached value — so after a resume
+# everything still *reports* 80 while the EC happily charges to 100. Writing
+# the cached value back through sysfs forces the driver to re-issue the WMI
+# call and restore the real limit.
+[ "$1" = "post" ] || exit 0
+for t in /sys/class/power_supply/BAT*/charge_control_end_threshold; do
+    [ -f "$t" ] && cat "$t" > "$t"
+done

@@ -11,7 +11,7 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "enabledMcpjsonServers": [
     "hamr-dev",
     "playwright"
@@ -51,6 +51,11 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
+  "modelSettings": {
+    "claude-fable-5": {
+      "effortLevel": "medium"
+    }
+  },
   "advisorModel": "opus",
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,

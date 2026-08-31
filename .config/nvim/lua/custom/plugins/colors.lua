@@ -50,13 +50,28 @@ return {
             strip[tonumber(gen.palette[k]:sub(2), 16)] = true
           end
         end
+        -- Most themes reuse the same hex for base01 and base02 (Visual's bg),
+        -- so stripping by color would make visual-mode selection invisible.
         for name, hl in pairs(vim.api.nvim_get_hl(0, {})) do
-          if strip[hl.bg] then
+          if strip[hl.bg] and name ~= "Visual" then
             hl.bg = nil
             hl.ctermbg = nil
             vim.api.nvim_set_hl(0, name, hl)
           end
         end
+      end
+
+      -- Push Visual's bg away from the canvas so the selection stands out:
+      -- brighten in dark mode, darken in light.
+      local function boost_visual()
+        local hl = vim.api.nvim_get_hl(0, { name = "Visual", link = false })
+        if not hl.bg then return end
+        local k = vim.o.background == "dark" and 1.4 or 0.85
+        local r = math.min(255, math.floor(math.fmod(math.floor(hl.bg / 65536), 256) * k))
+        local g = math.min(255, math.floor(math.fmod(math.floor(hl.bg / 256), 256) * k))
+        local b = math.min(255, math.floor(math.fmod(hl.bg, 256) * k))
+        hl.bg = r * 65536 + g * 256 + b
+        vim.api.nvim_set_hl(0, "Visual", hl)
       end
 
       vim.api.nvim_create_autocmd("ColorScheme", {
@@ -65,11 +80,13 @@ return {
           set_spell_underline()
           set_diff_transparent_fg()
           set_transparent_bg()
+          boost_visual()
         end,
       })
       set_spell_underline()
       set_diff_transparent_fg()
       set_transparent_bg()
+      boost_visual()
     end,
   },
   { "ellisonleao/gruvbox.nvim" },
