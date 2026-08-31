@@ -30,3 +30,26 @@
     - hyprland can't open keyd's virtual keyboard at startup (EPERM); `sudo sv restart keyd` after login fixes it
 - [ ] sleep time out so it goes into hibernate
 - [ ] a propper fully fledged notif center
+
+## PLAN (approved): system-file sync in dots-link + T650 wake fix
+Problem: unifying receiver USB-autosuspends after 2s (046d:c52b, power/control=auto) → T650 feels asleep. Fix via udev rule, deployed through a new system-sync step in dots-link.
+
+Settled design (do not re-litigate):
+- copy, not symlink (early-boot: /home may not be mounted when udev reads rules)
+- check without sudo (byte-compare repo vs installed, files are world-readable); sudo only to apply
+- per-file approval; `--yes` skips prompts (install.sh chroot needs this)
+- lives in dots-link sync; one-off edits (nsswitch/pam/NM) stay install.sh-only
+
+Files:
+- NEW `system/etc/udev/rules.d/60-logitech-receiver-no-autosuspend.rules`:
+  `ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c52b", TEST=="power/control", ATTR{power/control}="on"`
+  (must be add|change — `udevadm trigger` emits change, add-only never applies without replug)
+- NEW `dots-link/system.go`: hardcoded 4-mapping table:
+  - system/etc/udev/rules.d → /etc/udev/rules.d; hook once after all copies: `udevadm control --reload` + `udevadm trigger --subsystem-match=usb` (+hidraw/cpu/pci like install.sh)
+  - system/etc/elogind/sleep.conf.d → /etc/elogind/sleep.conf.d
+  - system/etc/elogind/system-sleep → /lib/elogind/system-sleep, chmod 755
+  - system/etc/runit/sv → /etc/runit/sv (DIRECTORY TREES — walk, not flat) + ensure enable symlink in /etc/runit/runsvdir/default/
+- EDIT `dots-link/sync.go`: system diff computed in PLAN phase, rendered with home plan, applied in applySync. NOT "at the end of runSync" — early returns (dry-run, "nothing to do" when home is clean) would skip it.
+- mkdir -p dst dirs; unreadable dst = flagged "verify with sudo", never guessed
+- skipped: deletion of repo-removed files (no system manifest; add when it bites); install.sh copy blocks stay (idempotent dupe, dedup later)
+- after implementing: apply rule to this machine + reload so the fix is live now

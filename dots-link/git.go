@@ -125,6 +125,13 @@ func analyzeMerge(dir string) (mergeStatus, []string) {
 	return st, nil
 }
 
+// selfUpdating reports whether the incoming merge changes dots-link itself, in
+// which case the plan must be applied by the rebuilt binary, not this one.
+func selfUpdating(dir string) bool {
+	out, err := git(dir, "diff", "--name-only", "HEAD..@{u}", "--", "dots-link")
+	return err == nil && out != ""
+}
+
 // mergeBlockers returns dirty tracked files that the incoming merge would also
 // change — exactly the set git refuses to overwrite.
 func mergeBlockers(dir string) []string {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -92,10 +93,24 @@ func runSync(env *Env, opts syncOpts) error {
 		}
 	}
 
-	// 6b. Render.
+	// 6b. Render. System files are part of the same plan — computed here, not
+	// after applySync, so dry-run and the "nothing to do" exit both see them.
+	sysActs, err := computeSystemActions(env)
+	if err != nil {
+		return err
+	}
 	renderSyncPlan(env, acts)
+	renderSystemPlan(sysActs)
 
-	if len(acts) == 0 && st != mergeFastForward && st != mergeClean {
+	// dots-link is changing upstream: this binary must not apply a plan its own
+	// new code would compute differently. Merge + rebuild, then stop.
+	self := (st == mergeFastForward || st == mergeClean) && selfUpdating(dir)
+	if self {
+		warnLine("!! dots-link itself changes upstream — this run will merge, rebuild it, and stop.")
+		info("nothing in $HOME is touched; re-run `dots-link sync` with the new binary to apply the plan above")
+	}
+
+	if len(acts) == 0 && len(sysActs) == 0 && st != mergeFastForward && st != mergeClean {
 		info("nothing to do")
 		return nil
 	}
@@ -108,7 +123,11 @@ func runSync(env *Env, opts syncOpts) error {
 
 	// 8. Confirm.
 	if !opts.yes {
-		ok, err := confirm("Apply this plan?")
+		q := "Apply this plan?"
+		if self {
+			q = "Merge and rebuild dots-link now?"
+		}
+		ok, err := confirm(q)
 		if err != nil {
 			return err
 		}
@@ -118,11 +137,29 @@ func runSync(env *Env, opts syncOpts) error {
 		}
 	}
 
-	// 9. Execute: unlink → merge → link/adopt.
-	return applySync(env, dir, st, acts)
+	// 9. Execute: unlink → merge → link/adopt → system files.
+	return applySync(env, dir, st, acts, opts.yes, self)
 }
 
-func applySync(env *Env, dir string, st mergeStatus, acts []action) error {
+func applySync(env *Env, dir string, st mergeStatus, acts []action, yes, self bool) error {
+	// Self-update: merge (brings in the new code, dotfiles and all), rebuild,
+	// stop. Before the unlinks — exiting after those would leave $HOME half
+	// converged; here the whole plan simply waits for the next run.
+	if self {
+		if err := performMerge(dir, st); err != nil {
+			return fmt.Errorf("merge failed: %w", err)
+		}
+		fmt.Println("  " + label(styAdd, "merged", st.String(), ""))
+		cmd := exec.Command("make", "install")
+		cmd.Dir = dir
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("rebuild dots-link: %w", err)
+		}
+		fmt.Println(styOK.Render("✓ dots-link rebuilt — re-run `dots-link sync` to apply the rest"))
+		return nil
+	}
+
 	// Unlinks first, so no link survives pointing at a file the merge removes.
 	for _, a := range acts {
 		if a.kind == actUnlink {
@@ -173,6 +210,16 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action) error {
 			}
 			fmt.Println("  " + label(styAdd, "adopted-link", a.entry, ""))
 		}
+	}
+
+	// System files last, and re-diffed: the merge above may have brought in new
+	// rules the plan-phase diff never saw.
+	sysActs, err := computeSystemActions(env)
+	if err != nil {
+		return err
+	}
+	if err := applySystem(sysActs, yes); err != nil {
+		return err
 	}
 
 	fmt.Println(styOK.Render("✓ sync complete"))
