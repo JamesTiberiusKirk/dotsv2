@@ -19,6 +19,8 @@ Singleton {
 
     // screen bezel: band thickness + concave inner-corner radius
     readonly property int frameT: 10
+    // thinner band on the three edges without the bar
+    readonly property int frameTEdge: 6
     readonly property int frameFillet: 8
     // convex radius of the screen's outer corners, and what shows outside them
     readonly property int frameRadius: 10

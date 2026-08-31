@@ -20,10 +20,10 @@ Variants {
             screen: scope.modelData
             visible: ShellState.side !== edge
             anchors { top: edge !== "bottom"; bottom: edge !== "top"; left: edge !== "right"; right: edge !== "left" }
-            implicitWidth: Theme.frameT
-            implicitHeight: Theme.frameT
+            implicitWidth: Theme.frameTEdge
+            implicitHeight: Theme.frameTEdge
             exclusionMode: ExclusionMode.Normal
-            exclusiveZone: Theme.frameT
+            exclusiveZone: Theme.frameTEdge
             color: "transparent"
             mask: Region {}
             WlrLayershell.namespace: "quickshell-frame"

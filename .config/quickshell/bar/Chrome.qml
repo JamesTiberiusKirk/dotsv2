@@ -56,6 +56,8 @@ PanelWindow {
             const bumps = [[], [], [], []];
 
             const be = { top: 0, right: 1, bottom: 2, left: 3 }[ShellState.side];
+            // band thickness per edge: full on the bar's edge, thin elsewhere
+            const T = [0, 1, 2, 3].map(e => e === be ? t : Theme.frameTEdge);
             for (const g of bar.islandGeom) {
                 if (!g[2]) continue;
                 const a = g[0] + off, b = a + g[1];
@@ -65,15 +67,16 @@ PanelWindow {
             }
             const o = ShellState.osd[win.screen.name];
             if (o && o[1] > 0)
-                bumps[2].push({ u0: W / 2 - o[0] / 2, u1: W / 2 + o[0] / 2, D: t + o[1], cr: 14 });
+                bumps[2].push({ u0: W / 2 - o[0] / 2, u1: W / 2 + o[0] / 2, D: T[2] + o[1], cr: 14 });
 
             for (let e = 0; e < 4; e++) {
                 const l = bumps[e].sort((a, b) => a.u0 - b.u0);
                 // a bump within a notch of a corner is capped there: its body
                 // starts at the perpendicular band's inner edge
+                const tS = T[(e + 3) % 4], tE = T[(e + 1) % 4];
                 for (const b of l) {
-                    if (b.u0 <= t + nf) b.u0 = t;
-                    if (b.u1 >= L[e] - t - nf) b.u1 = L[e] - t;
+                    if (b.u0 <= tS + nf) b.u0 = tS;
+                    if (b.u1 >= L[e] - tE - nf) b.u1 = L[e] - tE;
                 }
                 // overlapping bumps (bar at the bottom over the OSD) merge
                 const m = [];
@@ -85,8 +88,8 @@ PanelWindow {
                 bumps[e] = m;
             }
             // chrome depth at each edge's start / end corner
-            const ds = e => { const l = bumps[e]; return l.length && l[0].u0 === t ? l[0].D : t; };
-            const de = e => { const l = bumps[e]; return l.length && l[l.length - 1].u1 === L[e] - t ? l[l.length - 1].D : t; };
+            const ds = e => { const l = bumps[e]; return l.length && l[0].u0 === T[(e + 3) % 4] ? l[0].D : T[e]; };
+            const de = e => { const l = bumps[e]; return l.length && l[l.length - 1].u1 === L[e] - T[(e + 1) % 4] ? l[l.length - 1].D : T[e]; };
 
             const p = [];
             const pt = (e, u, v) => { const s = map(e, u, v); return s[0] + " " + s[1]; };
@@ -99,29 +102,29 @@ PanelWindow {
                 const l = bumps[e];
                 for (let i = 0; i < l.length; i++) {
                     const b = l[i];
-                    const dd = b.D - t, rc = Math.min(b.cr, dd / 2);
-                    if (b.u0 !== t) {
+                    const dd = b.D - T[e], rc = Math.min(b.cr, dd / 2);
+                    if (b.u0 !== T[prev]) {
                         // notch down from the band: fillet fits the gap to the
                         // previous bump (or the corner fillet) and the protrusion
                         const pu = i ? l[i - 1].u1 : uS;
                         const r = Math.max(0, Math.min(nf, (b.u0 - pu) / 2, dd / 2));
-                        ln(b.u0 - r, t);
-                        arc(r, 1, b.u0, t + r);
+                        ln(b.u0 - r, T[e]);
+                        arc(r, 1, b.u0, T[e] + r);
                         ln(b.u0, b.D - rc);
                         arc(rc, 0, b.u0 + rc, b.D);
                     }
-                    if (b.u1 !== L[e] - t) {
+                    if (b.u1 !== L[e] - T[next]) {
                         const nu = i + 1 < l.length ? l[i + 1].u0 : uE;
                         const r = Math.max(0, Math.min(nf, (nu - b.u1) / 2, dd / 2));
                         ln(b.u1 - rc, b.D);
                         arc(rc, 0, b.u1, b.D - rc);
-                        ln(b.u1, t + r);
-                        arc(r, 1, b.u1 + r, t);
+                        ln(b.u1, T[e] + r);
+                        arc(r, 1, b.u1 + r, T[e]);
                     } else {
                         ln(uE, b.D);
                     }
                 }
-                if (de(e) === t) ln(uE, t);
+                if (de(e) === T[e]) ln(uE, T[e]);
                 arc(f, 1, L[e] - ds(next), de(e) + f);   // concave corner fillet
             }
             p.push("Z");
