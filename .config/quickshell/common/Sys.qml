@@ -614,25 +614,6 @@ Singleton {
         }
     }
 
-    // corne keyboard layer (cornd/cornectl, present on some hosts only)
-    property string corne: ""
-    Process {
-        id: corneProc
-        command: ["sh", "-c",
-            "command -v cornectl >/dev/null 2>&1 && cornectl get layer 2>/dev/null || true"]
-        stdout: SplitParser {
-            onRead: data => {
-                let t = data.trim();
-                try { t = JSON.parse(t).text ?? t; } catch (e) {}
-                root.corne = t;
-            }
-        }
-    }
-    Timer {
-        interval: 2000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: corneProc.running = true
-    }
-
     // ---- network ----
     // Quickshell.Networking (NetworkManager backend, present on every host via
     // common.txt) replaces a 5s `ip route` + `jq` + `iw` fork. It carries SSID,

@@ -49,6 +49,13 @@ PanelWindow {
         // screen coords by a rotation, so the same builder serves all four
         // and arc sweeps stay put. A "bump" is a capsule hanging off an edge:
         // the bar's islands on its side, the OSD on the bottom.
+        // The path is rebuilt from the bar's layout, i.e. inside the bar
+        // window's polish pass. A Shape in this window that picks the change
+        // up there renders the previous path (nvidia/deathstar: capsules
+        // stuck one cell short). Hand it over from the event loop instead.
+        property string holeNow: hole
+        onHoleChanged: holeSettle.restart()
+        Timer { id: holeSettle; interval: 0; onTriggered: c.holeNow = c.hole }
         readonly property string hole: {
             const W = width, H = height;
             const L = [W, H, W, H];
@@ -140,14 +147,14 @@ PanelWindow {
                 strokeColor: "transparent"
                 fillColor: Theme.island
                 fillRule: ShapePath.OddEvenFill
-                PathSvg { path: "M 0 0 H " + c.width + " V " + c.height + " H 0 Z " + c.hole }
+                PathSvg { path: "M 0 0 H " + c.width + " V " + c.height + " H 0 Z " + c.holeNow }
             }
             // its inner edge
             ShapePath {
                 strokeColor: Theme.islandBorder
                 strokeWidth: 1
                 fillColor: "transparent"
-                PathSvg { path: c.hole }
+                PathSvg { path: c.holeNow }
             }
             // rounded screen corners: bezel black outside the arc
             ShapePath {

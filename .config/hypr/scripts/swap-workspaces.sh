@@ -13,7 +13,7 @@ focused=$(printf '%s' "$MONS" | jq -r '.[] | select(.focused) | .name')
 # More than two, fall back to the direction submap.
 if [ -z "$DIRECTION" ]; then
     if [ "$(printf '%s' "$MONS" | jq -r 'length')" -ne 2 ]; then
-        hyprctl dispatch submap swap >/dev/null
+        hyprctl dispatch 'hl.dsp.submap("swap")' >/dev/null
         exit 0
     fi
     other=$(printf '%s' "$MONS" | jq -r --arg n "$focused" '.[] | select(.name != $n) | .name')

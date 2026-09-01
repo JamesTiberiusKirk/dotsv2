@@ -249,8 +249,9 @@ hl.define_submap("swap", function()
     hl.bind("j",        dsp.submap("reset"))
     hl.bind("escape",   dsp.submap("reset"))
     hl.bind("return",   dsp.submap("reset"))
+    hl.bind("SUPER + Tab", dsp.submap("reset"))
 end)
-doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with adjacent monitor; Esc/Enter to exit" }
+doc[#doc + 1] = { keys = "[swap] h/j/k/l", desc = "Swap visible workspace with adjacent monitor; Esc/Enter/SUPER+Tab to exit" }
 
 -- Popout mode: entered by the shell itself whenever a bar popout or the
 -- notification drawer is open (Sys.anythingOpen), left when the last one
@@ -275,6 +276,9 @@ hl.define_submap("popout", function()
     replay(false)
     hl.bind("escape", dsp.exec_cmd("qs ipc call popouts closeAll"))
     hl.bind("escape", dsp.submap("reset"))
+    -- any other key closes the popouts too, without eating the keystroke:
+    -- non_consuming lets it reach the focused window as usual
+    hl.bind("catchall", dsp.exec_cmd("qs ipc call popouts closeAll"), { non_consuming = true })
 end)
 
 -- Launcher mode: entered by the launcher while it is open. The ALT nav layer

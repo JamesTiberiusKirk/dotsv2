@@ -99,11 +99,9 @@ func runSync(env *Env, opts syncOpts) error {
 	if err != nil {
 		return err
 	}
-	// Packages added upstream since our HEAD — offered to yay after the merge.
-	var newPkgs []string
-	if st == mergeFastForward || st == mergeClean {
-		newPkgs = filterInstalled(newPackages(dir, "HEAD", desiredRef, env.Host))
-	}
+	// Packages listed but not installed — offered to yay after the merge
+	// (recomputed there, so lists the merge brings in are seen too).
+	newPkgs := filterInstalled(listedPackages(dir, env.Host))
 	renderSyncPlan(env, acts)
 	renderSystemPlan(sysActs)
 	renderPkgPlan(newPkgs)
@@ -116,7 +114,7 @@ func runSync(env *Env, opts syncOpts) error {
 		info("nothing in $HOME is touched; re-run `dots-link sync` with the new binary to apply the plan above")
 	}
 
-	if len(acts) == 0 && len(sysActs) == 0 && st != mergeFastForward && st != mergeClean {
+	if len(acts) == 0 && len(sysActs) == 0 && len(newPkgs) == 0 && st != mergeFastForward && st != mergeClean {
 		info("nothing to do")
 		return nil
 	}
@@ -163,8 +161,6 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action, newPkgs []st
 			return fmt.Errorf("rebuild dots-link: %w", err)
 		}
 		fmt.Println(styOK.Render("✓ dots-link rebuilt — re-run `dots-link sync` to apply the rest"))
-		// Packages were diffed against pre-merge HEAD; the re-run will see
-		// "up to date" and never offer them, so do it now.
 		return installPackages(newPkgs, yes)
 	}
 
@@ -230,7 +226,7 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action, newPkgs []st
 		return err
 	}
 
-	if err := installPackages(newPkgs, yes); err != nil {
+	if err := installPackages(filterInstalled(listedPackages(dir, env.Host)), yes); err != nil {
 		return err
 	}
 

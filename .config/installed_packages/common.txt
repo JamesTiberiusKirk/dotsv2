@@ -19,8 +19,6 @@ cdrtools
 cloudflared
 cmake
 ddccontrol
-dhcpcd
-dhcpcd-runit
 discord
 displaylink
 dnsmasq
@@ -100,9 +98,6 @@ nodejs
 noto-fonts
 noto-fonts-emoji
 npm
-ntp
-ntp-runit
-openbsd-netcat
 openresolv
 openssh
 otf-font-awesome
@@ -147,7 +142,6 @@ satty
 seahorse
 shellcheck
 slurp
-socklog
 sof-firmware
 solaar
 strace

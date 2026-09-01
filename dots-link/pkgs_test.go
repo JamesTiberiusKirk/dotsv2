@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// newPackages across a two-commit fixture repo: added line reported, removed
-// and pre-existing ones not, comments ignored.
-func TestNewPackages(t *testing.T) {
+// listedPackages reads the full set at a ref: comments ignored, removed
+// entries gone, order sorted.
+func TestListedPackages(t *testing.T) {
 	dir := t.TempDir()
 	run := func(args ...string) {
 		cmd := exec.Command("git", args...)
@@ -31,8 +31,8 @@ func TestNewPackages(t *testing.T) {
 	run("add", "-A")
 	run("commit", "-qm", "two")
 
-	got := newPackages(dir, "HEAD~1", "HEAD", "nohost")
-	if len(got) != 1 || got[0] != "baz" {
-		t.Fatalf("newPackages = %v, want [baz]", got)
+	got := listedPackages(dir, "nohost")
+	if len(got) != 2 || got[0] != "bar" || got[1] != "baz" {
+		t.Fatalf("listedPackages = %v, want [bar baz]", got)
 	}
 }

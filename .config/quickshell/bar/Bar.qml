@@ -447,6 +447,7 @@ Variants {
                     Cell {
                         // the popout submap is plumbing for Esc, not a mode
                         visible: panel.submap !== "" && panel.submap !== "popout"
+                        vform: "rot"
                         text: panel.submap.toUpperCase()
                         color: Theme.urgent
                     }
@@ -720,14 +721,6 @@ Variants {
                             }
                         }
                     }
-                    Cell {
-                        visible: Sys.corne !== ""
-                        icon: "keyboard"
-                        text: Sys.corne
-                        vform: "rot"
-                        color: Theme.bright
-                    }
-
                     // battery — click opens the power-profile panel
                     Cell {
                         id: batteryCell

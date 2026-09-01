@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 )
 
-// Package lists whose additions matter to this host: the shared pair plus its
-// own. Additions are computed across the sync merge (old HEAD → upstream), so
-// a package you deliberately uninstalled while it stays listed never nags —
-// only lines another machine added since the last pull show up.
+// Package lists this host converges against: the shared pair plus its own.
 func pkgLists(host string) []string {
 	return []string{
 		".config/installed_packages/common.txt",
@@ -31,34 +29,36 @@ func parsePkgs(content string) map[string]bool {
 	return set
 }
 
-// newPackages returns the list entries present at newRef but not at oldRef.
-// Set difference, not a line diff, so re-sorting a list adds nothing.
-func newPackages(dir, oldRef, newRef, host string) []string {
-	var out []string
+// listedPackages returns every package named in this host's lists, read from
+// the working tree so uncommitted list edits count. Full set, not a merge
+// delta: a list entry missing locally is offered on every run until installed,
+// whichever commit added it and whoever declined it last time. Saying no just
+// skips it.
+func listedPackages(dir, host string) []string {
+	set := map[string]bool{}
 	for _, f := range pkgLists(host) {
-		newC, ok := fileAtRef(dir, newRef, f)
-		if !ok {
+		c, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
 			continue
 		}
-		oldC, _ := fileAtRef(dir, oldRef, f) // missing before -> whole list is new
-		old := parsePkgs(oldC)
-		for p := range parsePkgs(newC) {
-			if !old[p] {
-				out = append(out, p)
-			}
+		for p := range parsePkgs(string(c)) {
+			set[p] = true
 		}
+	}
+	out := make([]string, 0, len(set))
+	for p := range set {
+		out = append(out, p)
 	}
 	sort.Strings(out)
 	return out
 }
 
-// filterInstalled drops packages the local pacman db already has (added
-// upstream by the very machine that installed them first, or put on this box
-// by hand). No pacman (mac) -> nothing filtered, yay --needed still no-ops.
+// filterInstalled drops packages the local pacman db already has.
+// No pacman (mac) -> nothing to converge.
 func filterInstalled(pkgs []string) []string {
 	out, err := exec.Command("pacman", "-Qq").Output()
 	if err != nil {
-		return pkgs
+		return nil
 	}
 	installed := parsePkgs(string(out))
 	kept := pkgs[:0:0]
@@ -74,13 +74,13 @@ func renderPkgPlan(pkgs []string) {
 	if len(pkgs) == 0 {
 		return
 	}
-	section("new packages (added upstream):")
+	section("packages listed but not installed:")
 	for _, p := range pkgs {
 		fmt.Println("  " + label(styAdd, "install", p, ""))
 	}
 }
 
-// installPackages offers the new packages to yay. Interactive only: under
+// installPackages offers the missing packages to yay. Interactive only: under
 // --yes (install.sh) it is skipped — the converge's own package pass covers
 // the same lists moments later.
 func installPackages(pkgs []string, yes bool) error {
@@ -88,14 +88,14 @@ func installPackages(pkgs []string, yes bool) error {
 		return nil
 	}
 	if yes {
-		info("new packages skipped under --yes — install.sh's package pass handles them")
+		info("packages skipped under --yes — install.sh's package pass handles them")
 		return nil
 	}
 	if _, err := exec.LookPath("yay"); err != nil {
 		info("yay not found — install by hand: %s", strings.Join(pkgs, " "))
 		return nil
 	}
-	ok, err := confirm(fmt.Sprintf("install %d new package(s) with yay?", len(pkgs)))
+	ok, err := confirm(fmt.Sprintf("install %d missing package(s) with yay?", len(pkgs)))
 	if err != nil {
 		return err
 	}

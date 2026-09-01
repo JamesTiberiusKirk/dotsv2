@@ -2,3 +2,5 @@ intel-media-driver
 sof-firmware
 usbutils
 vulkan-intel
+ntp
+ntp-runit
