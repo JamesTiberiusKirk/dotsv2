@@ -101,5 +101,6 @@
       "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
   },
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "remoteControlAtStartup": false
 }
