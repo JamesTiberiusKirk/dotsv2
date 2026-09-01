@@ -66,3 +66,12 @@
 .config/opencode/package-lock.json
 .config/opencode/tui.json
 .config/opencode/themes/glass.json
+
+# system (root-installed copies via dots-link, not symlinks)
+system/etc/udev/rules.d/91-intel-pstate-video.rules
+system/etc/udev/rules.d/92-runtime-pm.rules
+system/etc/elogind/sleep.conf.d/10-hibernate-shutdown.conf
+system/etc/elogind/system-sleep/10-hibernate-image-size
+system/etc/runit/sv/keyd
+system/etc/runit/sv/ntpd
+system/etc/runit/sv/tailscale

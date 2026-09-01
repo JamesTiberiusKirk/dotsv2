@@ -62,7 +62,6 @@ hyprsunset
 imagemagick
 impala
 imv
-intel-media-driver
 iwd
 iwd-runit
 jq
@@ -180,7 +179,6 @@ vencord-bin
 vertex-themes
 vim
 virt-install
-vulkan-intel
 wayfreeze
 wezterm
 wireplumber

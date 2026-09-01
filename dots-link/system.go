@@ -47,8 +47,26 @@ type sysAction struct {
 }
 
 // computeSystemActions diffs the repo's system/ tree against the installed
-// files. Read-only, no sudo.
+// files. Read-only, no sudo. Host-scoped: only files covered by a `system/`
+// entry in this host's manifest are considered (legion is systemd, the mac has
+// no /etc/udev — their manifests simply list none).
 func computeSystemActions(env *Env) ([]sysAction, error) {
+	manifest, err := localManifest(env)
+	if err != nil {
+		return nil, err
+	}
+	sysEntries := manifest.SystemEntries()
+	if len(sysEntries) == 0 {
+		return nil, nil
+	}
+	covered := func(rel string) bool {
+		for _, e := range sysEntries {
+			if rel == e || strings.HasPrefix(rel, e+"/") {
+				return true
+			}
+		}
+		return false
+	}
 	var acts []sysAction
 	for i, m := range sysMaps {
 		root := filepath.Join(env.DotsDir, m.src)
@@ -62,6 +80,9 @@ func computeSystemActions(env *Env) ([]sysAction, error) {
 			}
 			fi, err := d.Info()
 			if err != nil {
+				return nil
+			}
+			if !covered(filepath.ToSlash(filepath.Join(m.src, rel))) {
 				return nil
 			}
 			a := sysAction{src: p, dst: filepath.Join(m.dst, rel), mode: fi.Mode().Perm(), mapIdx: i}
@@ -81,7 +102,7 @@ func computeSystemActions(env *Env) ([]sysAction, error) {
 		}
 		ents, _ := os.ReadDir(root)
 		for _, e := range ents {
-			if !e.IsDir() {
+			if !e.IsDir() || !covered(m.src+"/"+e.Name()) {
 				continue
 			}
 			link := filepath.Join(runsvdirDefault, e.Name())

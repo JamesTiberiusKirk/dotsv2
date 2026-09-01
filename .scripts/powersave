@@ -10,21 +10,33 @@ PSTATE=/sys/devices/system/cpu/intel_pstate
 
 wifi_con() { nmcli -t -f NAME,TYPE con show --active | awk -F: '$2=="802-11-wireless"{print $1; exit}'; }
 
+# Drop every monitor to the lowest refresh rate its current resolution offers.
+# Portable across hosts (binstar 120→60, dellstar/legion whatever their panel
+# has); `off` reverts via hyprctl reload, which re-applies the config rules.
+min_hz_monitors() {
+  hyprctl monitors -j | jq -r '.[] | select(.disabled | not)
+    | "\(.width)x\(.height)" as $res
+    | (.availableModes | map((capture("^\($res)@(?<hz>[0-9.]+)Hz")? | .hz | tonumber)) | min) as $hz
+    | select($hz != null)
+    | "hl.monitor({ output = \"\(.name)\", mode = \"\(.width)x\(.height)@\($hz)\", position = \"\(.x)x\(.y)\", scale = \(.scale) })"'
+}
+
 on() {
   powerprofilesctl set power-saver
-  echo 1 > $PSTATE/no_turbo
-  echo $MAX_PERF > $PSTATE/max_perf_pct
+  # intel_pstate only exists on intel; AMD boxes get the profile switch alone
+  [ -w $PSTATE/no_turbo ] && echo 1 > $PSTATE/no_turbo
+  [ -w $PSTATE/max_perf_pct ] && echo $MAX_PERF > $PSTATE/max_perf_pct
   # lua config: `hyprctl keyword` is a no-op, hl.* through eval is the live path
-  hyprctl eval 'hl.monitor({ output = "eDP-1", mode = "2880x1800@60", position = "0x0", scale = 1.5 })
+  hyprctl eval "$(min_hz_monitors)
     hl.config({ decoration = { blur = { enabled = false }, shadow = { enabled = false } },
-                animations = { enabled = false } })' >/dev/null
+                animations = { enabled = false } })" >/dev/null
   w=$(wifi_con); [ -z "$w" ] || nmcli con modify "$w" wifi.powersave 3
   touch "$STATE"
 }
 
 off() {
-  echo 0 > $PSTATE/no_turbo
-  echo 100 > $PSTATE/max_perf_pct
+  [ -w $PSTATE/no_turbo ] && echo 0 > $PSTATE/no_turbo
+  [ -w $PSTATE/max_perf_pct ] && echo 100 > $PSTATE/max_perf_pct
   hyprctl reload >/dev/null          # one call reverts everything eval set above
   w=$(wifi_con); [ -z "$w" ] || nmcli con modify "$w" wifi.powersave 2
   powerprofilesctl set "${1:-balanced}"

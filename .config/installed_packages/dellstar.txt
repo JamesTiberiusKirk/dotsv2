@@ -75,6 +75,7 @@ hyprsunset
 imagemagick
 impala
 imv
+intel-media-driver
 inkscape
 iwd-runit
 jdk21-openjdk
@@ -177,6 +178,7 @@ unclutter
 vencord-bin
 vertex-themes
 vim
+vulkan-intel
 visual-studio-code-bin
 wezterm
 wireplumber

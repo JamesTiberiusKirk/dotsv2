@@ -43,11 +43,11 @@ gen() {
         printf 'general {\n'
         printf '    lock_cmd = pidof hyprlock || hyprlock\n'
         printf '    before_sleep_cmd = loginctl lock-session\n'
-        printf '    after_sleep_cmd = hyprctl dispatch dpms on\n'
+        printf '    after_sleep_cmd = hyprctl dispatch '\''hl.dsp.dpms("on")'\''\n'
         printf '}\n'
         if [ ! -e "$AWAKE" ]; then
             [ "$lock_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = loginctl lock-session\n}\n' $((lock * 60))
-            [ "$screen_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = hyprctl dispatch dpms off\n    on-resume = hyprctl dispatch dpms on\n}\n' $((screen * 60))
+            [ "$screen_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = hyprctl dispatch '\''hl.dsp.dpms("off")'\''\n    on-resume = hyprctl dispatch '\''hl.dsp.dpms("on")'\''\n}\n' $((screen * 60))
             [ "$suspend_on" = 1 ] && printf 'listener {\n    timeout = %s\n    on-timeout = loginctl suspend\n}\n' $((suspend * 60))
         fi
     } >"$CONF"

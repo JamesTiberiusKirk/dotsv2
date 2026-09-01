@@ -1,11 +1,16 @@
 # Go tools living in this repo (each its own module dir).
 GO_DIRS := dots-link duo
 
-.PHONY: install build test vet fmt
+.PHONY: install install-duo build test vet fmt
 
-# Install the binaries onto $PATH via the Go toolchain (-> $GOBIN or ~/go/bin).
+# Install onto $PATH via the Go toolchain (-> $GOBIN or ~/go/bin).
+# dots-link only — duo is binstar hardware, install it there with install-duo
+# (install.sh does, gated on hostname).
 install:
-	for d in $(GO_DIRS); do (cd $$d && go install .); done
+	cd dots-link && go install .
+
+install-duo:
+	cd duo && go install .
 
 build:
 	for d in $(GO_DIRS); do (cd $$d && go build -o $$d .); done

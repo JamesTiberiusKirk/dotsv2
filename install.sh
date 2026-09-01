@@ -68,15 +68,19 @@ done
 # ---- dots-link: build + link this host's manifest (go comes from the package pass) ----
 export PATH=$PATH:$HOME/go/bin
 (cd "$DOTS" && make install)
+[ "$HOST" != binstar ] || (cd "$DOTS" && make install-duo)
 # DOTS_HOST: in the install chroot the kernel hostname is still the live ISO's
 DOTS_HOST=$HOST dots-link sync --remote --yes
 
-# ---- runit services from the repo (keyd, ntpd, tailscale) + install-time ones ----
-for sv in "$DOTS"/system/etc/runit/sv/*/; do
-  name=$(basename "$sv")
-  sudo cp -r "$sv" /etc/runit/sv/
-  sudo ln -sf "/etc/runit/sv/$name" /etc/runit/runsvdir/default/
-done
+# ---- first theme, if none applied yet: hyprland.lua requires the generated
+# colors.lua, which only theme-apply writes (all its outputs are gitignored)
+if [ ! -f "$DOTS/.config/hypr/colors.lua" ]; then
+  "$DOTS/.scripts/theme-apply" dark \
+    || echo "WARN: theme-apply failed — run ~/.scripts/theme-apply before starting Hyprland"
+fi
+
+# ---- system files (udev, elogind, runit sv) are host-scoped `system/` entries
+# in hosts/$HOST, installed by the dots-link sync above ----
 # package-provided services that just need enabling (bluez-runit ships the sv dir)
 [ ! -d /etc/runit/sv/bluetoothd ] || sudo ln -sf /etc/runit/sv/bluetoothd /etc/runit/runsvdir/default/
 # power-profiles-daemon-runit ships the sv dir; the bar's profile selector is
@@ -92,13 +96,6 @@ fi
 if [ -d /etc/keyd ] || sudo mkdir -p /etc/keyd; then
   sudo ln -sfn "$DOTS/.config/keyd/default.conf" /etc/keyd/default.conf
   sudo keyd reload 2>/dev/null || true
-fi
-
-# ---- udev rules from the repo (hidraw access for duo, etc.) ----
-if [ -d "$DOTS/system/etc/udev/rules.d" ]; then
-  sudo cp "$DOTS"/system/etc/udev/rules.d/*.rules /etc/udev/rules.d/
-  sudo udevadm control --reload
-  sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=cpu --subsystem-match=pci --subsystem-match=usb
 fi
 
 # ---- DNS: stop tailscale mistaking Artix for a systemd box ----
@@ -130,18 +127,6 @@ grep -q pam_gnome_keyring.so /etc/pam.d/login || sudo sed -i \
 grep -q pam_gnome_keyring.so /etc/pam.d/passwd || sudo sed -i \
   '/^password.*include.*system-auth/a password optional  pam_gnome_keyring.so' \
   /etc/pam.d/passwd
-
-# ---- elogind sleep drop-ins (hibernate power-off mode; see the conf comments) ----
-if [ -d "$DOTS/system/etc/elogind/sleep.conf.d" ]; then
-  sudo mkdir -p /etc/elogind/sleep.conf.d
-  sudo cp "$DOTS"/system/etc/elogind/sleep.conf.d/*.conf /etc/elogind/sleep.conf.d/
-fi
-# sleep hooks (hibernate image size); elogind runs these from /lib, not /etc
-if [ -d "$DOTS/system/etc/elogind/system-sleep" ]; then
-  sudo mkdir -p /lib/elogind/system-sleep
-  sudo cp "$DOTS"/system/etc/elogind/system-sleep/* /lib/elogind/system-sleep/
-  sudo chmod +x /lib/elogind/system-sleep/*
-fi
 
 # ---- snapper + bootable snapshots (omarchy-style, no btrfs quotas) ----
 yay -S --needed --noconfirm snapper snap-pac limine-snapper-sync || true

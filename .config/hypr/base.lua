@@ -236,8 +236,9 @@ hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\
 -- Bitwarden's popped-out extension window. Matched on class, not title: at map
 -- time the title is still "_crx_<id>" and only becomes "Bitwarden" afterwards,
 -- so a title rule never fires. The class is Brave's app-window id for the
--- extension (browser+profile specific, hence not browser-agnostic).
-hl.window_rule({ name = "bitwarden-float", match = { class = "^(brave-nngceckbapebfimnlniiiahkandclblb-Default)$" }, float = true })
+-- extension (browser-specific; the extension id is stable, the trailing
+-- profile name is not — prefix match so any profile on any host gets it).
+hl.window_rule({ name = "bitwarden-float", match = { class = "^brave-nngceckbapebfimnlniiiahkandclblb-" }, float = true })
 
 -------------------
 ---- LAYERRULES ---

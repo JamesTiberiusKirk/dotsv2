@@ -27,3 +27,7 @@ pkgbuilds/*/*.pkg.tar*
 pkgbuilds/*/*.tar.xz
 pkgbuilds/*/*.h
 pkgbuilds/*/*.cpp
+
+# Per-host runtime state — written on the machine, never shared
+.config/hypr/.layout
+.config/themes/wallpaper.json

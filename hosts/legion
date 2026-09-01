@@ -63,3 +63,8 @@
 .config/opencode/package-lock.json
 .config/opencode/tui.json
 .config/opencode/themes/glass.json
+
+# system (root-installed copies via dots-link, not symlinks)
+# Arch/systemd box: the runit/elogind tree does not apply, and the udev
+# pstate rule is intel-only (this is AMD). PCI runtime PM still applies.
+system/etc/udev/rules.d/92-runtime-pm.rules

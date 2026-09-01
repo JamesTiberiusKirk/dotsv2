@@ -103,6 +103,11 @@ def main():
         sys.exit(f"usage: theme-apply <{'|'.join(names)}>")
     name = ALIAS.get(sys.argv[1], sys.argv[1])
     src = THEMES / f"{name}.json"
+    if not src.exists() and name == "wallpaper":
+        # wallpaper.json is per-host generated state (untracked); before the
+        # first wallpaper pick on a fresh host, fall back to the dark default
+        name = ALIAS["dark"]
+        src = THEMES / f"{name}.json"
     if not src.exists():
         sys.exit(f"no theme {src}")
     t = json.loads(src.read_text())

@@ -43,11 +43,25 @@ func isEntryLine(line string) bool {
 	return t != "" && !strings.HasPrefix(t, "#")
 }
 
-// Entries returns the trimmed entry paths in file order.
+// Entries returns the trimmed home-dotfile entry paths in file order.
+// `system/` entries are root-installed copies, not $HOME symlinks — those are
+// served by SystemEntries so no caller ever links ~/system/... by accident.
 func (m *Manifest) Entries() []string {
 	var out []string
 	for _, l := range m.Lines {
-		if isEntryLine(l) {
+		if isEntryLine(l) && !strings.HasPrefix(strings.TrimSpace(l), "system/") {
+			out = append(out, strings.TrimSpace(l))
+		}
+	}
+	return out
+}
+
+// SystemEntries returns the `system/` entries (files or whole dirs) this host
+// gets; computeSystemActions installs only what these cover.
+func (m *Manifest) SystemEntries() []string {
+	var out []string
+	for _, l := range m.Lines {
+		if isEntryLine(l) && strings.HasPrefix(strings.TrimSpace(l), "system/") {
 			out = append(out, strings.TrimSpace(l))
 		}
 	}

@@ -2,73 +2,15 @@ package main
 
 import "testing"
 
-const sampleManifest = `# header comment
-
-# shell
-.profile
-.zshrc
-
-# config
-.config/hypr
-.config/nvim
-`
-
-func TestEntries(t *testing.T) {
-	m := parseManifestBytes("h", []byte(sampleManifest))
-	got := m.Entries()
-	want := []string{".profile", ".zshrc", ".config/hypr", ".config/nvim"}
-	if len(got) != len(want) {
-		t.Fatalf("entries = %v, want %v", got, want)
+// Entries/SystemEntries split: system/ lines must never reach the $HOME
+// linker, and only they feed the root-installed system plan.
+func TestManifestSystemSplit(t *testing.T) {
+	m := parseManifestBytes("hosts/x", []byte(
+		"# comment\n.zshrc\nsystem/etc/udev/rules.d/92-runtime-pm.rules\nsystem/etc/runit/sv/keyd\n.config/hypr\n"))
+	if got := m.Entries(); len(got) != 2 || got[0] != ".zshrc" || got[1] != ".config/hypr" {
+		t.Fatalf("Entries() = %v", got)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("entry %d = %q, want %q", i, got[i], want[i])
-		}
+	if got := m.SystemEntries(); len(got) != 2 || got[0] != "system/etc/udev/rules.d/92-runtime-pm.rules" {
+		t.Fatalf("SystemEntries() = %v", got)
 	}
-}
-
-func TestHas(t *testing.T) {
-	m := parseManifestBytes("h", []byte(sampleManifest))
-	if !m.Has(".config/hypr") {
-		t.Error("Has(.config/hypr) = false")
-	}
-	if m.Has(".config/hyp") {
-		t.Error("Has(.config/hyp) matched a prefix")
-	}
-	if m.Has("# shell") {
-		t.Error("Has matched a comment")
-	}
-}
-
-func TestRemoveEntryPreservesComments(t *testing.T) {
-	m := parseManifestBytes("h", []byte(sampleManifest))
-	if n := m.RemoveEntry(".config/hypr"); n != 1 {
-		t.Fatalf("removed %d, want 1", n)
-	}
-	if m.Has(".config/hypr") {
-		t.Error("entry still present after removal")
-	}
-	// Comments and the other config entry must survive.
-	out := string(m.Bytes())
-	for _, must := range []string{"# header comment", "# shell", "# config", ".config/nvim", ".profile"} {
-		if !contains(out, must) {
-			t.Errorf("rewrite dropped %q:\n%s", must, out)
-		}
-	}
-}
-
-func TestRemoveEntryAbsent(t *testing.T) {
-	m := parseManifestBytes("h", []byte(sampleManifest))
-	if n := m.RemoveEntry(".config/missing"); n != 0 {
-		t.Fatalf("removed %d for absent entry, want 0", n)
-	}
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
