@@ -99,10 +99,13 @@ Scope {
             readonly property int nT: Theme.frameT
             readonly property int nf: 8
             readonly property int cr: 14
-            readonly property int cardW: expanded ? 340 : compact ? 240 : 320
+            // collapsed keeps the expanded width so hovering only grows it downward
+            readonly property int cardW: compact ? 240 : 340
             // sliver: a short capsule stemming out of the band — fillet and
             // corner radii shrink to fit (capsule.f / capsule.c)
-            readonly property int cardH: expanded ? body.implicitHeight + 24 : compact ? 44 : 12
+            // collapsed with media: the same card, just cut off after the title
+            // and the first slice of the art
+            readonly property int cardH: expanded ? body.implicitHeight + 24 : compact ? 44 : Media.active ? 21 : 12
             // the window stays at the expanded size and the capsule animates inside
             // it: resizing a layer surface is a compositor reconfigure per frame
             implicitWidth: 340 + 2 * nf
@@ -117,12 +120,15 @@ Scope {
             // per screen: a fullscreen video on the other monitor must not show
             // the sliver there just because focus is here
             readonly property bool fullscreen: Hyprland.monitorFor(screen)?.activeWorkspace?.hasFullscreen ?? false
-            visible: !fullscreen || compact
+            // with no media the island is dead weight on the edge: it only comes
+            // out for the transient vol/brightness/track pop
+            readonly property bool live: Media.active || compact
+            visible: live && (!fullscreen || compact)
             WlrLayershell.namespace: "quickshell-osd"
 
 
             // hover holds expanded; grace so a slip off the edge does not collapse it
-            readonly property bool expanded: !fullscreen && (hover.hovered || graceTimer.running || seek.held || vol.held || bri.held)
+            readonly property bool expanded: !fullscreen && (hover.hovered || graceTimer.running || seek.held)
             // the pop shows on the focused screen only; the sliver peeks everywhere
             readonly property bool compact: osd.compact && Hyprland.focusedMonitor?.name === screen.name
             Timer { id: graceTimer; interval: 300 }
@@ -139,16 +145,19 @@ Scope {
                 anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
                 width: root.cardW + 2 * root.nf
                 height: root.cardH + root.nT
+                clip: true
                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                 Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                 HoverHandler { id: hover; onHoveredChanged: if (!hovered) graceTimer.restart() }
 
                 // the capsule is part of the screen chrome (bar/Chrome.qml);
                 // this window only says where it is
-                function publish() { ShellState.setOsd(root.screen.name, [capsule.cw, capsule.by]); }
+                // height 0 tells the chrome to skip the notch entirely
+                function publish() { ShellState.setOsd(root.screen.name, [capsule.cw, root.live ? capsule.by : 0]); }
                 onWidthChanged: publish()
                 onHeightChanged: publish()
                 Component.onCompleted: publish()
+                Connections { target: root; function onLiveChanged() { card.publish(); } }
 
                 // the bar island capsule, flipped: hangs up from the bottom
                 // frame strip. Only painted over a fullscreen window: the chrome
@@ -282,7 +291,9 @@ Scope {
                     anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12; leftMargin: root.nf + 12; rightMargin: root.nf + 12 }
                     spacing: 10
                     visible: opacity > 0
-                    opacity: root.expanded ? 1 : 0
+                    // the collapsed sliver is this same column with the card
+                    // clipped down to its top rows — no separate peek widget
+                    opacity: (root.compact && !root.expanded) ? 0 : 1
                     Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     // tab chips: only when there is something to switch between
@@ -317,15 +328,15 @@ Scope {
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.track }
                     }
 
-                    // media: art + title/artist + transport; empty row when nothing plays
+                    // media: art + title/artist/transport stacked; the transport
+                    // sits in the column flow so a two-line title cannot land on it
                     Item {
-                        width: body.width; height: 56
+                        width: body.width; height: Math.max(56, meta.implicitHeight)
                         Rectangle {
                             id: art
                             width: 56; height: 56; radius: 8
                             color: Theme.track
                             clip: true
-                            Icon { name: "music-note"; size: 24; color: Theme.dim; anchors.centerIn: parent; visible: cover.status !== Image.Ready }
                             Image {
                                 id: cover
                                 anchors.fill: parent
@@ -335,34 +346,39 @@ Scope {
                             }
                         }
                         Column {
+                            id: meta
                             anchors { left: art.right; right: parent.right; leftMargin: 10; top: parent.top }
                             spacing: 2
                             Text {
                                 width: parent.width; elide: Text.ElideRight
                                 text: osd.p ? (osd.p.trackTitle || osd.p.identity) : "nothing playing"
                                 font.family: Theme.font; font.pixelSize: 13; font.bold: true
-                                color: osd.p ? Theme.bright : Theme.dim
+                                // collapsed the card is just a peek: quiet it down
+                                color: root.expanded && osd.p ? Theme.bright : Theme.dim
                             }
                             Text {
                                 width: parent.width; elide: Text.ElideRight
                                 text: osd.p?.trackArtist ?? ""
                                 visible: text !== ""
                                 font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.text
+                                color: root.expanded ? Theme.text : Theme.dim
                             }
-                        }
-                        Row {
-                            anchors { left: art.right; leftMargin: 6; bottom: parent.bottom }
-                            Btn { icon: "skip-previous"; on: osd.p?.canGoPrevious ?? false; onClicked: osd.p.previous() }
-                            Btn { icon: (osd.p?.isPlaying ?? false) ? "pause" : "play"; on: osd.p?.canPlay ?? false; onClicked: osd.p.togglePlaying() }
-                            Btn { icon: "skip-next"; on: osd.p?.canGoNext ?? false; onClicked: osd.p.next() }
-                        }
-                        Text {
-                            anchors { right: parent.right; bottom: parent.bottom; bottomMargin: 8 }
-                            visible: osd.p?.lengthSupported ?? false
-                            text: Media.fmt(seek.frac * (osd.p?.length ?? 0)) + " / " + Media.fmt(osd.p?.length ?? 0)
-                            font.family: Theme.font; font.pixelSize: 10
-                            color: Theme.dim
+                            Item {
+                                width: parent.width; height: 30
+                                Row {
+                                    anchors { left: parent.left; leftMargin: -4; verticalCenter: parent.verticalCenter }
+                                    Btn { icon: "skip-previous"; on: osd.p?.canGoPrevious ?? false; onClicked: osd.p.previous() }
+                                    Btn { icon: (osd.p?.isPlaying ?? false) ? "pause" : "play"; on: osd.p?.canPlay ?? false; onClicked: osd.p.togglePlaying() }
+                                    Btn { icon: "skip-next"; on: osd.p?.canGoNext ?? false; onClicked: osd.p.next() }
+                                }
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    visible: osd.p?.lengthSupported ?? false
+                                    text: Media.fmt(seek.frac * (osd.p?.length ?? 0)) + " / " + Media.fmt(osd.p?.length ?? 0)
+                                    font.family: Theme.font; font.pixelSize: 10
+                                    color: Theme.dim
+                                }
+                            }
                         }
                     }
                     Track {
@@ -374,30 +390,6 @@ Scope {
                         onCommit: v => osd.p.position = v * osd.p.length
                     }
 
-                    Row {
-                        width: body.width; spacing: 10
-                        Icon { name: Audio.volIcon(osd.sink?.audio?.volume ?? 0, osd.sink?.audio?.muted ?? false); size: 15; color: Theme.text; anchors.verticalCenter: parent.verticalCenter }
-                        Track {
-                            id: vol
-                            width: parent.width - 25
-                            anchors.verticalCenter: parent.verticalCenter
-                            value: osd.sink?.audio?.volume ?? 0
-                            onCommit: v => { if (osd.sink?.audio) osd.sink.audio.volume = v; }
-                        }
-                    }
-                    Row {
-                        width: body.width; spacing: 10
-                        visible: Sys.backlights.length > 0
-                        Icon { name: "white-balance-sunny"; size: 15; color: Theme.text; anchors.verticalCenter: parent.verticalCenter }
-                        Track {
-                            id: bri
-                            width: parent.width - 25
-                            anchors.verticalCenter: parent.verticalCenter
-                            value: Math.max(0, Sys.backlight)
-                            // never 0: a panel driven fully dark is indistinguishable from one that died
-                            onCommit: v => Sys.setBrightness(Sys.backlights[0].name, Math.max(1, Math.round(v * 100)))
-                        }
-                    }
                 }
             }
         }

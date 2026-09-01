@@ -233,10 +233,11 @@ hl.window_rule({
 hl.window_rule({ name = "blue-recorder-float", match = { class = "^(blue-recorder)$" }, float = true })
 hl.window_rule({ name = "select-area-float",   match = { title = "^(Select Area)$" },   float = true })
 hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\.satty|satty)$" }, float = true })
--- Bitwarden's popped-out extension window. Matched on title, not class:
--- browser-agnostic, and normal tabs title as "Bitwarden - Brave" so the
--- anchored "^(Bitwarden)$" only catches the standalone popup.
-hl.window_rule({ name = "bitwarden-float", match = { title = "^(Bitwarden)$" }, float = true })
+-- Bitwarden's popped-out extension window. Matched on class, not title: at map
+-- time the title is still "_crx_<id>" and only becomes "Bitwarden" afterwards,
+-- so a title rule never fires. The class is Brave's app-window id for the
+-- extension (browser+profile specific, hence not browser-agnostic).
+hl.window_rule({ name = "bitwarden-float", match = { class = "^(brave-nngceckbapebfimnlniiiahkandclblb-Default)$" }, float = true })
 
 -------------------
 ---- LAYERRULES ---

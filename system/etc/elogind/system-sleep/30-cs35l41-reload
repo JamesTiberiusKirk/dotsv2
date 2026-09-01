@@ -1,0 +1,30 @@
+#!/bin/sh
+# elogind sleep hook: reload the CS35L41 amp driver after resume.
+#
+# The right speaker amp (spi1-CSC3551:00-cs35l41-hda.1) intermittently fails to
+# come back from any sleep state. Its resume callback times out waiting for the
+# chip to finish booting its OTP, and every register read after that fails:
+#
+#   cs35l41-hda ...-cs35l41-hda.1: Failed waiting for OTP_BOOT_DONE
+#   cs35l41-hda ...-cs35l41-hda.1: PM: dpm_run_callback(): cs35l41_system_resume returns -110
+#   cs35l41-hda ...-cs35l41-hda.1: DSP1: Failed to read algorithm info: -16
+#
+# The left amp (.0) reloads the identical wmfw and is fine, so playback keeps
+# working — just mono, out of the left speaker, until the next reboot. Note
+# 10-hibernate-shutdown.conf blames the same -110 on the ACPI S4 handoff; that
+# was only ever half the story, this failure happens on plain suspend too and
+# survived the switch to HibernateMode=shutdown.
+#
+# Nothing short of a fresh module load revives it: hibernating (a real
+# pm_power_off, so the amp does lose its rail) still comes back dead, because
+# resume runs the driver's restore path rather than a probe. Reinserting the
+# module re-probes both amps from scratch, and the HDA codec re-binds them as
+# components ("snd_hda_codec_alc269 ehdaudio0D0: bound ...").
+#
+# Fired unconditionally rather than only when .1 is broken: detecting the
+# failure means parsing dmesg from a root hook, which is more code than the
+# reload it would guard, and the reload is idempotent. It costs ~30 ms and the
+# module's refcount stays 0 even with a stream playing, so it is safe to pull.
+[ "$1" = "post" ] || exit 0
+modprobe -r snd_hda_scodec_cs35l41_spi
+modprobe snd_hda_scodec_cs35l41_spi

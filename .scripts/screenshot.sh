@@ -16,5 +16,6 @@ satty \
     --filename "$tmp" \
     --output-filename "$out" \
     --early-exit \
+    --disable-notifications \
     --copy-command wl-copy
 rm -f "$tmp"

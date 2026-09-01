@@ -1,9 +1,0 @@
-# Logitech Unifying receiver: no USB autosuspend.
-# The kernel default (2s) puts the receiver to sleep between inputs; the T650
-# touchpad then eats the first tap/scroll waking it, so it feels dead until
-# "woken up". A mouse hides this — continuous motion masks the wake latency.
-# add|change: `udevadm trigger` emits change events, so an add-only rule would
-# never apply without a replug.
-# Numbered 93 on purpose: 92-runtime-pm.rules sets every USB device to "auto",
-# so this has to sort after it to carve out the exception.
-ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c52b", TEST=="power/control", ATTR{power/control}="on"

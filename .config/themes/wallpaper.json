@@ -1,63 +1,63 @@
 {
   "mode": "dark",
   "shell": {
-    "island": "#D91e1c13",
-    "islandBorder": "#884b4739",
-    "surface": "#D9222017",
-    "text": "#cdc6b4",
-    "bright": "#e8e2d4",
-    "dim": "#969080",
-    "accent": "#dbc66f",
-    "accentText": "#393000",
-    "track": "#2d2a21",
+    "island": "#D9211a13",
+    "islandBorder": "#88504539",
+    "surface": "#D9251e17",
+    "text": "#d4c4b5",
+    "bright": "#eee0d4",
+    "dim": "#9c8e80",
+    "accent": "#f7bc70",
+    "accentText": "#462a00",
+    "track": "#302921",
     "ok": "#7DD87D",
     "warn": "#FBBF24",
     "urgent": "#ffb4ab"
   },
   "hypr": {
     "active_border": [
-      "rgba(dbc66faa)",
-      "rgba(a9d0b3aa)"
+      "rgba(f7bc70aa)",
+      "rgba(bacd9faa)"
     ],
-    "inactive_border": "rgba(4b4739aa)",
-    "group_active": "rgba(dbc66faa)",
-    "group_inactive": "rgba(222017cc)",
+    "inactive_border": "rgba(504539aa)",
+    "group_active": "rgba(f7bc70aa)",
+    "group_inactive": "rgba(251e17cc)",
     "group_locked_active": "rgba(ffb4abaa)",
-    "group_locked_inactive": "rgba(222017cc)",
-    "groupbar_active": "rgba(dbc66fff)",
-    "groupbar_inactive": "rgba(222017ff)",
+    "group_locked_inactive": "rgba(251e17cc)",
+    "groupbar_active": "rgba(f7bc70ff)",
+    "groupbar_inactive": "rgba(251e17ff)",
     "groupbar_locked_active": "rgba(ffb4abff)",
-    "groupbar_locked_inactive": "rgba(222017ff)",
-    "groupbar_text": "rgba(e8e2d4ff)",
-    "groupbar_text_inactive": "rgba(cdc6b4ff)"
+    "groupbar_locked_inactive": "rgba(251e17ff)",
+    "groupbar_text": "rgba(eee0d4ff)",
+    "groupbar_text_inactive": "rgba(d4c4b5ff)"
   },
   "term": {
     "background": "#000000",
-    "foreground": "#e8e2d4",
-    "cursor": "#dbc66f",
-    "cursor_text": "#393000",
-    "selection": "#2d2a21",
-    "selection_text": "#e8e2d4",
-    "titlebar": "#1e1c13",
+    "foreground": "#eee0d4",
+    "cursor": "#f7bc70",
+    "cursor_text": "#462a00",
+    "selection": "#302921",
+    "selection_text": "#eee0d4",
+    "titlebar": "#211a13",
     "normal": [
       "#000000",
       "#CC0000",
       "#00CC66",
       "#D7AF00",
-      "#dbc66f",
-      "#a9d0b3",
-      "#d1c6a1",
-      "#cdc6b4"
+      "#f7bc70",
+      "#bacd9f",
+      "#dec2a2",
+      "#d4c4b5"
     ],
     "bright": [
       "#4D4D4D",
       "#FF3333",
       "#33FF99",
       "#FFD700",
-      "#dbc66f",
-      "#a9d0b3",
-      "#d1c6a1",
-      "#e8e2d4"
+      "#f7bc70",
+      "#bacd9f",
+      "#dec2a2",
+      "#eee0d4"
     ]
   }
 }

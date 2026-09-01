@@ -1,4 +1,3 @@
-# Runtime PM on for everything — what `powertop --auto-tune` does, made
-# permanent. If a USB mouse/dongle lags on wake, drop the usb line.
+# Runtime PM on for PCI. USB left at the kernel default (`on`): the 2s
+# autosuspend made Logitech receivers eat the first input after idle.
 ACTION!="remove", SUBSYSTEM=="pci", ATTR{power/control}="auto"
-ACTION!="remove", SUBSYSTEM=="usb", ATTR{power/control}="auto"

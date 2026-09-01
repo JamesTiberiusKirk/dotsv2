@@ -23,6 +23,10 @@ Singleton {
         : players.find(p => p.isPlaying)
         ?? ((lastChanged && players.includes(lastChanged)) ? lastChanged : (players[0] ?? null))
 
+    // is there anything worth showing an island for? a browser that registered
+    // MPRIS without ever playing (0:00 / 0:00, no title) does not count
+    readonly property bool active: !!player && (player.isPlaying || !!player.trackTitle)
+
     function select(p) { picked = p; }
 
     Instantiator {
