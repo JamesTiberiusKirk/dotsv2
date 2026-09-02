@@ -124,7 +124,7 @@ python-virtualenv
 qemu-base
 qemu-full
 qemu-ui-gtk
-qrcodegen
+qrcodegen-cmake
 qrencode
 qt5ct
 qt6ct-kde

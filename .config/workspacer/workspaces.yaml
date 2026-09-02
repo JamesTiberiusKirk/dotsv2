@@ -74,6 +74,11 @@ workspaces:
         prefix: sf
         recent_access_window: 50
         session_preset: default
+        projects:
+            - name: sportsfreelancers_com
+              sister_repos:
+                - name: product-docs
+                  label: docs
 
     ff:
         active_projects_first: true
