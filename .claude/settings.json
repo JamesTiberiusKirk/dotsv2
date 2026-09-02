@@ -11,7 +11,7 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "fable[1m]",
+  "model": "opus[1m]",
   "enabledMcpjsonServers": [
     "hamr-dev",
     "playwright"
@@ -60,6 +60,7 @@
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
+  "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
   "autoMode": {
     "allow": [
@@ -101,6 +102,5 @@
       "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
   },
-  "voiceEnabled": true,
-  "remoteControlAtStartup": false
+  "voiceEnabled": true
 }

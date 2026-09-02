@@ -286,6 +286,15 @@ Scope {
                     MouseArea { anchors.fill: parent; enabled: parent.on; onClicked: parent.clicked() }
                 }
 
+                // per-player X: drops this player from the island until it plays
+                // again (Media.dismiss). Only reachable while expanded.
+                Btn {
+                    anchors { top: parent.top; right: parent.right; topMargin: 8; rightMargin: root.nf + 8 }
+                    icon: "close"
+                    visible: root.expanded && !!osd.p
+                    onClicked: Media.dismiss(osd.p)
+                }
+
                 Column {
                     id: body
                     anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12; leftMargin: root.nf + 12; rightMargin: root.nf + 12 }
@@ -299,7 +308,7 @@ Scope {
                     // tab chips: only when there is something to switch between
                     Item {
                         visible: Media.players.length > 1
-                        width: body.width; height: 22
+                        width: body.width - 26; height: 22
                         Row {
                             spacing: 14
                             Repeater {
@@ -347,7 +356,7 @@ Scope {
                         }
                         Column {
                             id: meta
-                            anchors { left: art.right; right: parent.right; leftMargin: 10; top: parent.top }
+                            anchors { left: art.right; right: parent.right; leftMargin: 10; rightMargin: 26; top: parent.top }
                             spacing: 2
                             Text {
                                 width: parent.width; elide: Text.ElideRight

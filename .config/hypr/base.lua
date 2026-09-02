@@ -238,7 +238,16 @@ hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\
 -- so a title rule never fires. The class is Brave's app-window id for the
 -- extension (browser-specific; the extension id is stable, the trailing
 -- profile name is not — prefix match so any profile on any host gets it).
-hl.window_rule({ name = "bitwarden-float", match = { class = "^brave-nngceckbapebfimnlniiiahkandclblb-" }, float = true })
+hl.window_rule({ name = "bitwarden-float", match = { class = "^brave-nngceckbapebfimnlniiiahkandclblb-.*$" }, float = true })
+-- Bitwarden's passkey prompt ("Confirm access") is a plain brave-browser popup
+-- that maps as "New Tab - Brave" and renames afterwards, so no open-time rule
+-- can catch it. Float it on the title change instead.
+hl.on("window.title", function(w)
+    if w.floating or w.class ~= "brave-browser" or w.title ~= "Confirm access - Brave" then return end
+    hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
+    hl.dispatch(hl.dsp.window.resize({ x = 900, y = 700, relative = false, window = w }))
+    hl.dispatch(hl.dsp.window.center({ window = w }))
+end)
 
 -------------------
 ---- LAYERRULES ---

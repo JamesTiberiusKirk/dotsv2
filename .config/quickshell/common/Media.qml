@@ -13,7 +13,12 @@ Singleton {
 
     // playerctld (playerctl's proxy daemon) mirrors the active player and
     // would show as a duplicate of it
-    readonly property var players: Mpris.players.values.filter(p => !p.dbusName.endsWith(".playerctld"))
+    readonly property var allPlayers: Mpris.players.values.filter(p => !p.dbusName.endsWith(".playerctld"))
+    // X'd out from the island: a browser tab that stopped playing keeps its
+    // title and so keeps the island alive forever. Dropped until it plays
+    // again. Per player, so X'ing the dead youtube tab falls through to spotify
+    property var dismissed: []
+    readonly property var players: allPlayers.filter(p => !dismissed.includes(p))
     property var picked: null
     property var lastChanged: null
     // set on any track change so the island can flash that player's track
@@ -28,13 +33,17 @@ Singleton {
     readonly property bool active: !!player && (player.isPlaying || !!player.trackTitle)
 
     function select(p) { picked = p; }
+    function dismiss(p) { if (p && !dismissed.includes(p)) dismissed = dismissed.concat([p]); }
+    function revive(p) { if (dismissed.includes(p)) dismissed = dismissed.filter(x => x !== p); }
 
     Instantiator {
         model: Mpris.players
         Connections {
             required property var modelData
             target: modelData
+            function onIsPlayingChanged() { if (modelData.isPlaying) root.revive(modelData); }
             function onTrackChanged() {
+                root.revive(modelData);
                 root.lastChanged = modelData;
                 root.trackChanged(modelData);
             }
