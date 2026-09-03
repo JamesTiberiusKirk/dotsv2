@@ -66,14 +66,38 @@ Singleton {
         return Pipewire.nodes.values.filter(n => n.type === t);
     }
 
-    readonly property var sinks: ofType(PwNodeType.AudioSink).filter(available)
-    readonly property var sources: ofType(PwNodeType.AudioSource).filter(available)
+    // Devices the user never wants offered. One file, in the repo, shared by
+    // every host: names are host-specific, so a foreign entry simply never
+    // matches. Banned devices stay reachable behind the panel's "hidden" row.
+    property var banned: []
+    FileView {
+        id: banFile
+        path: Quickshell.shellDir + "/audio-banned"
+        printErrors: false
+        property bool ready: false
+        onLoaded: { root.banned = text().split("\n").filter(x => x); ready = true; }
+        onLoadFailed: ready = true
+    }
+    onBannedChanged: if (banFile.ready) banFile.setText(banned.length ? banned.join("\n") + "\n" : "")
+    function isBanned(node) { return root.banned.indexOf(node.name) >= 0; }
+    function ban(node) { if (node && !isBanned(node)) root.banned = root.banned.concat([node.name]); }
+    function unban(node) { if (node) root.banned = root.banned.filter(n => n !== node.name); }
+
+    readonly property var sinks: ofType(PwNodeType.AudioSink).filter(available).filter(n => !isBanned(n))
+    readonly property var sources: ofType(PwNodeType.AudioSource).filter(available).filter(n => !isBanned(n))
+    readonly property var bannedSinks: ofType(PwNodeType.AudioSink).filter(isBanned)
+    readonly property var bannedSources: ofType(PwNodeType.AudioSource).filter(isBanned)
     // A peak monitor is itself a capture stream, named "Quickshell Peak
     // Detect". Without this the panel's own meters show up as apps holding the
     // mic, each row drawing a meter of its own — an unbounded loop that makes
     // the whole popout grow and flicker.
+    // Properties are unreadable until the node binds, so an unbound own
+    // monitor slips past the name check and gets a row — and a meter, and
+    // another stream. Unbound nodes show nothing until the settle timer
+    // re-evaluates with them bound.
     function ownMonitor(node) {
-        return (node.properties ?? {})["application.name"] === "Quickshell Peak Detect";
+        return !node.ready
+            || (node.properties ?? {})["application.name"] === "Quickshell Peak Detect";
     }
 
     readonly property var playing: ofType(PwNodeType.AudioOutStream).filter(n => !ownMonitor(n))

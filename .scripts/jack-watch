@@ -1,0 +1,44 @@
+#!/bin/sh
+# Some Intel SOF/UCM cards expose Speaker and Headphones as two mutually
+# exclusive profiles instead of two ports on one sink. Both profiles always
+# report "available", so WirePlumber never switches on the jack, and when the
+# active sink vanishes mid-switch it parks the default on some other card.
+# This follows the jack: switch profile, then make the new sink the default.
+# Hosts without such a card exit immediately. See also
+# .config/wireplumber/wireplumber.conf.d/50-laptop-speaker.conf
+
+# card name, alsa index, speaker profile, headphones profile — tab separated
+found=$(pactl list cards | awk -F'\t' '
+    /^Card #/           { name=""; idx=""; spk=""; hp=""; inp=0 }
+    /^\tName: /         { name=$2; sub(/^Name: /, "", name) }
+    /^\t\talsa.card = / { idx=$3; gsub(/[^0-9]/, "", idx) }
+    /^\tProfiles:/      { inp=1; next }
+    /^\tActive Profile/ { inp=0 }
+    inp && /Speaker/    { spk=$3; sub(/: .*/, "", spk) }
+    inp && /Headphones/ { hp=$3;  sub(/: .*/, "", hp) }
+    name && idx != "" && spk && hp { print name "\t" idx "\t" spk "\t" hp; exit }')
+[ -n "$found" ] || exit 0
+
+IFS='	' read -r card idx spk hp <<EOT
+$found
+EOT
+stem=${card#alsa_card.}
+
+# switch to the profile carrying $1 (Speaker|Headphones), then default to its sink
+use() {
+    case $1 in Speaker) pactl set-card-profile "$card" "$spk" ;;
+                     *) pactl set-card-profile "$card" "$hp" ;; esac
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        sink=$(pactl list sinks short | awk -v s="$stem" -v w="$1" '$2 ~ s && $2 ~ w { print $2; exit }')
+        [ -n "$sink" ] && { pactl set-default-sink "$sink"; return; }
+        sleep 0.2
+    done
+}
+
+apply() {
+    if amixer -c"$idx" cget iface=CARD,name='Headphone Jack' | grep -q 'values=on'
+    then use Headphones; else use Speaker; fi
+}
+
+apply
+alsactl monitor "hw:$idx" | grep --line-buffered 'Headphone Jack' | while read -r _; do apply; done

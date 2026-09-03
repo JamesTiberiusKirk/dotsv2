@@ -1,0 +1,23 @@
+# ripgrep ignore rules for the quickshell launcher's Find Files only, passed
+# explicitly via `rg --ignore-file` (Launcher.qml). Deliberately NOT ~/.ignore:
+# that name is picked up by shell `rg`, neo-tree and other tools by default.
+# Patterns anchor to rg's cwd, so the launcher runs from $HOME.
+go
+.git
+.dots
+.cache
+.local/share
+.cargo/registry
+node_modules
+.config/discord
+.config/BraveSoftware
+.codex/.tmp
+.npm
+
+# workspacer roots: the repo folder is findable, its contents are not
+# (Launcher.qml adds the folders from workspaces.yaml)
+Projects/*/**
+FyrmForge/*/**
+SportFreelancers/*/**
+atom/*/**
+uw/*/**

@@ -85,13 +85,15 @@ Scope {
             Component.onCompleted: query.running = true
 
             // thin glass pane: low alpha so the wallpaper reads through, hyprglass
-            // (layers enabled globally in hypr/plugins.lua) does the refraction
+            // (layers enabled globally in hypr/plugins.lua) does the refraction.
+            // light mode needs more body: dark text over a 0.35 pane on a dark
+            // wallpaper lands mid-grey and unreadable
             Rectangle {
                 anchors.fill: parent
                 radius: 10
-                color: Qt.rgba(Theme.island.r, Theme.island.g, Theme.island.b, 0.35)
+                color: Qt.rgba(Theme.island.r, Theme.island.g, Theme.island.b, Theme.dark ? 0.35 : 0.85)
                 border.width: 1
-                border.color: Qt.rgba(Theme.islandBorder.r, Theme.islandBorder.g, Theme.islandBorder.b, 0.4)
+                border.color: Qt.rgba(Theme.islandBorder.r, Theme.islandBorder.g, Theme.islandBorder.b, Theme.dark ? 0.4 : 0.6)
             }
 
             Column {

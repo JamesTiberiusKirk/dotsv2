@@ -20,6 +20,7 @@
 .scripts/gomodrename.sh
 .scripts/hypr-doc-gen
 .scripts/hyprx
+.scripts/jack-watch
 .scripts/layout-switcher.sh
 .scripts/imports
 .scripts/pg_prettify.sh

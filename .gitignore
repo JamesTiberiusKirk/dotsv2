@@ -31,3 +31,8 @@ pkgbuilds/*/*.cpp
 # Per-host runtime state — written on the machine, never shared
 .config/hypr/.layout
 .config/themes/wallpaper.json
+.config/themes/wallpaper-mode
+
+# nwg-displays writes these on apply; nothing sources them (lua config)
+.config/hypr/monitors.conf
+.config/hypr/workspaces.conf

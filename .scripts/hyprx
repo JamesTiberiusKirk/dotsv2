@@ -41,6 +41,7 @@ pkill -u "$USER" -x pipewire pipewire-pulse wireplumber 2>/dev/null || true
 pipewire &
 pipewire-pulse &
 wireplumber &
+~/.scripts/jack-watch &
 
 # Pending updates count (quickshell Sys.qml reads /tmp/i3status_updates)
 ~/.scripts/update-count.sh &

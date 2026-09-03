@@ -642,20 +642,42 @@ Variants {
                                         }
                                     }
 
-                                    Text {
-                                        id: pillText
+                                    // capped; a long title marquees while hovered
+                                    Item {
+                                        id: pillClip
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: Math.min(implicitWidth, 240)
-                                        elide: Text.ElideMiddle
-                                        font.family: Theme.font
-                                        font.pixelSize: Theme.fontSize
-                                        color: pill.active ? Theme.bright : Theme.dim
-                                        text: pill.modelData.title || pill.modelData.wayland?.title || ""
+                                        width: Math.min(pillText.implicitWidth, 160)
+                                        height: pillText.implicitHeight
+                                        clip: true
+                                        readonly property real over: pillText.implicitWidth - width
+                                        readonly property bool marquee: pillHover.containsMouse && over > 0
+
+                                        Text {
+                                            id: pillText
+                                            width: pillClip.marquee ? implicitWidth : pillClip.width
+                                            elide: Text.ElideMiddle
+                                            font.family: Theme.font
+                                            font.pixelSize: Theme.fontSize
+                                            color: pill.active ? Theme.bright : Theme.dim
+                                            text: pill.modelData.title || pill.modelData.wayland?.title || ""
+
+                                            SequentialAnimation on x {
+                                                running: pillClip.marquee
+                                                loops: Animation.Infinite
+                                                onRunningChanged: if (!running) pillText.x = 0
+                                                PauseAnimation { duration: 400 }
+                                                NumberAnimation { to: -pillClip.over; duration: pillClip.over * 30 }
+                                                PauseAnimation { duration: 600 }
+                                                NumberAnimation { to: 0; duration: pillClip.over * 30 }
+                                            }
+                                        }
                                     }
                                 }
 
                                 MouseArea {
+                                    id: pillHover
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     onClicked: {
                                         panel.closeIslandPopouts();
                                         Hyprland.dispatch(
@@ -2200,9 +2222,81 @@ Variants {
                                     enabled: !ds.current
                                     onClicked: Audio.setDefault(ds.node)
                                 }
+                                // hover-only ban: hides the device from the
+                                // list, retrievable under the "hidden" row
+                                HoverHandler { id: dsHover }
+                                Icon {
+                                    anchors { right: parent.right; top: parent.top; rightMargin: 36 }
+                                    visible: dsHover.hovered
+                                    name: "eye-off"
+                                    size: 13
+                                    color: Theme.dim
+                                    MouseArea {
+                                        anchors { fill: parent; margins: -4 }
+                                        onClicked: Audio.ban(ds.node)
+                                    }
+                                }
                             }
                             // only the selected device carries signal
                             Meter { visible: ds.current; node: ds.node }
+                        }
+
+                        // banned devices, folded away under a count; each row
+                        // has an eye to bring it back
+                        component Hidden: Column {
+                            id: hd
+                            property var list: []
+                            property bool open: false
+
+                            visible: hd.list.length > 0
+                            width: audCol.width
+                            spacing: 4
+
+                            Item {
+                                width: audCol.width
+                                height: 18
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "hidden (" + hd.list.length + ")"
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: Theme.dim
+                                }
+                                Icon {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    name: hd.open ? "chevron-up" : "chevron-down"
+                                    size: 13
+                                    color: Theme.dim
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: hd.open = !hd.open
+                                }
+                            }
+                            Repeater {
+                                model: hd.open ? hd.list : []
+                                Item {
+                                    width: audCol.width
+                                    height: 18
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                        width: parent.width - 24
+                                        elide: Text.ElideRight
+                                        text: Audio.devName(modelData)
+                                        font.family: Theme.font; font.pixelSize: 11
+                                        color: Theme.dim
+                                    }
+                                    Icon {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        name: "eye"
+                                        size: 13
+                                        color: Theme.dim
+                                        MouseArea {
+                                            anchors { fill: parent; margins: -4 }
+                                            onClicked: Audio.unban(modelData)
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // a live level bar; the monitor is a real pipewire
@@ -2291,6 +2385,7 @@ Variants {
                             model: Audio.sinks
                             DevSlider { node: modelData; current: modelData === Audio.sink }
                         }
+                        Hidden { list: Audio.bannedSinks }
 
                         AudDiv {}
 
@@ -2301,6 +2396,7 @@ Variants {
                             model: Audio.sources
                             DevSlider { node: modelData; current: modelData === Audio.source }
                         }
+                        Hidden { list: Audio.bannedSources }
 
                         // ---- apps playing ----
                         AudDiv { visible: Audio.playing.length > 0 }

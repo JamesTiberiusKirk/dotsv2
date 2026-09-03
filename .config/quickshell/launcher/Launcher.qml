@@ -44,6 +44,57 @@ PanelWindow {
     // so it works identically whether the row was reached by walking or search.
     property var pending: null
 
+    // ---- find files (menu level "find files") ----
+    // Rows come from `rg --files` over $HOME (pruned by launcher/ignore), re-listed
+    // on every entry so a stale list never outlives one open. Folders are the
+    // parents of listed files, deduplicated, plus every workspacer repo: their
+    // contents are ignored, so the repo folder is listed on its own, with a
+    // trailing "/" to tell it apart. Filtering is plain substring per
+    // space-separated word, capped at 50 rows: the fuzzy scorer used for apps
+    // would lag at this size.
+    readonly property bool files: menu && menuLevel.length === 1 && menuLevel[0] === "find files"
+    property bool showHidden: false
+    property var fileRows: []
+    readonly property string home: Quickshell.env("HOME")
+    onFilesChanged: if (files) listFiles()
+    readonly property string repoDirs: "for r in $(grep -oP 'path: \\K\\S+' ~/.config/workspacer/workspaces.yaml); do"
+        + " find \"${r/#\\~/$HOME}\" -mindepth 1 -maxdepth 1 -type d -not -name '.*' -printf '%p/\\n' 2>/dev/null; done"
+    function listFiles() {
+        lister.running = false;
+        lister.command = ["sh", "-c", "cd \"$HOME\"; rg --files --no-messages"
+            + " --ignore-file \"$HOME/.config/quickshell/launcher/ignore\" "
+            + (showHidden ? "--hidden " : "") + "~; " + repoDirs];
+        lister.running = true;
+    }
+    Process {
+        id: lister
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const cut = root.home.length + 1, dirs = {}, rows = [];
+                for (const p of text.split("\n")) {
+                    if (p === "") continue;
+                    const isDir = p.endsWith("/");
+                    const rel = isDir ? p.slice(cut, -1) : p.slice(cut);
+                    if (isDir) {
+                        if (dirs[rel]) continue;
+                        dirs[rel] = true;
+                    }
+                    rows.push(isDir
+                        ? { label: rel, lc: rel.toLowerCase(), file: root.home + "/" + rel, leaf: true, icon: "folder" }
+                        : { label: rel, lc: rel.toLowerCase(), file: p, leaf: true, icon: "file-outline" });
+                    for (let i = rel.lastIndexOf("/"); i > 0; i = rel.lastIndexOf("/", i - 1)) {
+                        const d = rel.slice(0, i);
+                        if (dirs[d]) break; // its parents are in already
+                        dirs[d] = true;
+                        rows.push({ label: d, lc: d.toLowerCase(), file: root.home + "/" + d, leaf: true, icon: "folder" });
+                    }
+                }
+                rows.sort((a, b) => a.label.length - b.label.length);
+                root.fileRows = rows;
+            }
+        }
+    }
+
     onVisibleChanged: {
         if (visible) {
             query.text = "";
@@ -96,8 +147,8 @@ PanelWindow {
             finish(null);
             return;
         }
-        menuLevel = path === "" ? [] : path.split("/");
         menu = true;
+        menuLevel = path === "" ? [] : path.split("/");
         visible = true;
     }
 
@@ -129,7 +180,8 @@ PanelWindow {
         // Apps are native rather than generated: DesktopEntries already gives
         // icons and .execute(), both of which a "path<TAB>command" line loses.
         if (menuLevel.length === 0)
-            rows.push({ label: "apps", path: "apps", cmd: "", leaf: false, icon: "view-grid" });
+            rows.push({ label: "apps", path: "apps", cmd: "", leaf: false, icon: "view-grid" },
+                      { label: "find files", path: "find files", cmd: "", leaf: false, icon: "file-search" });
         for (const it of menuItems) {
             if (!it.path.startsWith(prefix))
                 continue;
@@ -146,6 +198,9 @@ PanelWindow {
         return rows;
     }
 
+    // what the row highlighter marks: files match per word, so mark the first
+    readonly property string hl: files ? query.text.split(" ")[0].toLowerCase() : query.text.toLowerCase()
+
     readonly property var matches: {
         const q = query.text.toLowerCase();
         if (menu) {
@@ -159,8 +214,18 @@ PanelWindow {
             // Searching spans the whole tree, not the open level — typing
             // "hibernate" from the root should find it without walking there,
             // and an app name should find the app.
+            if (files) {
+                const words = q.split(" ").filter(w => w !== ""), out = [];
+                for (const r of fileRows) {
+                    if (!words.every(w => r.lc.includes(w))) continue;
+                    out.push(r);
+                    if (out.length === 50) break;
+                }
+                return out;
+            }
             if (q !== "") {
                 const hits = menuItems.map(it => Object.assign({ label: it.path, leaf: true }, it));
+                hits.push({ label: "find files", leaf: false, icon: "file-search" });
                 const appHits = apps.map(a =>
                     ({ label: "apps/" + a.name, app: a, leaf: true }));
                 const rows = ranked(hits.concat(appHits), q);
@@ -260,7 +325,9 @@ PanelWindow {
                 list.currentIndex = 0;
                 return;
             }
-            if (m.app !== undefined)
+            if (m.file !== undefined)
+                Quickshell.execDetached(["xdg-open", m.file]);
+            else if (m.app !== undefined)
                 m.app.execute();
             else
                 run(m);
@@ -314,6 +381,19 @@ PanelWindow {
             // here (see the `launcher` submap in binds.lua), so the launcher
             // takes the raw chord.
             Keys.onPressed: event => {
+                if (root.files && (event.modifiers & Qt.ControlModifier)) {
+                    const m = root.matches[list.currentIndex];
+                    if (event.key === Qt.Key_D) {
+                        root.showHidden = !root.showHidden;
+                        root.listFiles();
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_F && m !== undefined) {
+                        Quickshell.execDetached(["nautilus", "--select", m.file]);
+                        root.finish(null);
+                        event.accepted = true;
+                    }
+                    return;
+                }
                 if (!(event.modifiers & Qt.AltModifier)) return;
                 const k = event.key;
                 if (k === Qt.Key_J) list.incrementCurrentIndex();
@@ -331,6 +411,7 @@ PanelWindow {
             Text {
                 visible: query.text === ""
                 text: root.pending !== null ? "confirm — esc to cancel"
+                    : root.files ? "find files — ⏎ open  ^F reveal  ^D hidden " + (root.showHidden ? "✓" : "✗")
                     : root.menu ? (root.menuLevel.length > 0 ? root.menuLevel.join(" / ") : "menu")
                     : root.dmenu ? root.dmenuPrompt : "search apps…"
                 font: query.font
@@ -401,8 +482,12 @@ PanelWindow {
                     // parents a step lighter than Theme.dim: at 13px on the
                     // island the plain dim dropped out
                     text: modelData.calc ? raw
-                        : MenuModel.highlight(raw, query.text.toLowerCase(), Qt.lighter(Theme.dim, 1.5), Theme.bright)
-                    elide: Text.ElideRight
+                        : MenuModel.highlight(raw, root.hl, Qt.lighter(Theme.dim, 1.5), Theme.bright)
+                    // paths: the filename is on the right, so cut the left
+                    elide: root.files ? Text.ElideLeft : Text.ElideRight
+                    // a left-elided row is right-aligned so its visible tail
+                    // ends at the right edge: the swipes below measure from it
+                    horizontalAlignment: root.files && truncated ? Text.AlignRight : Text.AlignLeft
                     font.family: Theme.font
                     font.pixelSize: root.menu ? 13 : Theme.fontSize
                     // the icon carries the "this one asks first" red; a whole
@@ -414,12 +499,16 @@ PanelWindow {
                     // before and inside the run. Behind the glyphs (z below).
                     FontMetrics { id: fm; font: rowText.font }
                     Repeater {
-                        model: modelData.calc ? [] : MenuModel.markRuns(rowText.raw, query.text.toLowerCase())
+                        model: modelData.calc ? [] : MenuModel.markRuns(rowText.raw, root.hl)
                         Rectangle {
                             required property var modelData
                             readonly property string shown: MenuModel.displayText(rowText.raw)
+                            readonly property bool fromRight: rowText.horizontalAlignment === Text.AlignRight
                             z: -1
-                            x: fm.advanceWidth(shown.slice(0, modelData[0])) - 2
+                            x: (fromRight ? rowText.width - fm.advanceWidth(shown.slice(modelData[0]))
+                                          : fm.advanceWidth(shown.slice(0, modelData[0]))) - 2
+                            // a run under the "…" of a left-elided row is not on screen
+                            visible: !fromRight || x >= fm.advanceWidth("\u2026")
                             width: fm.advanceWidth(shown.slice(modelData[0], modelData[0] + modelData[1])) + 4
                             y: (rowText.height - fm.height) / 2
                             height: fm.height

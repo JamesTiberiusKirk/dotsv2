@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # Detect connected outputs and apply the matching layout via hyprctl.
-# Re-run manually with `hyprctl reload` is not enough — call this script
-# directly (or bind it) after dock/undock to repick the profile.
+#
+# Layouts are keyed by profile: the sorted, comma-separated list of connected
+# output names. A saved profile in $STORE wins over the built-in cases below,
+# so a new setup is arranged visually (wdisplays, `display/arrange` in the
+# menu) and frozen with `monitor-layout.sh save` — no editing this file.
+#
+# Called at startup from base.lua and on every hotplug by monitor-watch.sh.
+# `hyprctl reload` is NOT enough — it re-runs hosts/<host>.lua, not this.
 set -u
+
+STORE="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/layouts"
 
 MONS=$(hyprctl monitors -j 2>/dev/null) || exit 0
 HOST=${HOSTNAME:-$(cat /etc/hostname)}
@@ -13,11 +21,31 @@ profile=$(printf '%s' "$MONS" | jq -r '[.[].name] | sort | join(",")')
 # The lua config parser rejects `hyprctl keyword`, so rules go through eval.
 apply() {
     for line in "$@"; do
-        IFS=, read -r out mode pos scale <<<"$line"
+        IFS=, read -r out mode pos scale transform <<<"$line"
         # disabled=false matters: a rule without it won't revive a disabled output
-        hyprctl eval "hl.monitor({ output = \"$out\", mode = \"$mode\", position = \"$pos\", scale = $scale, disabled = false }) return \"\"" >/dev/null
+        hyprctl eval "hl.monitor({ output = \"$out\", mode = \"$mode\", position = \"$pos\", scale = $scale, transform = ${transform:-0}, disabled = false }) return \"\"" >/dev/null
     done
 }
+
+# Freeze whatever is on screen right now as this profile's layout. Snapshots
+# the compositor rather than parsing anyone's config, so any editor that
+# applies live (wdisplays, nwg-displays) is a valid front-end. Disabled outputs
+# are absent from `hyprctl monitors`, which is what we want: eDP-2 off is a
+# different profile, not this one with a hole in it.
+if [ "${1:-}" = save ]; then
+    mkdir -p "$STORE"
+    printf '%s' "$MONS" |
+        jq -r '.[] | "\(.name),\(.width)x\(.height)@\(.refreshRate|floor),\(.x)x\(.y),\(.scale),\(.transform)"' \
+        >"$STORE/$profile"
+    echo "saved $STORE/$profile"
+    exit 0
+fi
+
+if [ -f "$STORE/$profile" ]; then
+    mapfile -t saved <"$STORE/$profile"
+    apply "${saved[@]}"
+    exit 0
+fi
 
 case "$profile" in
     "DP-1,DP-2,DP-3,HDMI-A-1")
@@ -46,7 +74,8 @@ case "$profile" in
         fi
         ;;
     *)
-        # Unknown layout: let Hyprland auto-place each output.
+        # Unknown layout and nothing saved: let Hyprland auto-place each output.
+        # Arrange it once and `save` to stop landing here.
         for name in $(printf '%s' "$MONS" | jq -r '.[].name'); do
             apply "$name,preferred,auto,1"
         done

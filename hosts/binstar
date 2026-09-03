@@ -21,6 +21,7 @@
 .scripts/hypr-doc-gen
 .scripts/hyprx
 .scripts/imports
+.scripts/jack-watch
 .scripts/layout-switcher.sh
 .scripts/menu/common
 .scripts/agent-usage
@@ -66,6 +67,9 @@
 .config/opencode/package-lock.json
 .config/opencode/tui.json
 .config/opencode/themes/glass.json
+
+# audio
+.config/wireplumber
 
 # system (root-installed copies via dots-link, not symlinks)
 system/etc/udev/rules.d/90-asus-duo-keyboard.rules

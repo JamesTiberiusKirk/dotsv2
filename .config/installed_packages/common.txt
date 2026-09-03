@@ -13,7 +13,6 @@ brave-bin
 brightnessctl
 btop
 bun
-caja
 ccache
 cdrtools
 cloudflared
@@ -98,6 +97,7 @@ nodejs
 noto-fonts
 noto-fonts-emoji
 npm
+nwg-displays
 openresolv
 openssh
 otf-font-awesome

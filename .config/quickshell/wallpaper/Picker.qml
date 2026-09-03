@@ -28,6 +28,12 @@ PanelWindow {
     readonly property string script: Quickshell.env("HOME") + "/.scripts/menu/common/wallpaper.sh"
     readonly property string themeScript: Quickshell.env("HOME") + "/.scripts/theme-apply"
     readonly property string themeDir: Quickshell.env("HOME") + "/.config/themes"
+    readonly property string modeScript: Quickshell.env("HOME") + "/.scripts/theme-from-wallpaper"
+
+    // forced mode for the wallpaper theme (themes/wallpaper-mode); "auto" is
+    // luminance-based. Optimistically updated by cycleMode() below, seeded and
+    // kept honest by the FileView on the state file.
+    property string forcedMode: "auto"
 
     // which strip has the keys: 0 wallpapers, 1 themes
     property int strip: 0
@@ -85,6 +91,14 @@ PanelWindow {
         Quickshell.execDetached([root.themeScript, name]);
         root.visible = false;
     }
+    // auto -> dark -> light -> auto; the label flips here rather than waiting
+    // on the state file round-trip, and the modal stays open so the repaint is
+    // visible and another press can keep cycling
+    function cycleMode() {
+        const order = ["auto", "dark", "light"];
+        root.forcedMode = order[(order.indexOf(root.forcedMode) + 1) % order.length];
+        Quickshell.execDetached([root.modeScript, "--cycle-mode"]);
+    }
 
     // Shared key handling for both strips: wrap-stepping, Tab to swap strips.
     // Return/Escape stay per-strip below.
@@ -93,6 +107,7 @@ PanelWindow {
         else if (event.key === Qt.Key_K || event.key === Qt.Key_Left) lv.step(-1);
         else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab
                  || event.key === Qt.Key_H || event.key === Qt.Key_L) root.strip = 1 - root.strip;
+        else if (event.key === Qt.Key_T && Theme.name === "wallpaper") root.cycleMode();
         else return;
         event.accepted = true;
     }
@@ -104,6 +119,12 @@ PanelWindow {
         nameFilters: ["*.json"]
         folder: "file://" + root.themeDir
         onCountChanged: tview.centreOnCurrent()
+    }
+
+    FileView {
+        path: root.themeDir + "/wallpaper-mode"
+        watchChanges: true
+        onLoaded: root.forcedMode = text().trim() || "auto"
     }
 
     FolderListModel {
@@ -299,6 +320,7 @@ PanelWindow {
                     Icon { name: "palette"; color: Theme.dim; anchors.verticalCenter: parent.verticalCenter }
                     Text {
                         text: "theme   \u2190 \u2192   enter to apply"
+                              + (Theme.name === "wallpaper" ? "   t: " + root.forcedMode : "")
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSize
                         color: Theme.dim

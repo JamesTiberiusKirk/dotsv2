@@ -79,6 +79,17 @@ Singleton {
                 { path: "display/layout/top-only", icon: "monitor", cmd: duo + " layout top-only" });
         }
 
+        // nwg-displays drags outputs around and applies live; the compositor is
+        // then snapshotted into ~/.local/state/hypr/layouts/<profile> so the
+        // hotplug watcher can replay it. Nothing reads the monitors.conf
+        // nwg-displays writes on apply — the lua config has no hl.source, and
+        // the snapshot means the editor is swappable anyway. (wdisplays was
+        // the first pick and screencopies every output live: unusably slow.)
+        const monLayout = root.home + "/.config/hypr/scripts/monitor-layout.sh";
+        rows.push(
+            { path: "display/arrange", icon: "monitor-multiple", cmd: "nwg-displays; " + monLayout + " save" },
+            { path: "display/save arrangement", icon: "view-grid", cmd: monLayout + " save" });
+
         rows.push({ path: "display/night light " + mark(Sys.nightLight), icon: "weather-night", run: () => Sys.setNightLight(!Sys.nightLight) });
         for (const k of [2700, 3500, 4500, 5500])
             rows.push({ path: "display/night light temp/" + k + "K " + mark(Sys.nightTemp === k), icon: "white-balance-sunny", run: () => Sys.setNightTemp(k) });

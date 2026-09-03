@@ -310,6 +310,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("owncloud")
     hl.exec_cmd("hyprland-autoname-workspaces")
     hl.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh")
+    hl.exec_cmd("~/.config/hypr/scripts/monitor-watch.sh") -- hotplug: re-apply layout + wallpaper
     hl.exec_cmd("~/.scripts/menu/common/wallpaper.sh --current") -- swww, daemon spawned by the script
     hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
     hl.exec_cmd("~/.config/hypr/scripts/idle start") -- hypridle from generated conf
