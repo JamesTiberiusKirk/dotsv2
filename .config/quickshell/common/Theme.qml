@@ -31,9 +31,16 @@ Singleton {
     // cards and notification toasts sit on the same line
     readonly property int popoutGap: 14
 
-    readonly property color island: c.island || "#D90C0716"
-    readonly property color islandBorder: c.islandBorder || "#884A3870"
-    readonly property color surface: c.surface || "#D9120A22"
+    // The three translucent tokens. Ultra power-save (Sys.ultraSave) forces them
+    // opaque: hyprglass is off by then, so alpha would read as bare see-through
+    // rather than glass. Declared as colors first so the hex strings are already
+    // converted when .r/.g/.b are read off them.
+    readonly property color islandBase: c.island || "#D90C0716"
+    readonly property color islandBorderBase: c.islandBorder || "#884A3870"
+    readonly property color surfaceBase: c.surface || "#D9120A22"
+    readonly property color island: Sys.ultraSave ? Qt.rgba(islandBase.r, islandBase.g, islandBase.b, 1) : islandBase
+    readonly property color islandBorder: Sys.ultraSave ? Qt.rgba(islandBorderBase.r, islandBorderBase.g, islandBorderBase.b, 1) : islandBorderBase
+    readonly property color surface: Sys.ultraSave ? Qt.rgba(surfaceBase.r, surfaceBase.g, surfaceBase.b, 1) : surfaceBase
     readonly property color text: c.text || "#D0B8F0"
     readonly property color bright: c.bright || "#F0E8FF"
     readonly property color dim: c.dim || "#5A3A7A"

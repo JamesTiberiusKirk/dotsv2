@@ -18,6 +18,7 @@ cdrtools
 cloudflared
 cmake
 ddccontrol
+ddcutil
 discord
 displaylink
 dnsmasq

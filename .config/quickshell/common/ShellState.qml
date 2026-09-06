@@ -13,7 +13,7 @@ Singleton {
 
     // Which screen edge the bar sits on: top | bottom | left | right.
     // Persisted outside the repo, read back on start.
-    property string side: "top"
+    property string side: "left"
     readonly property bool vertical: side === "left" || side === "right"
     readonly property bool far: side === "right" || side === "bottom"
     // a vertical bar is one column of stacked/rotated cells; wider than the band

@@ -45,6 +45,10 @@ reg("SUPER + ", {
     { "SPACE",  dsp.exec_cmd("qs ipc call menu toggle"), "Menu (apps, scripts, display, power)" },
     { "slash",  show_binds, "Show keybindings" },
     { "W",      dsp.exec_cmd("qs ipc call wallpaper toggle"), "Wallpaper picker" },
+    -- Compositor-side zoom, not a screen-copy tool: woomer and friends size
+    -- their layer surface in physical pixels, which lands 1.5x off on this
+    -- fractionally scaled output. Toggles 1x <-> 2x around the cursor.
+    { "Z",      dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(hyprctl getoption cursor:zoom_factor -j | jq -r 'if .float > 1 then 1 else 2 end')"), "Zoom screen 2x (toggle)" },
 })
 
 -- ---- Power key ----
