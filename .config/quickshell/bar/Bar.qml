@@ -165,6 +165,13 @@ Variants {
                 }
             }
 
+            // A popout takes the keyboard only when the menu opened it. One that
+            // always wants keys is the netPopout bug below: Hyprland focuses a
+            // layer the moment it maps, and with the pointer still on the cell
+            // that focus never comes back for the second, closing click.
+            function navOn(p) { return p.open && Sys.kbdNav; }
+            function navFocus(p) { return navOn(p) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None; }
+
             function closeIslandPopouts() {
                 Notifs.centerOpen = false;
                 calPopout.open = false;
@@ -266,10 +273,14 @@ Variants {
                 font.family: Theme.font
                 font.pixelSize: 11
                 color: pb.active ? Theme.accentText : Theme.text
+                activeFocusOnTab: true
+                Keys.onReturnPressed: pb.pressed()
                 Rectangle {
                     anchors.fill: parent
                     radius: height / 2
                     color: pb.active ? Theme.accent : Theme.track
+                    border.width: pb.activeFocus ? 1 : 0
+                    border.color: Theme.bright
                     z: -1
                 }
                 MouseArea { anchors.fill: parent; onClicked: pb.pressed() }
@@ -1024,6 +1035,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(trayPopout)
+                HyprlandFocusGrab {
+                    windows: [trayPanel]
+                    active: panel.navOn(trayPopout)
+                    onCleared: trayPopout.open = false
+                }
                 implicitWidth: 240
                 implicitHeight: trayCol.implicitHeight + 28
                 color: "transparent"
@@ -1031,6 +1048,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: trayPopout.open
+                    keyNav: panel.navOn(trayPopout)
                     neckX: trayPanel.sourceX - trayPanel.popupX
                     neckWidth: trayPanel.sourceWidth
 
@@ -1046,11 +1064,16 @@ Variants {
                                 required property var modelData
                                 width: trayCol.width
                                 height: 28
+                                activeFocusOnTab: true
+                                Keys.onReturnPressed: {
+                                    trayRow.modelData.activate();
+                                    panel.closeIslandPopouts();
+                                }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: 7
-                                    color: trayHover.hovered ? Theme.track : "transparent"
+                                    color: trayHover.hovered || trayRow.activeFocus ? Theme.track : "transparent"
                                 }
                                 IconImage {
                                     id: trayRowIcon
@@ -1112,6 +1135,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(calPopout)
+                HyprlandFocusGrab {
+                    windows: [calPopout]
+                    active: panel.navOn(calPopout)
+                    onCleared: calPopout.open = false
+                }
                 implicitWidth: 250
                 implicitHeight: calCol.implicitHeight + 28
                 color: "transparent"
@@ -1119,6 +1148,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: calPopout.open
+                    keyNav: panel.navOn(calPopout)
                     neckX: calPopout.sourceX - calPopout.popupX
                     neckWidth: calPopout.sourceWidth
 
@@ -1135,8 +1165,20 @@ Variants {
                         }
 
                         Item {
+                            id: calHead
+                            function step(n) { calPopout.shown = new Date(calPopout.shown.getFullYear(), calPopout.shown.getMonth() + n, 1); }
                             width: calCol.width
                             height: 18
+                            // the whole header is one stop; h/l page the month,
+                            // rather than two arrow stops to tab between
+                            activeFocusOnTab: true
+                            Keys.onLeftPressed: calHead.step(-1)
+                            Keys.onRightPressed: calHead.step(1)
+                            Rectangle {
+                                anchors { fill: parent; margins: -3 }
+                                radius: 5
+                                color: calHead.activeFocus ? Theme.track : "transparent"
+                            }
                             Text {
                                 text: Qt.locale().monthName(calPopout.shown.getMonth()) + " " + calPopout.shown.getFullYear()
                                 font.family: Theme.font; font.pixelSize: Theme.fontSize
@@ -1147,17 +1189,17 @@ Variants {
                                 anchors.right: parent.right
                                 spacing: 14
                                 Text {
-                                    text: "‹"; font.pixelSize: 14; color: Theme.text
+                                    text: "‹"; font.pixelSize: 14; color: calHead.activeFocus ? Theme.bright : Theme.text
                                     MouseArea {
                                         anchors.fill: parent; anchors.margins: -6
-                                        onClicked: calPopout.shown = new Date(calPopout.shown.getFullYear(), calPopout.shown.getMonth() - 1, 1)
+                                        onClicked: calHead.step(-1)
                                     }
                                 }
                                 Text {
-                                    text: "›"; font.pixelSize: 14; color: Theme.text
+                                    text: "›"; font.pixelSize: 14; color: calHead.activeFocus ? Theme.bright : Theme.text
                                     MouseArea {
                                         anchors.fill: parent; anchors.margins: -6
-                                        onClicked: calPopout.shown = new Date(calPopout.shown.getFullYear(), calPopout.shown.getMonth() + 1, 1)
+                                        onClicked: calHead.step(1)
                                     }
                                 }
                             }
@@ -1213,6 +1255,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(dispPopout)
+                HyprlandFocusGrab {
+                    windows: [displayPopout]
+                    active: panel.navOn(dispPopout)
+                    onCleared: dispPopout.open = false
+                }
                 implicitWidth: 280
                 implicitHeight: dispCol.implicitHeight + 28
                 color: "transparent"
@@ -1220,6 +1268,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: dispPopout.open
+                    keyNav: panel.navOn(dispPopout)
                     neckX: displayPopout.sourceX - displayPopout.popupX
                     neckWidth: displayPopout.sourceWidth
 
@@ -1257,6 +1306,23 @@ Variants {
                             width: dispCol.width
                             height: 30
                             opacity: off ? 0.4 : 1
+                            // h/l move by the same notch the wheel does. Still a
+                            // tab stop when off: a muted device's Return still
+                            // selects it, and skipping it would strand it.
+                            activeFocusOnTab: true
+                            Keys.onLeftPressed: sl.nudge(-1)
+                            Keys.onRightPressed: sl.nudge(1)
+                            function nudge(dir) {
+                                if (sl.off) return;
+                                sl.shown = Math.max(sl.minValue, Math.min(sl.maxValue, sl.shown + dir * sl.wheelStep));
+                                sl.commit(sl.shown);
+                            }
+
+                            Rectangle {
+                                anchors { fill: parent; margins: -3 }
+                                radius: 5
+                                color: sl.activeFocus ? Theme.track : "transparent"
+                            }
 
                             // While dragging, the slider owns the value: the 2s
                             // poll is far slower than the drag and would keep
@@ -1423,7 +1489,17 @@ Variants {
                             width: dispCol.width
                             height: 20
                             opacity: (Sys.idleRunning && !Sys.idleAwake) ? 1 : 0.4
+                            // Return is the switch, h/l are the ∓5 steppers
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: ir.toggled(!ir.on)
+                            Keys.onLeftPressed: ir.setMinutes(Math.max(1, ir.minutes - 5))
+                            Keys.onRightPressed: ir.setMinutes(Math.min(180, ir.minutes + 5))
 
+                            Rectangle {
+                                anchors { fill: parent; margins: -3 }
+                                radius: 5
+                                color: ir.activeFocus ? Theme.track : "transparent"
+                            }
                             Text {
                                 text: ir.label
                                 anchors.verticalCenter: parent.verticalCenter
@@ -1542,6 +1618,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(pwrPopout)
+                HyprlandFocusGrab {
+                    windows: [powerPopout]
+                    active: panel.navOn(pwrPopout)
+                    onCleared: pwrPopout.open = false
+                }
                 implicitWidth: 360
                 implicitHeight: pwrCol.implicitHeight + 28
                 color: "transparent"
@@ -1557,6 +1639,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: pwrPopout.open
+                    keyNav: panel.navOn(pwrPopout)
                     neckX: powerPopout.sourceX - powerPopout.popupX
                     neckWidth: powerPopout.sourceWidth
 
@@ -1675,12 +1758,23 @@ Variants {
                                         : modelData === PowerProfile.Performance ? "turbo"
                                         : "balanced"
                                     property bool hovered: false
+                                    function select() {
+                                        if (seg.ultra) { Sys.setUltraSave(true); return; }
+                                        if (Sys.ultraSave) {
+                                            Sys.setUltraSave(false, modelData === PowerProfile.PowerSaver ? "power-saver"
+                                                : modelData === PowerProfile.Performance ? "performance" : "balanced");
+                                            return;
+                                        }
+                                        PowerProfiles.profile = modelData;
+                                    }
 
                                     width: (profRow.width - profRow.spacing * (profRow.profiles.length - 1))
                                         / profRow.profiles.length
                                     height: 26
                                     radius: 4
-                                    color: active ? Theme.accent : (hovered ? Theme.track : "transparent")
+                                    activeFocusOnTab: true
+                                    Keys.onReturnPressed: seg.select()
+                                    color: active ? Theme.accent : (hovered || seg.activeFocus ? Theme.track : "transparent")
                                     border.width: active ? 0 : 1
                                     border.color: Theme.islandBorder
                                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -1709,15 +1803,7 @@ Variants {
                                         hoverEnabled: true
                                         onEntered: seg.hovered = true
                                         onExited: seg.hovered = false
-                                        onClicked: {
-                                            if (seg.ultra) { Sys.setUltraSave(true); return; }
-                                            if (Sys.ultraSave) {
-                                                Sys.setUltraSave(false, modelData === PowerProfile.PowerSaver ? "power-saver"
-                                                    : modelData === PowerProfile.Performance ? "performance" : "balanced");
-                                                return;
-                                            }
-                                            PowerProfiles.profile = modelData;
-                                        }
+                                        onClicked: seg.select()
                                     }
                                 }
                             }
@@ -1782,6 +1868,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(tsPopout)
+                HyprlandFocusGrab {
+                    windows: [tsPanel]
+                    active: panel.navOn(tsPopout)
+                    onCleared: tsPopout.open = false
+                }
                 implicitWidth: 300
                 implicitHeight: tsCol.implicitHeight + 28
                 color: "transparent"
@@ -1789,6 +1881,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: tsPopout.open
+                    keyNav: panel.navOn(tsPopout)
                     neckX: tsPanel.sourceX - tsPanel.popupX
                     neckWidth: tsPanel.sourceWidth
 
@@ -1814,14 +1907,17 @@ Variants {
                             text: copied.running ? "copied" : label
                             elide: Text.ElideRight
                             font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
+                            color: tc.activeFocus ? Theme.bright : Theme.dim
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: tc.copy()
+                            function copy() {
+                                Quickshell.execDetached(["wl-copy", "--", tc.value]);
+                                copied.restart();
+                            }
                             Timer { id: copied; interval: 1000 }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: {
-                                    Quickshell.execDetached(["wl-copy", "--", tc.value]);
-                                    copied.restart();
-                                }
+                                onClicked: tc.copy()
                             }
                         }
 
@@ -1846,10 +1942,18 @@ Variants {
                             text: "exit node"
                         }
                         Item {
+                            id: exNone
                             visible: Sys.tsUp && Sys.tsExitOptions.length > 0
                             width: tsCol.width
                             height: 20
+                            activeFocusOnTab: Sys.tsExit !== ""
+                            Keys.onReturnPressed: Sys.tsSetExit("")
 
+                            Rectangle {
+                                anchors { fill: parent; margins: -2 }
+                                radius: 5
+                                color: exNone.activeFocus ? Theme.track : "transparent"
+                            }
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 5
@@ -1886,7 +1990,14 @@ Variants {
 
                                 width: tsCol.width
                                 height: 20
+                                activeFocusOnTab: exRow.peer.on
+                                Keys.onReturnPressed: Sys.tsSetExit(exRow.current ? "" : exRow.peer.ip)
 
+                                Rectangle {
+                                    anchors { fill: parent; margins: -2 }
+                                    radius: 5
+                                    color: exRow.activeFocus ? Theme.track : "transparent"
+                                }
                                 Row {
                                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
                                     spacing: 5
@@ -1957,6 +2068,7 @@ Variants {
 
                                         // name copies the full MagicDNS name, ip copies the ip
                                         TsCopy {
+                                            activeFocusOnTab: false
                                             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                             width: parent.width - 120
                                             label: (pRow.peer.on ? "\u25cf  " : "\u25cb  ") + pRow.peer.n
@@ -1965,6 +2077,7 @@ Variants {
                                             color: pRow.peer.on ? Theme.text : Theme.dim
                                         }
                                         TsCopy {
+                                            activeFocusOnTab: false
                                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                             label: pRow.peer.ip
                                             value: pRow.peer.ip
@@ -2006,6 +2119,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(btPopout)
+                HyprlandFocusGrab {
+                    windows: [btPanel]
+                    active: panel.navOn(btPopout)
+                    onCleared: btPopout.open = false
+                }
                 implicitWidth: 300
                 implicitHeight: btCol.implicitHeight + 28
                 color: "transparent"
@@ -2013,6 +2132,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: btPopout.open
+                    keyNav: panel.navOn(btPopout)
                     neckX: btPanel.sourceX - btPanel.popupX
                     neckWidth: btPanel.sourceWidth
 
@@ -2051,7 +2171,14 @@ Variants {
 
                                 width: btCol.width
                                 height: 24
+                                activeFocusOnTab: !btRow.busy
+                                Keys.onReturnPressed: Bt.toggle(btRow.dev)
 
+                                Rectangle {
+                                    anchors { fill: parent; margins: -2 }
+                                    radius: 5
+                                    color: btRow.activeFocus ? Theme.track : "transparent"
+                                }
                                 Icon {
                                     id: btRowIcon
 
@@ -2111,16 +2238,21 @@ Variants {
                         // pairing needs an agent to answer passkey prompts, which
                         // this panel has no way to show — blueman already does it
                         Text {
+                            id: btPair
                             visible: Bt.enabled
                             text: "pair a new device\u2026"
                             font.family: Theme.font; font.pixelSize: 11
+                            font.underline: btPair.activeFocus
                             color: Theme.accent
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: btPair.launch()
+                            function launch() {
+                                Quickshell.execDetached(["blueman-manager"]);
+                                panel.closeIslandPopouts();
+                            }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: {
-                                    Quickshell.execDetached(["blueman-manager"]);
-                                    panel.closeIslandPopouts();
-                                }
+                                onClicked: btPair.launch()
                             }
                         }
                     }
@@ -2142,6 +2274,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(audPopout)
+                HyprlandFocusGrab {
+                    windows: [audioPopout]
+                    active: panel.navOn(audPopout)
+                    onCleared: audPopout.open = false
+                }
                 implicitWidth: 340
                 implicitHeight: audCol.implicitHeight + 28
                 color: "transparent"
@@ -2149,6 +2287,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: audPopout.open
+                    keyNav: panel.navOn(audPopout)
                     neckX: audioPopout.sourceX - audioPopout.popupX
                     neckWidth: audioPopout.sourceWidth
 
@@ -2171,7 +2310,14 @@ Variants {
 
                             width: audCol.width
                             height: 18
+                            activeFocusOnTab: ah.na !== null
+                            Keys.onReturnPressed: if (ah.na) ah.na.muted = !ah.na.muted
 
+                            Rectangle {
+                                anchors { fill: parent; margins: -2 }
+                                radius: 5
+                                color: ah.activeFocus ? Theme.track : "transparent"
+                            }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: ah.label
@@ -2214,6 +2360,8 @@ Variants {
                                 off: ds.na?.muted ?? false
                                 value: ds.na ? Math.round(ds.na.volume * 100) : 0
                                 onCommit: v => { if (ds.na) ds.na.volume = v / 100; }
+                                // h/l is the volume, Return makes it the default
+                                Keys.onReturnPressed: if (!ds.current) Audio.setDefault(ds.node)
 
                                 // top strip only — the track keeps the bottom of
                                 // the row so a drag never switches device
@@ -2254,8 +2402,16 @@ Variants {
                             spacing: 4
 
                             Item {
+                                id: hdHead
                                 width: audCol.width
                                 height: 18
+                                activeFocusOnTab: true
+                                Keys.onReturnPressed: hd.open = !hd.open
+                                Rectangle {
+                                    anchors { fill: parent; margins: -2 }
+                                    radius: 5
+                                    color: hdHead.activeFocus ? Theme.track : "transparent"
+                                }
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "hidden (" + hd.list.length + ")"
@@ -2276,8 +2432,16 @@ Variants {
                             Repeater {
                                 model: hd.open ? hd.list : []
                                 Item {
+                                    id: hdRow
                                     width: audCol.width
                                     height: 18
+                                    activeFocusOnTab: true
+                                    Keys.onReturnPressed: Audio.unban(modelData)
+                                    Rectangle {
+                                        anchors { fill: parent; margins: -2 }
+                                        radius: 5
+                                        color: hdRow.activeFocus ? Theme.track : "transparent"
+                                    }
                                     Text {
                                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                         width: parent.width - 24
@@ -2343,9 +2507,17 @@ Variants {
                             spacing: 4
 
                             Item {
+                                id: arHead
                                 width: parent.width
                                 height: 20
+                                activeFocusOnTab: ar.na !== null
+                                Keys.onReturnPressed: if (ar.na) ar.na.muted = !ar.na.muted
 
+                                Rectangle {
+                                    anchors { fill: parent; margins: -2 }
+                                    radius: 5
+                                    color: arHead.activeFocus ? Theme.track : "transparent"
+                                }
                                 Text {
                                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                     width: parent.width - 24
@@ -2465,7 +2637,10 @@ Variants {
                 // Hyprland only hands an OnDemand layer focus on map or on a click
                 // into it; flipping the mode after the row click is ignored, so the
                 // grab is what actually moves the keyboard here.
-                property bool wantKeys: false
+                // Menu-opened counts as wanting keys too, same reasoning.
+                // pskFocus is the old flag, set by the passphrase field below.
+                property bool pskFocus: false
+                readonly property bool wantKeys: pskFocus || panel.navOn(netPopout)
                 WlrLayershell.keyboardFocus: netPopout.open && wantKeys ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
                 HyprlandFocusGrab {
                     windows: [networkPopout]
@@ -2488,6 +2663,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: netPopout.open
+                    keyNav: panel.navOn(netPopout)
                     neckX: networkPopout.sourceX - networkPopout.popupX
                     neckWidth: networkPopout.sourceWidth
 
@@ -2548,6 +2724,14 @@ Variants {
                             clip: true
                             SmoothScroll { flick: netScroll }
 
+                            // the list is clipped, so a row reached by j/k has
+                            // to be brought into view or the ring lands off-panel
+                            function reveal(it) {
+                                const y = it.mapToItem(netList, 0, 0).y;
+                                if (y < contentY) contentY = y;
+                                else if (y + it.height > contentY + height) contentY = y + it.height - height;
+                            }
+
                             Column {
                                 id: netList
                                 width: parent.width
@@ -2590,9 +2774,26 @@ Variants {
                                         }
 
                                         Item {
+                                            id: netHead
                                             width: parent.width
                                             height: 24
+                                            activeFocusOnTab: true
+                                            Keys.onReturnPressed: netHead.fold()
+                                            onActiveFocusChanged: if (activeFocus) netScroll.reveal(netHead)
+                                            function fold() {
+                                                const name = netRow.net.name;
+                                                netPopout.expanded = netPopout.expanded === name ? "" : name;
+                                                netRow.reveal = false;
+                                                netRow.qrShown = false;
+                                                netRow.failMsg = "";
+                                                Sys.loadSecret("");
+                                            }
 
+                                            Rectangle {
+                                                anchors { fill: parent; margins: -2 }
+                                                radius: 5
+                                                color: netHead.activeFocus ? Theme.track : "transparent"
+                                            }
                                             Row {
                                                 anchors { left: parent.left; right: marks.left; verticalCenter: parent.verticalCenter; rightMargin: 6 }
                                                 spacing: 8
@@ -2638,14 +2839,7 @@ Variants {
                                             }
                                             MouseArea {
                                                 anchors.fill: parent
-                                                onClicked: {
-                                                    const name = netRow.net.name;
-                                                    netPopout.expanded = netPopout.expanded === name ? "" : name;
-                                                    netRow.reveal = false;
-                                                    netRow.qrShown = false;
-                                                    netRow.failMsg = "";
-                                                    Sys.loadSecret("");
-                                                }
+                                                onClicked: netHead.fold()
                                             }
                                         }
 
@@ -2674,7 +2868,7 @@ Variants {
                                                         // the surface takes focus on click, but nothing
                                                         // hands it to the field inside the delegate
                                                         onVisibleChanged: {
-                                                            networkPopout.wantKeys = visible;
+                                                            networkPopout.pskFocus = visible;
                                                             if (visible) forceActiveFocus();
                                                         }
                                                         onTextChanged: netRow.pskText = text
@@ -2792,6 +2986,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(sysPopout)
+                HyprlandFocusGrab {
+                    windows: [resourcePopout]
+                    active: panel.navOn(sysPopout)
+                    onCleared: sysPopout.open = false
+                }
                 implicitWidth: 320
                 implicitHeight: resourceCol.implicitHeight + 28
                 color: "transparent"
@@ -2799,6 +2999,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: sysPopout.open
+                    keyNav: panel.navOn(sysPopout)
                     neckX: resourcePopout.sourceX - resourcePopout.popupX
                     neckWidth: resourcePopout.sourceWidth
 
@@ -2889,6 +3090,12 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(clankerPopout)
+                HyprlandFocusGrab {
+                    windows: [clankerPanel]
+                    active: panel.navOn(clankerPopout)
+                    onCleared: clankerPopout.open = false
+                }
                 implicitWidth: 340
                 implicitHeight: clankerCol.implicitHeight + 28
                 color: "transparent"
@@ -2896,6 +3103,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: clankerPopout.open
+                    keyNav: panel.navOn(clankerPopout)
                     neckX: clankerPanel.sourceX - clankerPanel.popupX
                     neckWidth: clankerPanel.sourceWidth
 
@@ -2914,6 +3122,13 @@ Variants {
                             signal tapped()
                             width: clankerCol.width
                             height: 16
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: tapped()
+                            Rectangle {
+                                anchors { fill: parent; margins: -2 }
+                                radius: 5
+                                color: parent.activeFocus ? Theme.track : "transparent"
+                            }
                             Text {
                                 text: label
                                 font.family: Theme.font; font.pixelSize: 11; font.bold: bold
@@ -2929,7 +3144,7 @@ Variants {
                             Text {
                                 id: tvalue
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: tHover.containsMouse && hover !== "" ? hover : detail
+                                text: (tHover.containsMouse || parent.activeFocus) && hover !== "" ? hover : detail
                                 font.family: Theme.font; font.pixelSize: 11
                                 color: Theme.dim
                             }
@@ -2954,6 +3169,13 @@ Variants {
                                         required property int index
                                         readonly property bool on: index === Clanker.current
                                         width: tabText.width; height: 22
+                                        activeFocusOnTab: true
+                                        Keys.onReturnPressed: Clanker.select(modelData.id)
+                                        Rectangle {
+                                            anchors { fill: parent; margins: -3 }
+                                            radius: 5
+                                            color: parent.activeFocus ? Theme.track : "transparent"
+                                        }
                                         Text {
                                             id: tabText
                                             text: modelData.name || modelData.id
@@ -2992,8 +3214,10 @@ Variants {
                                 }
                             }
                             Icon {
-                                name: "refresh"; size: 14; color: Theme.dim
+                                name: "refresh"; size: 14; color: activeFocus ? Theme.bright : Theme.dim
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                activeFocusOnTab: true
+                                Keys.onReturnPressed: Clanker.refresh()
                                 MouseArea { anchors.fill: parent; onClicked: Clanker.refresh() }
                             }
                         }
@@ -3116,6 +3340,14 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell-popout"
+                WlrLayershell.keyboardFocus: panel.navFocus(lp)
+                HyprlandFocusGrab {
+                    windows: [lp]
+                    active: panel.navOn(lp)
+                    // lp.open is a binding to the popout state object, so this
+                    // one clears through the panel rather than assigning it
+                    onCleared: panel.closeIslandPopouts()
+                }
                 implicitWidth: 320
                 implicitHeight: lpCol.implicitHeight + 28
                 color: "transparent"
@@ -3123,6 +3355,7 @@ Variants {
                 AttachedPanel {
                     anchors.fill: parent
                     shown: lp.open
+                    keyNav: panel.navOn(lp)
                     neckX: lp.sourceX - lp.popupX
                     neckWidth: lp.sourceWidth
 

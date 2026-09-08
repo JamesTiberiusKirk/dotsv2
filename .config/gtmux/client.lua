@@ -167,6 +167,12 @@ gtmux.bind_root("C-\\", function() gtmux.select_pane_vim("last") end)
 gtmux.bind_root("C-1", function() gtmux.select_window(1) end)
 gtmux.bind_root("C-2", function() gtmux.select_window(2) end)
 gtmux.bind_root("C-3", function() gtmux.select_window(3) end)
+gtmux.bind_root("C-4", function() gtmux.select_window(4) end)
+gtmux.bind_root("C-5", function() gtmux.select_window(5) end)
+gtmux.bind_root("C-6", function() gtmux.select_window(6) end)
+gtmux.bind_root("C-7", function() gtmux.select_window(7) end)
+gtmux.bind_root("C-8", function() gtmux.select_window(8) end)
+gtmux.bind_root("C-9", function() gtmux.select_window(9) end)
 
 -- Sidebar: bundled dock widget (SESSIONS list + Clanker agent panes; click a
 -- row to jump there). Options: see `require("gtmux.sidebar")` in the gtmux

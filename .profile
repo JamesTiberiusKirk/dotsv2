@@ -5,7 +5,7 @@ export HOSTNAME="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null)}"
 
 export PATH="$PATH:$(du "$HOME/.scripts/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
 # export PATH="$PATH:$(du "$HOME/bin/" | cut -f2 | tr '\n' ':' | sed 's/:*$//')"
-export PATH="$PATH:$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
 
 export GO111MODULE=on
 export GOPATH="$HOME/go"

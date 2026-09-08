@@ -12,7 +12,14 @@ Item {
 
     width: parent ? parent.width : 0
     height: 20
+    activeFocusOnTab: true
+    Keys.onReturnPressed: root.toggled(!root.checked)
 
+    Rectangle {
+        anchors { fill: parent; margins: -3 }
+        radius: 5
+        color: root.activeFocus ? Theme.track : "transparent"
+    }
     Text {
         text: root.label
         anchors.verticalCenter: parent.verticalCenter

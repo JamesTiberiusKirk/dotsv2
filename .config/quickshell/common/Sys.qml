@@ -236,12 +236,30 @@ Singleton {
 
     // How many bar panels currently have a popout up (one per screen), plus
     // the drawer. While anything is open Hyprland sits in the `popout` submap,
-    // whose only binding is Esc → closeAll — the popouts take no keyboard
-    // focus themselves (that broke pointer focus on the bell), so Esc has to
-    // be caught at the compositor. Everything else passes through a submap.
+    // whose only binding is Esc → closeAll — a mouse-opened popout takes no
+    // keyboard focus (that broke pointer focus on the bell), so Esc has to be
+    // caught at the compositor. Everything else passes through a submap.
     property int barPopoutsOpen: 0
     readonly property bool anythingOpen: barPopoutsOpen > 0 || Notifs.centerOpen
-    onAnythingOpenChanged: Hyprland.dispatch(anythingOpen ? 'hl.dsp.submap("popout")' : 'hl.dsp.submap("reset")')
+    // A popout opened from the keyboard takes keyboard focus and handles Esc
+    // and j/k itself, so the submap must stay out of its way: its catchall
+    // would close the popout on the first nav key. Mouse-opened popouts are
+    // unchanged — they take no focus, so the compositor still catches Esc.
+    onAnythingOpenChanged: {
+        Hyprland.dispatch(anythingOpen && !kbdNav ? 'hl.dsp.submap("popout")' : 'hl.dsp.submap("reset")');
+        if (!anythingOpen) kbdNav = false;
+    }
+    // Set by openPanel before the popout maps: Hyprland only hands an OnDemand
+    // layer focus on map, so this has to be true by the time it appears.
+    property bool kbdNav: false
+    function openPanel(name) {
+        kbdNav = true;
+        togglePanel(name);
+        // togglePanel runs its handlers inline, so this sees the result: no
+        // panel answered (no focused monitor matched), or the row toggled an
+        // open popout shut. Either way nothing must stay flagged.
+        if (!anythingOpen) kbdNav = false;
+    }
     function poll() {
         blProbe.running = true;
         if (root.isDuo) duoStateProbe.running = true;

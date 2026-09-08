@@ -118,12 +118,17 @@ Singleton {
                         run: () => Notifs.setMuted(app, !Notifs.isMuted(app)) });
 
         // Bar widgets, opened from the keyboard. Toggles, like clicking the
-        // cell; the bar picks the panel on the focused screen (Sys.togglePanel).
+        // cell; the bar picks the panel on the focused screen (Sys.openPanel).
+        // openPanel, not togglePanel: it flags the open as keyboard-driven, so
+        // the popout takes focus and j/k/Return work inside it.
         for (const [name, icon] of [
                 ["calendar", "calendar"], ["system", "cpu-64-bit"], ["docker", "docker"], ["vm", "server"], ["display", "monitor"], ["power", "battery"],
                 ["network", "wifi-strength-4"], ["audio", "volume-high"], ["bluetooth", "bluetooth"], ["tailscale", "server"],
                 ["tray", "dots-horizontal"]])
-            rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.togglePanel(name) });
+            rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.openPanel(name) });
+        // same gate as the bar cell: no agents, no panel to open
+        if (Clanker.agents.length > 0)
+            rows.push({ path: "bar/clanker", icon: "robot", run: () => Sys.openPanel("clanker") });
         for (const [side, icon] of [["top", "arrow-up"], ["bottom", "arrow-down"], ["left", "arrow-left"], ["right", "arrow-right"]])
             rows.push({ path: "bar/side/" + side + " " + mark(ShellState.side === side), icon: icon, run: () => ShellState.side = side });
 

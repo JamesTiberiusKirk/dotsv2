@@ -11,11 +11,23 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
   "enabledMcpjsonServers": [
     "hamr-dev",
     "playwright"
   ],
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat ~/.claude/cut-the-crap.md 2>/dev/null"
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline-usage.sh"
