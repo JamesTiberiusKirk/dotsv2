@@ -761,8 +761,9 @@ Variants {
                             : pct > 12 ? "battery-30"
                             : "battery-10"
                         text: Math.round(pct) + "%"
-                        color: !charging && pct <= 10 ? Theme.urgent
-                             : !charging && pct <= 20 ? Theme.warn
+                        color: charging ? Theme.ok
+                             : pct <= 10 ? Theme.urgent
+                             : pct <= 20 ? Theme.warn
                              : Theme.text
 
                         MouseArea {

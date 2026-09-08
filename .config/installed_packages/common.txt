@@ -172,6 +172,7 @@ ueberzugpp
 usbutils
 vencord-bin
 vertex-themes
+vesktop-bin
 vim
 virt-install
 wayfreeze
@@ -181,6 +182,7 @@ wkhtmltopdf-bin
 wl-clipboard
 xdg-desktop-portal
 xdg-desktop-portal-gtk
+xdg-desktop-portal-hyprland
 xfce4-settings
 yay-bin
 zathura
