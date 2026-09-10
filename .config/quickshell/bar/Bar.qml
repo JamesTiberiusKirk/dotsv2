@@ -109,15 +109,6 @@ Variants {
             Behavior on islandLift { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             WlrLayershell.namespace: "quickshell"
 
-            property string submap: ""
-            Connections {
-                target: Hyprland
-                function onRawEvent(e) {
-                    if (e.name === "submap")
-                        panel.submap = e.data;
-                }
-            }
-
             readonly property PwNode sink: Pipewire.defaultAudioSink
             PwObjectTracker { objects: [panel.sink] }
 
@@ -372,7 +363,7 @@ Variants {
                 [pos(rightRow) + pos(trayIsland), ext(trayIsland), trayIsland.visible]
             ]
 
-            // ---- left: layout + workspaces + submap, then services/system ----
+            // ---- left: layout + workspaces, then services/system ----
             GridLayout {
                 id: leftRow
                 visible: opacity > 0
@@ -454,13 +445,6 @@ Variants {
                                 }
                             }
                         }
-                    }
-                    Cell {
-                        // the popout submap is plumbing for Esc, not a mode
-                        visible: panel.submap !== "" && panel.submap !== "popout"
-                        vform: "rot"
-                        text: panel.submap.toUpperCase()
-                        color: Theme.urgent
                     }
                 }
 
@@ -2052,6 +2036,13 @@ Variants {
                             clip: true
                             SmoothScroll { flick: tsScroll }
 
+                            // clipped list: a row reached by j/k has to be scrolled into view
+                            function reveal(it) {
+                                const y = it.mapToItem(peerCol, 0, 0).y;
+                                if (y < contentY) contentY = y;
+                                else if (y + it.height > contentY + height) contentY = y + it.height - height;
+                            }
+
                             Column {
                                 id: peerCol
                                 width: parent.width
@@ -2066,9 +2057,18 @@ Variants {
                                         width: peerCol.width
                                         height: 20
 
+                                        // focus ring, same as the exit-node rows: the name's own
+                                        // on/off colour wins over TsCopy's focus colour
+                                        Rectangle {
+                                            anchors { fill: parent; margins: -2 }
+                                            radius: 5
+                                            color: pName.activeFocus || pIp.activeFocus ? Theme.track : "transparent"
+                                        }
+
                                         // name copies the full MagicDNS name, ip copies the ip
                                         TsCopy {
-                                            activeFocusOnTab: false
+                                            id: pName
+                                            onActiveFocusChanged: if (activeFocus) tsScroll.reveal(pRow)
                                             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                             width: parent.width - 120
                                             label: (pRow.peer.on ? "\u25cf  " : "\u25cb  ") + pRow.peer.n
@@ -2077,7 +2077,8 @@ Variants {
                                             color: pRow.peer.on ? Theme.text : Theme.dim
                                         }
                                         TsCopy {
-                                            activeFocusOnTab: false
+                                            id: pIp
+                                            onActiveFocusChanged: if (activeFocus) tsScroll.reveal(pRow)
                                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                             label: pRow.peer.ip
                                             value: pRow.peer.ip

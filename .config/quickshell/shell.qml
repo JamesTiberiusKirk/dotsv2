@@ -15,6 +15,7 @@ ShellRoot {
     NotifCenter {}
     Launcher {}
     Osd {}
+    Submap {}
     Picker {}
     Info {}
     BatteryGuard {}

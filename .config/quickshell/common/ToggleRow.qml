@@ -13,7 +13,9 @@ Item {
     width: parent ? parent.width : 0
     height: 20
     activeFocusOnTab: true
-    Keys.onReturnPressed: root.toggled(!root.checked)
+    // isAutoRepeat: holding Return fired the toggle at the key-repeat rate —
+    // twenty `duo screen on/off` in two seconds, and the panel spazzing.
+    Keys.onReturnPressed: event => { if (!event.isAutoRepeat) root.toggled(!root.checked); }
 
     Rectangle {
         anchors { fill: parent; margins: -3 }
