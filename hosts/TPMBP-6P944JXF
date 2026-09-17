@@ -17,6 +17,7 @@
 .scripts/pg_prettify.sh
 .scripts/sql-align-format
 .scripts/swap-workspaces-mac.sh
+.scripts/theme-sync-mac
 
 # claude
 .claude/statusline-usage.sh

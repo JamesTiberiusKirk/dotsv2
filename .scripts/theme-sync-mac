@@ -1,0 +1,24 @@
+#!/bin/sh
+# theme-sync-mac <dark|light> — macOS companion to wezterm.lua's OS appearance
+# switch. Writes ~/.theme-mode (read by gtmux client.lua and nvim ThemeSync),
+# then pokes every running nvim server to re-apply. Safe to call on every
+# wezterm config reload: exits without poking when the mode is unchanged.
+# Never runs on Linux — theme-apply owns ~/.theme-mode there.
+set -u
+
+# called from wezterm's config (a GUI app): PATH is bare, homebrew isn't on it
+PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+mode="${1:?usage: theme-sync-mac <dark|light>}"
+[ "$mode" = "dark" ] || [ "$mode" = "light" ] || exit 1
+
+cur="$(head -1 "$HOME/.theme-mode" 2>/dev/null)"
+printf '%s\n' "$mode" > "$HOME/.theme-mode"
+[ "$cur" = "$mode" ] && exit 0
+
+d="${TMPDIR%/}"
+[ -n "$d" ] || d=/tmp
+for s in "$d"/nvim.*/*/nvim.*; do
+    [ -S "$s" ] || continue
+    nvim --server "$s" --remote-expr "execute('ThemeSync $mode')" >/dev/null 2>&1
+done

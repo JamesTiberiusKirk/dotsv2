@@ -12,10 +12,10 @@ alt - j : skhd -k "down"
 
 cmd - tab ; swap
 
-swap < h : ~/.scripts/swap-workspaces-mac.sh left
-swap < l : ~/.scripts/swap-workspaces-mac.sh right
-swap < k : ~/.scripts/swap-workspaces-mac.sh up
-swap < j : ~/.scripts/swap-workspaces-mac.sh down
+swap < h : ~/.scripts/swap-workspaces-mac.sh left && skhd -k "escape"
+swap < l : ~/.scripts/swap-workspaces-mac.sh right && skhd -k "escape"
+swap < k : ~/.scripts/swap-workspaces-mac.sh up && skhd -k "escape"
+swap < j : ~/.scripts/swap-workspaces-mac.sh down && skhd -k "escape"
 swap < escape ; default
 swap < return ; default
 
