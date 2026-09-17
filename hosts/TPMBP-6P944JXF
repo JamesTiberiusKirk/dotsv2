@@ -38,3 +38,6 @@
 .config/opencode/package-lock.json
 .config/opencode/tui.json
 .config/opencode/themes/glass.json
+
+# music
+.config/spotify-player

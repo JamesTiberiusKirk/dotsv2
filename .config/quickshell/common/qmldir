@@ -4,11 +4,13 @@ singleton Notifs 1.0 Notifs.qml
 singleton ShellState 1.0 ShellState.qml
 singleton Audio 1.0 Audio.qml
 singleton Bt 1.0 Bt.qml
+singleton Pods 1.0 Pods.qml
 Icon 1.0 Icon.qml
 SmoothScroll 1.0 SmoothScroll.qml
 AttachedPanel 1.0 AttachedPanel.qml
 Island 1.0 Island.qml
 ToggleRow 1.0 ToggleRow.qml
+FoldCard 1.0 FoldCard.qml
 singleton Menu 1.0 Menu.qml
 singleton Clanker 1.0 Clanker.qml
 singleton Media 1.0 Media.qml

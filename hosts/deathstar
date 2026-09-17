@@ -78,3 +78,6 @@
 # desktop: no hibernate (hardware), AMD (no intel_pstate), no battery
 system/etc/runit/sv/keyd
 system/etc/runit/sv/tailscale
+
+# music
+.config/spotify-player

@@ -51,9 +51,16 @@ for p in $aur; do
   yay -S --needed --noconfirm "$p" || failed="$failed $p"
 done
 [ -z "$failed" ] || echo "WARN: AUR packages failed:$failed — rerun install.sh later"
-# local PKGBUILDs (pkgbuilds/): dirs sort so deps build first
-for d in "$DOTS"/pkgbuilds/*/; do
-  (cd "$d" && makepkg -si --needed ${DOTS_NOCONFIRM:+--noconfirm}) || echo "WARN: $d failed"
+# local PKGBUILDs: the same lists dots-link converges against, so a host-only
+# entry stays host-only. Not every directory under pkgbuilds/ — one left behind
+# after being dropped from a list should stop being built, not keep building.
+# Names sort, so a build that another one depends on goes first.
+builds=$(cat "$LISTS/pkgbuilds-common.txt" "$LISTS/pkgbuilds-$HOST.txt" 2>/dev/null \
+  | sed 's/#.*//' | tr -d '[:blank:]' | grep . | sort -u || true)
+for b in $builds; do
+  d="$DOTS/pkgbuilds/$b"
+  [ -f "$d/PKGBUILD" ] || { echo "WARN: $b listed but $d/PKGBUILD is missing"; continue; }
+  (cd "$d" && makepkg -si --needed ${DOTS_NOCONFIRM:+--noconfirm}) || echo "WARN: $b failed"
 done
 
 # ---- login shell: zsh (arrives with the package pass; useradd left bash) ----

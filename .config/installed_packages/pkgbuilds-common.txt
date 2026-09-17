@@ -1,0 +1,3 @@
+# Local PKGBUILDs, one directory each under pkgbuilds/. Name must match pkgname:
+# dots-link asks pacman about it afterwards to know whether it still needs building.
+librepods-omarchy

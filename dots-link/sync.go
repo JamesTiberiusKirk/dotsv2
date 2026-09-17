@@ -101,10 +101,10 @@ func runSync(env *Env, opts syncOpts) error {
 	}
 	// Packages listed but not installed — offered to yay after the merge
 	// (recomputed there, so lists the merge brings in are seen too).
-	newPkgs := filterInstalled(listedPackages(dir, env.Host))
+	work := missingPkgs(dir, env.Host)
 	renderSyncPlan(env, acts)
 	renderSystemPlan(sysActs)
-	renderPkgPlan(newPkgs)
+	renderPkgPlan(work)
 
 	// dots-link is changing upstream: this binary must not apply a plan its own
 	// new code would compute differently. Merge + rebuild, then stop.
@@ -114,7 +114,7 @@ func runSync(env *Env, opts syncOpts) error {
 		info("nothing in $HOME is touched; re-run `dots-link sync` with the new binary to apply the plan above")
 	}
 
-	if len(acts) == 0 && len(sysActs) == 0 && len(newPkgs) == 0 && st != mergeFastForward && st != mergeClean {
+	if len(acts) == 0 && len(sysActs) == 0 && work.empty() && st != mergeFastForward && st != mergeClean {
 		info("nothing to do")
 		return nil
 	}
@@ -142,10 +142,10 @@ func runSync(env *Env, opts syncOpts) error {
 	}
 
 	// 9. Execute: unlink → merge → link/adopt → system files → packages.
-	return applySync(env, dir, st, acts, newPkgs, opts.yes, self)
+	return applySync(env, dir, st, acts, work, opts.yes, self)
 }
 
-func applySync(env *Env, dir string, st mergeStatus, acts []action, newPkgs []string, yes, self bool) error {
+func applySync(env *Env, dir string, st mergeStatus, acts []action, work pkgWork, yes, self bool) error {
 	// Self-update: merge (brings in the new code, dotfiles and all), rebuild,
 	// stop. Before the unlinks — exiting after those would leave $HOME half
 	// converged; here the whole plan simply waits for the next run.
@@ -161,7 +161,7 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action, newPkgs []st
 			return fmt.Errorf("rebuild dots-link: %w", err)
 		}
 		fmt.Println(styOK.Render("✓ dots-link rebuilt — re-run `dots-link sync` to apply the rest"))
-		return installPackages(newPkgs, yes)
+		return installPackages(work, yes)
 	}
 
 	// Unlinks first, so no link survives pointing at a file the merge removes.
@@ -226,7 +226,7 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action, newPkgs []st
 		return err
 	}
 
-	if err := installPackages(filterInstalled(listedPackages(dir, env.Host)), yes); err != nil {
+	if err := installPackages(missingPkgs(dir, env.Host), yes); err != nil {
 		return err
 	}
 

@@ -173,6 +173,14 @@ Singleton {
         onNotification: n => {
             n.tracked = true;
 
+            // The daemon destroys the object once it is closed — by the sender,
+            // by expiry, by us. The record stays; its live link goes, or the
+            // next remove() would call dismiss() on a dead reference.
+            n.closed.connect(() => {
+                root.popups = root.popups.filter(p => p.n !== n);
+                root.history = root.history.map(r => r.n === n ? Object.assign({}, r, { n: null }) : r);
+            });
+
             // A config reload does not restart the daemon: every notification
             // the previous generation still tracked is re-emitted here. Those
             // are already in history, and appending them again is how one
@@ -213,8 +221,7 @@ Singleton {
             const next = root.history.concat([rec]);
             while (next.length > root.historyCap) {
                 const dropped = next.shift();
-                if (dropped.n)
-                    dropped.n.dismiss();
+                root.dismissLive(dropped);
             }
             root.history = next;
 
@@ -232,13 +239,6 @@ Singleton {
                     until: critical ? Number.MAX_VALUE : Date.now() + ttl
                 }]);
             }
-            // The daemon destroys the object once it is closed — by the sender,
-            // by expiry, by us. The record stays; its live link goes, or the
-            // next remove() would call dismiss() on a dead reference.
-            n.closed.connect(() => {
-                root.popups = root.popups.filter(p => p.n !== n);
-                root.history = root.history.map(r => r.n === n ? Object.assign({}, r, { n: null }) : r);
-            });
         }
     }
 
@@ -259,19 +259,27 @@ Singleton {
         root.popups = root.popups.filter(p => p.n !== n);
     }
 
+    // The daemon can destroy a Notification without us seeing `closed` (a
+    // shell reload drops the old generation's signal links), leaving records
+    // holding dead objects that throw on any access. Callers only ever want
+    // "get rid of it if it is still there".
+    function dismissLive(rec) {
+        try {
+            if (rec.n) rec.n.dismiss();
+        } catch (e) {}
+    }
+
     // Real deletion: the center's X and clear-all, and nothing else.
     function remove(rec) {
         root.history = root.history.filter(r => r !== rec);
         root.popups = root.popups.filter(p => p.n !== rec.n);
-        if (rec.n)
-            rec.n.dismiss();
+        root.dismissLive(rec);
     }
 
     function dismissAll() {
         root.popups = [];
         for (const r of root.history)
-            if (r.n)
-                r.n.dismiss();
+            root.dismissLive(r);
         root.history = [];
     }
 

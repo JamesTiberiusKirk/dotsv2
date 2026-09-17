@@ -11,6 +11,7 @@
 set -u
 
 STORE="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/layouts"
+OVERRIDE="${XDG_STATE_HOME:-$HOME/.local/state}/duo/screen-override"
 
 MONS=$(hyprctl monitors -j 2>/dev/null) || exit 0
 HOST=${HOSTNAME:-$(cat /etc/hostname)}
@@ -22,6 +23,14 @@ profile=$(printf '%s' "$MONS" | jq -r '[.[].name] | sort | join(",")')
 apply() {
     for line in "$@"; do
         IFS=, read -r out mode pos scale transform <<<"$line"
+        # duo(1) owns eDP-2 on the Duo and latches a manual `duo screen off` in
+        # this file. Replaying a saved profile forces disabled=false, which
+        # switched the panel back on behind duo's back — it turned it off again
+        # a few seconds later, the watcher saw monitorremoved and replayed
+        # again, and the two flipped the screen forever.
+        if [ "$out" = eDP-2 ] && [ "$(cat "$OVERRIDE" 2>/dev/null)" = off ]; then
+            continue
+        fi
         # disabled=false matters: a rule without it won't revive a disabled output
         hyprctl eval "hl.monitor({ output = \"$out\", mode = \"$mode\", position = \"$pos\", scale = $scale, transform = ${transform:-0}, disabled = false }) return \"\"" >/dev/null
     done

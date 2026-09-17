@@ -82,3 +82,6 @@ system/etc/elogind/system-sleep/30-cs35l41-reload
 system/etc/runit/sv/keyd
 system/etc/runit/sv/ntpd
 system/etc/runit/sv/tailscale
+
+# music
+.config/spotify-player

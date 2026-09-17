@@ -76,3 +76,6 @@ system/etc/elogind/system-sleep/10-hibernate-image-size
 system/etc/runit/sv/keyd
 system/etc/runit/sv/ntpd
 system/etc/runit/sv/tailscale
+
+# music
+.config/spotify-player

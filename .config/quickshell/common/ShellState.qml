@@ -16,6 +16,8 @@ Singleton {
     property string side: "left"
     readonly property bool vertical: side === "left" || side === "right"
     readonly property bool far: side === "right" || side === "bottom"
+    // frame band thickness on an edge: full where the bar sits, thin elsewhere
+    function bandT(edge) { return edge === side ? Theme.frameT : Theme.frameTEdge; }
     // a vertical bar is one column of stacked/rotated cells; wider than the band
     readonly property int barBody: vertical ? 44 : Theme.barBody
 
@@ -25,6 +27,9 @@ Singleton {
     // bindings see the change.
     property var osd: ({})
     function setOsd(screen, g) { const o = Object.assign({}, osd); o[screen] = g; osd = o; }
+    // same for the submap chip on the top edge (osd/Submap.qml)
+    property var top: ({})
+    function setTop(screen, g) { const o = Object.assign({}, top); o[screen] = g; top = o; }
 
     FileView {
         id: sideFile

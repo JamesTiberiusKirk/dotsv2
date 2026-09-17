@@ -8,9 +8,9 @@ import Quickshell.Hyprland
 import "../common"
 
 // Bottom-centre island. Three sizes: a sliver on the screen edge (default),
-// compact (auto, ~1.4 s: the old OSD row on a volume/brightness/kbd change,
-// or the track on a track change), expanded (hover / interacting: player
-// tabs, art, transport, seek, volume + brightness sliders).
+// compact (auto, ~1.4 s, the old OSD row on a volume/brightness/kbd change),
+// expanded (hover / interacting, or 1.4 s on a track change: player tabs,
+// art, transport, seek).
 Scope {
     id: osd
 
@@ -18,7 +18,6 @@ Scope {
     Timer { id: hideTimer; interval: 1400; onTriggered: osd.compact = false }
 
     property string mode: "vol" // "vol" | "mic" | "bright" | "kbd" | "track"
-    property var flashPlayer: null // player whose track change compact shows
 
     // keyboard backlight is 0-3 (duo(1) pushes the new level on each keypress —
     // the hardware exposes no readable sysfs node for it)
@@ -52,7 +51,7 @@ Scope {
     }
     Connections {
         target: Media
-        function onTrackChanged(p) { if (osd.armed) { osd.flashPlayer = p; osd.show("track"); } }
+        function onTrackChanged(p) { if (osd.armed) osd.show("track"); }
     }
 
     IpcHandler {
@@ -100,12 +99,12 @@ Scope {
             readonly property int nf: 8
             readonly property int cr: 14
             // collapsed keeps the expanded width so hovering only grows it downward
-            readonly property int cardW: compact ? 240 : 340
+            readonly property int cardW: (compact && !full) ? 240 : 340
             // sliver: a short capsule stemming out of the band — fillet and
             // corner radii shrink to fit (capsule.f / capsule.c)
             // collapsed with media: the same card, just cut off after the title
             // and the first slice of the art
-            readonly property int cardH: expanded ? body.implicitHeight + 24 : compact ? 44 : Media.active ? 21 : 12
+            readonly property int cardH: full ? body.implicitHeight + 24 : compact ? 44 : Media.active ? 21 : 12
             // the window stays at the expanded size and the capsule animates inside
             // it: resizing a layer surface is a compositor reconfigure per frame
             implicitWidth: 340 + 2 * nf
@@ -129,6 +128,9 @@ Scope {
 
             // hover holds expanded; grace so a slip off the edge does not collapse it
             readonly property bool expanded: !fullscreen && (hover.hovered || graceTimer.running || seek.held)
+            // a track change shows the same card as hover, just for 1.4 s — no
+            // content swap, only the slide
+            readonly property bool full: expanded || (compact && osd.mode === "track")
             // the pop shows on the focused screen only; the sliver peeks everywhere
             readonly property bool compact: osd.compact && Hyprland.focusedMonitor?.name === screen.name
             Timer { id: graceTimer; interval: 300 }
@@ -199,11 +201,11 @@ Scope {
                     }
                 }
 
-                // ---- compact: the OSD row, or the track that just changed ----
+                // ---- compact: the vol/mic/brightness/kbd row ----
                 Item {
                     anchors { fill: parent; leftMargin: root.nf; rightMargin: root.nf; bottomMargin: root.nT }
                     visible: opacity > 0
-                    opacity: (root.compact && !root.expanded) ? 1 : 0
+                    opacity: (root.compact && !root.full) ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     Row {
@@ -211,8 +213,7 @@ Scope {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                         spacing: 6
                         Icon {
-                            name: osd.mode === "track" ? Media.icon(osd.flashPlayer)
-                                : osd.mode === "bright" ? "white-balance-sunny"
+                            name: osd.mode === "bright" ? "white-balance-sunny"
                                 : osd.mode === "kbd" ? "keyboard"
                                 : osd.mode === "mic" ? (osd.muted ? "microphone-off" : "microphone")
                                 : Audio.volIcon(osd.level, osd.muted)
@@ -220,13 +221,11 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
-                            text: osd.mode === "track" ? (osd.flashPlayer?.trackTitle || "")
-                                : osd.mode === "bright" ? Math.round(osd.level * 100) + "%"
+                            text: osd.mode === "bright" ? Math.round(osd.level * 100) + "%"
                                 : osd.mode === "kbd" ? (osd.kbdLevel === 0 ? "off" : osd.kbdLevel + "/3")
                                 : osd.mode === "mic" ? (osd.muted ? "muted" : Math.round(osd.level * 100) + "%")
                                 : osd.muted ? "muted"
                                 : Math.round(osd.level * 100) + "%"
-                            width: osd.mode === "track" ? root.cardW - 44 : implicitWidth
                             elide: Text.ElideRight
                             font.family: Theme.font
                             font.pixelSize: Theme.fontSize
@@ -235,7 +234,6 @@ Scope {
                         }
                     }
                     Rectangle {
-                        visible: osd.mode !== "track"
                         anchors { left: label.right; right: parent.right; leftMargin: 12; rightMargin: 14; verticalCenter: parent.verticalCenter }
                         height: 4
                         radius: 2
@@ -302,7 +300,7 @@ Scope {
                     visible: opacity > 0
                     // the collapsed sliver is this same column with the card
                     // clipped down to its top rows — no separate peek widget
-                    opacity: (root.compact && !root.expanded) ? 0 : 1
+                    opacity: (root.compact && !root.full) ? 0 : 1
                     Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     // tab chips: only when there is something to switch between
@@ -358,19 +356,29 @@ Scope {
                             id: meta
                             anchors { left: art.right; right: parent.right; leftMargin: 10; rightMargin: 26; top: parent.top }
                             spacing: 2
-                            Text {
-                                width: parent.width; elide: Text.ElideRight
-                                text: osd.p ? (osd.p.trackTitle || osd.p.identity) : "nothing playing"
-                                font.family: Theme.font; font.pixelSize: 13; font.bold: true
-                                // collapsed the card is just a peek: quiet it down
-                                color: root.expanded && osd.p ? Theme.bright : Theme.dim
+                            Row {
+                                width: parent.width
+                                spacing: 5
+                                Icon {
+                                    name: Media.icon(osd.p); size: 14
+                                    color: root.full && osd.p ? Theme.bright : Theme.dim
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    width: parent.width - 19; elide: Text.ElideRight
+                                    text: osd.p ? (osd.p.trackTitle || osd.p.identity) : "nothing playing"
+                                    font.family: Theme.font; font.pixelSize: 13; font.bold: true
+                                    // collapsed the card is just a peek: quiet it down
+                                    color: root.full && osd.p ? Theme.bright : Theme.dim
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
                             }
                             Text {
                                 width: parent.width; elide: Text.ElideRight
                                 text: osd.p?.trackArtist ?? ""
                                 visible: text !== ""
                                 font.family: Theme.font; font.pixelSize: 11
-                                color: root.expanded ? Theme.text : Theme.dim
+                                color: root.full ? Theme.text : Theme.dim
                             }
                             Item {
                                 width: parent.width; height: 30

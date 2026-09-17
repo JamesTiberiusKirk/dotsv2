@@ -28,6 +28,8 @@ pkgbuilds/*/*.pkg.tar*
 pkgbuilds/*/*.tar.xz
 pkgbuilds/*/*.h
 pkgbuilds/*/*.cpp
+# git sources: makepkg clones them next to the PKGBUILD
+pkgbuilds/*/omarchy-pods/
 
 # Per-host runtime state — written on the machine, never shared
 .config/hypr/.layout

@@ -36,3 +36,25 @@ func TestListedPackages(t *testing.T) {
 		t.Fatalf("listedPackages = %v, want [bar baz]", got)
 	}
 }
+
+// Local PKGBUILD lists are read from their own files, and never mixed into the
+// yay list — the two go to different commands.
+func TestListedBuilds(t *testing.T) {
+	dir := t.TempDir()
+	ip := filepath.Join(dir, ".config/installed_packages")
+	os.MkdirAll(ip, 0o755)
+	os.WriteFile(filepath.Join(ip, "common.txt"), []byte("foo\n"), 0o644)
+	os.WriteFile(filepath.Join(ip, "pkgbuilds-common.txt"), []byte("# local\nlibrepods-omarchy\n"), 0o644)
+	os.WriteFile(filepath.Join(ip, "pkgbuilds-binstar.txt"), []byte("hostonly\n"), 0o644)
+
+	got := listedBuilds(dir, "binstar")
+	if len(got) != 2 || got[0] != "hostonly" || got[1] != "librepods-omarchy" {
+		t.Fatalf("listedBuilds = %v, want [hostonly librepods-omarchy]", got)
+	}
+	if other := listedBuilds(dir, "nohost"); len(other) != 1 {
+		t.Fatalf("listedBuilds(nohost) = %v, want just the common entry", other)
+	}
+	if p := listedPackages(dir, "binstar"); len(p) != 1 || p[0] != "foo" {
+		t.Fatalf("listedPackages = %v, want [foo] — builds must not leak in", p)
+	}
+}

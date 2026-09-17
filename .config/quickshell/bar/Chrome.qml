@@ -63,8 +63,7 @@ PanelWindow {
             const bumps = [[], [], [], []];
 
             const be = { top: 0, right: 1, bottom: 2, left: 3 }[ShellState.side];
-            // band thickness per edge: full on the bar's edge, thin elsewhere
-            const T = [0, 1, 2, 3].map(e => e === be ? t : Theme.frameTEdge);
+            const T = ["top", "right", "bottom", "left"].map(ShellState.bandT);
             for (const g of bar.islandGeom) {
                 if (!g[2]) continue;
                 const a = g[0] + off, b = a + g[1];
@@ -75,6 +74,9 @@ PanelWindow {
             const o = ShellState.osd[win.screen.name];
             if (o && o[1] > 0)
                 bumps[2].push({ u0: W / 2 - o[0] / 2, u1: W / 2 + o[0] / 2, D: T[2] + o[1], cr: 14 });
+            const s = ShellState.top[win.screen.name];
+            if (s && s[1] > 0)
+                bumps[0].push({ u0: W / 2 - s[0] / 2, u1: W / 2 + s[0] / 2, D: T[0] + s[1], cr: 14 });
 
             for (let e = 0; e < 4; e++) {
                 const l = bumps[e].sort((a, b) => a.u0 - b.u0);
