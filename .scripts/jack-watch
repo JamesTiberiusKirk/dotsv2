@@ -8,7 +8,8 @@
 # .config/wireplumber/wireplumber.conf.d/50-laptop-speaker.conf
 
 # card name, alsa index, speaker profile, headphones profile — tab separated
-found=$(pactl list cards | awk -F'\t' '
+# Retry: hyprx starts us alongside wireplumber, so the card may not exist yet.
+find_card() { pactl list cards 2>/dev/null | awk -F'\t' '
     /^Card #/           { name=""; idx=""; spk=""; hp=""; inp=0 }
     /^\tName: /         { name=$2; sub(/^Name: /, "", name) }
     /^\t\talsa.card = / { idx=$3; gsub(/[^0-9]/, "", idx) }
@@ -16,7 +17,8 @@ found=$(pactl list cards | awk -F'\t' '
     /^\tActive Profile/ { inp=0 }
     inp && /Speaker/    { spk=$3; sub(/: .*/, "", spk) }
     inp && /Headphones/ { hp=$3;  sub(/: .*/, "", hp) }
-    name && idx != "" && spk && hp { print name "\t" idx "\t" spk "\t" hp; exit }')
+    name && idx != "" && spk && hp { print name "\t" idx "\t" spk "\t" hp; exit }'; }
+for _ in $(seq 60); do found=$(find_card); [ -n "$found" ] && break; sleep 0.5; done
 [ -n "$found" ] || exit 0
 
 IFS='	' read -r card idx spk hp <<EOT

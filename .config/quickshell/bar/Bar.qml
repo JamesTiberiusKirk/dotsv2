@@ -143,7 +143,12 @@ Variants {
             QtObject {
                 id: audPopout
                 property bool open: false
-                onOpenChanged: Audio.panelOpen = open
+                // is the airpods settings fold open
+                property bool podsOpen: false
+                onOpenChanged: {
+                    Audio.panelOpen = open;
+                    if (!open) podsOpen = false;
+                }
             }
             QtObject {
                 id: netPopout
@@ -1273,6 +1278,17 @@ Variants {
                             // so a list where only one row is marked stays aligned.
                             property string icon: ""
                             property bool iconOn: true
+                            // Second leading icon, for what the row *is* rather
+                            // than whether it is selected — `icon` is already
+                            // the default-device tick on every device row.
+                            property string leadIcon: ""
+                            // Right-hand extras, both optional: a dim note before
+                            // the value, and an icon with its own hit area and
+                            // tab stop for a second action on the row.
+                            property string note: ""
+                            property string trailIcon: ""
+                            signal trailPressed()
+                            readonly property real trailPad: rightRow.width + 8
                             property int value: 0
                             property int minValue: 0
                             property int maxValue: 100
@@ -1329,6 +1345,13 @@ Variants {
                                     color: sl.off ? Theme.dim : Theme.text
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
+                                Icon {
+                                    name: sl.leadIcon
+                                    visible: sl.leadIcon !== ""
+                                    size: 13
+                                    color: sl.off ? Theme.dim : Theme.text
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
                                 Text {
                                     text: sl.label
                                     font.family: Theme.font; font.pixelSize: 11
@@ -1336,11 +1359,57 @@ Variants {
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
-                            Text {
+                            Row {
+                                id: rightRow
                                 anchors.right: parent.right
-                                text: sl.off ? "off" : sl.shown + sl.suffix
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
+                                spacing: 6
+                                // Above the row-wide "make this the default"
+                                // MouseArea, which is a later sibling of this Row.
+                                z: 10
+
+                                Text {
+                                    visible: sl.note !== ""
+                                    // notes carry their own colours per span
+                                    textFormat: Text.StyledText
+                                    text: sl.note
+                                    font.family: Theme.font; font.pixelSize: 10
+                                    color: Theme.dim
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: sl.off ? "off" : sl.shown + sl.suffix
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: Theme.dim
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                // z: the strip this sits on already carries a
+                                // click meaning "make this the default device",
+                                // and that MouseArea is declared later, so it
+                                // would otherwise swallow the icon.
+                                Item {
+                                    id: trail
+                                    visible: sl.trailIcon !== ""
+                                    width: 15; height: 15
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    activeFocusOnTab: sl.trailIcon !== ""
+                                    Keys.onReturnPressed: sl.trailPressed()
+
+                                    Rectangle {
+                                        anchors { fill: parent; margins: -2 }
+                                        radius: 4
+                                        color: trail.activeFocus ? Theme.track : "transparent"
+                                    }
+                                    Icon {
+                                        anchors.centerIn: parent
+                                        name: sl.trailIcon
+                                        size: 13
+                                        color: Theme.dim
+                                    }
+                                    MouseArea {
+                                        anchors { fill: parent; margins: -4 }
+                                        onClicked: sl.trailPressed()
+                                    }
+                                }
                             }
 
                             Rectangle {
@@ -2166,8 +2235,12 @@ Variants {
                             Item {
                                 id: btRow
                                 readonly property var dev: modelData
+                                // Busy for the whole retry window, not just
+                                // bluez's Connecting flicker — the row is the
+                                // only feedback that the retry is still running.
                                 readonly property bool busy:
                                     dev.state === BluetoothDeviceState.Connecting
+                                    || Bt.connecting === dev
                                     || dev.state === BluetoothDeviceState.Disconnecting
 
                                 width: btCol.width
@@ -2200,11 +2273,28 @@ Variants {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                     spacing: 6
 
-                                    // bluez only reports battery while connected,
-                                    // and only for devices that publish it at all
+                                    // AirPods publish nothing over bluez — battery
+                                    // rides Apple's own protocol, which the
+                                    // librepods daemon speaks. Three cells, so
+                                    // the text replaces the single % rather than
+                                    // sitting next to it.
+                                    //
+                                    // Not gated on Pods.connected: battery keeps
+                                    // arriving over the BLE advertisement after
+                                    // the audio link drops, which is exactly the
+                                    // back-in-the-case state where the case level
+                                    // is the number worth showing.
                                     Text {
-                                        visible: btRow.dev.batteryAvailable
-                                        text: Math.round(btRow.dev.battery * 100) + "%"
+                                        readonly property bool pods:
+                                            Bt.isPods(btRow.dev) && Pods.hasBattery
+                                        visible: pods || btRow.dev.batteryAvailable
+                                        // Each pod carries its own colour, so the
+                                        // markup sets them and `color` is only the
+                                        // single-value bluez case.
+                                        textFormat: Text.StyledText
+                                        text: pods
+                                            ? Pods.batteryMarkup(Theme.text, Theme.dim, Theme.warn, Theme.urgent)
+                                            : Math.round(btRow.dev.battery * 100) + "%"
                                         font.family: Theme.font; font.pixelSize: 11
                                         color: btRow.dev.battery <= 0.2 ? Theme.urgent
                                              : btRow.dev.battery <= 0.35 ? Theme.warn
@@ -2347,6 +2437,11 @@ Variants {
                             property var node: null
                             property bool current: false
                             readonly property var na: ds.node?.audio ?? null
+                            // Output list only. AirPods are a capture device too,
+                            // and one set of controls in one place is the point.
+                            property bool podsFold: false
+                            readonly property bool pods: ds.podsFold && Pods.connected
+                                && Audio.devName(ds.node).toLowerCase().indexOf("airpods") >= 0
 
                             width: audCol.width
                             spacing: 4
@@ -2355,7 +2450,14 @@ Variants {
                                 width: audCol.width
                                 icon: "check"
                                 iconOn: ds.current
+                                leadIcon: Audio.devIcon(ds.node)
                                 label: Audio.devName(ds.node)
+                                note: ds.pods
+                                    ? Pods.batteryMarkup(Theme.text, Theme.dim, Theme.warn, Theme.urgent)
+                                    : ""
+                                trailIcon: !ds.pods ? ""
+                                         : audPopout.podsOpen ? "chevron-up" : "chevron-down"
+                                onTrailPressed: audPopout.podsOpen = !audPopout.podsOpen
                                 suffix: "%"
                                 maxValue: 150
                                 off: ds.na?.muted ?? false
@@ -2376,7 +2478,7 @@ Variants {
                                 // list, retrievable under the "hidden" row
                                 HoverHandler { id: dsHover }
                                 Icon {
-                                    anchors { right: parent.right; top: parent.top; rightMargin: 36 }
+                                    anchors { right: parent.right; top: parent.top; rightMargin: parent.trailPad }
                                     visible: dsHover.hovered
                                     name: "eye-off"
                                     size: 13
@@ -2389,6 +2491,92 @@ Variants {
                             }
                             // only the selected device carries signal
                             Meter { visible: ds.current; node: ds.node }
+
+                            // AirPods settings, folded under their own row. Not a
+                            // section of its own: the device is already named and
+                            // drawn here, and repeating it bought nothing.
+                            FoldCard {
+                                visible: ds.pods && audPopout.podsOpen
+
+                                // Flow, not Row: four pills do not fit the panel
+                                // on a model that supports all four modes.
+                                Flow {
+                                    visible: Pods.supportsNoiseControl
+                                    width: parent.width
+                                    spacing: 6
+
+                                    // No "off": the daemon reports it supported on
+                                    // a Pro 2, but these pods take the packet and
+                                    // ignore it — measured three times in a row
+                                    // with both pods in ear, while transparency
+                                    // and anc applied in two seconds. A pill that
+                                    // never does anything is worse than no pill.
+                                    // Apple gates Off behind the noise-control
+                                    // checkboxes on an iPhone; enable it there and
+                                    // put mode 0 back in this list.
+                                    Repeater {
+                                        model: [
+                                            { l: "anc",          v: 1, c: "noise:anc" },
+                                            { l: "transparency", v: 2, c: "noise:transparency" },
+                                            { l: "adaptive",     v: 3, c: "noise:adaptive" }
+                                        ]
+                                        PillBtn {
+                                            visible: modelData.v !== 3 || Pods.supportsAdaptive
+                                            text: modelData.l
+                                            active: Pods.noiseMode === modelData.v
+                                            onPressed: Pods.ctl(modelData.c)
+                                        }
+                                    }
+                                }
+
+                                // The firmware only takes a level while adaptive
+                                // is the live mode; showing it otherwise is a
+                                // control that silently does nothing.
+                                ValueSlider {
+                                    visible: Pods.supportsAdaptive && Pods.noiseMode === 3
+                                    width: parent.width
+                                    label: "adaptive"
+                                    suffix: "%"
+                                    value: Pods.adaptiveLevel
+                                    onCommit: v => Pods.ctl("adaptive:" + v)
+                                }
+
+                                ToggleRow {
+                                    visible: Pods.supportsCa
+                                    label: "conversation awareness"
+                                    checked: Pods.ca
+                                    onToggled: value => Pods.ctl("ca:" + (value ? "on" : "off"))
+                                }
+                                ToggleRow {
+                                    visible: Pods.supportsOneBud
+                                    label: "one-bud anc"
+                                    checked: Pods.oneBud
+                                    onToggled: value => Pods.ctl("onebud:" + (value ? "on" : "off"))
+                                }
+
+                                Text {
+                                    text: "pause when removed"
+                                    font.family: Theme.font; font.pixelSize: 11
+                                    color: Theme.dim
+                                }
+                                Flow {
+                                    width: parent.width
+                                    spacing: 6
+
+                                    Repeater {
+                                        model: [
+                                            { l: "one",  v: 0, c: "ear:one" },
+                                            { l: "both", v: 1, c: "ear:both" },
+                                            { l: "off",  v: 2, c: "ear:off" }
+                                        ]
+                                        PillBtn {
+                                            text: modelData.l
+                                            active: Pods.earMode === modelData.v
+                                            onPressed: Pods.ctl(modelData.c)
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // banned devices, folded away under a count; each row
@@ -2430,35 +2618,40 @@ Variants {
                                     onClicked: hd.open = !hd.open
                                 }
                             }
-                            Repeater {
-                                model: hd.open ? hd.list : []
-                                Item {
-                                    id: hdRow
-                                    width: audCol.width
-                                    height: 18
-                                    activeFocusOnTab: true
-                                    Keys.onReturnPressed: Audio.unban(modelData)
-                                    Rectangle {
-                                        anchors { fill: parent; margins: -2 }
-                                        radius: 5
-                                        color: hdRow.activeFocus ? Theme.track : "transparent"
-                                    }
-                                    Text {
-                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                        width: parent.width - 24
-                                        elide: Text.ElideRight
-                                        text: Audio.devName(modelData)
-                                        font.family: Theme.font; font.pixelSize: 11
-                                        color: Theme.dim
-                                    }
-                                    Icon {
-                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                        name: "eye"
-                                        size: 13
-                                        color: Theme.dim
-                                        MouseArea {
-                                            anchors { fill: parent; margins: -4 }
-                                            onClicked: Audio.unban(modelData)
+                            FoldCard {
+                                visible: hd.open
+                                spacing: 4
+
+                                Repeater {
+                                    model: hd.open ? hd.list : []
+                                    Item {
+                                        id: hdRow
+                                        width: parent.width
+                                        height: 18
+                                        activeFocusOnTab: true
+                                        Keys.onReturnPressed: Audio.unban(modelData)
+                                        Rectangle {
+                                            anchors { fill: parent; margins: -2 }
+                                            radius: 5
+                                            color: hdRow.activeFocus ? Theme.track : "transparent"
+                                        }
+                                        Text {
+                                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                            width: parent.width - 24
+                                            elide: Text.ElideRight
+                                            text: Audio.devName(modelData)
+                                            font.family: Theme.font; font.pixelSize: 11
+                                            color: Theme.dim
+                                        }
+                                        Icon {
+                                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                            name: "eye"
+                                            size: 13
+                                            color: Theme.dim
+                                            MouseArea {
+                                                anchors { fill: parent; margins: -4 }
+                                                onClicked: Audio.unban(modelData)
+                                            }
                                         }
                                     }
                                 }
@@ -2557,9 +2750,75 @@ Variants {
 
                         Repeater {
                             model: Audio.sinks
-                            DevSlider { node: modelData; current: modelData === Audio.sink }
+                            DevSlider { node: modelData; current: modelData === Audio.sink; podsFold: true }
                         }
                         Hidden { list: Audio.bannedSinks }
+
+                        // Paired audio kit that is not connected. pipewire never
+                        // sees these — bluez has to connect one before a sink
+                        // exists at all — so the audio panel is the only place
+                        // that can get a headset back without a detour through
+                        // the bluetooth panel. Audio.wantBt makes it the default
+                        // once the sink turns up a moment later.
+                        Repeater {
+                            model: Bt.enabled ? Bt.audioDevices : []
+
+                            Item {
+                                id: btAud
+                                readonly property var dev: modelData
+                                // Busy for the whole retry window, not just
+                                // bluez's Connecting flicker — the row is the
+                                // only feedback that the retry is still running.
+                                readonly property bool busy:
+                                    dev.state === BluetoothDeviceState.Connecting
+                                    || Bt.connecting === dev
+
+                                width: audCol.width
+                                height: 22
+                                activeFocusOnTab: !btAud.busy
+                                Keys.onReturnPressed: btAud.go()
+                                function go() {
+                                    Audio.wantBt(btAud.dev);
+                                    Bt.toggle(btAud.dev);
+                                }
+
+                                Rectangle {
+                                    anchors { fill: parent; margins: -2 }
+                                    radius: 5
+                                    color: btAud.activeFocus ? Theme.track : "transparent"
+                                }
+                                Row {
+                                    anchors { left: parent.left; right: btAudMark.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                                    spacing: 6
+
+                                    Icon {
+                                        name: Bt.devIcon(btAud.dev)
+                                        size: 13
+                                        color: Theme.dim
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: btAud.dev.name
+                                        elide: Text.ElideRight
+                                        font.family: Theme.font; font.pixelSize: 11
+                                        color: Theme.dim
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                                Text {
+                                    id: btAudMark
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: btAud.busy ? "\u2026" : "connect"
+                                    font.family: Theme.font; font.pixelSize: 10
+                                    color: btAud.busy ? Theme.warn : Theme.accent
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: !btAud.busy
+                                    onClicked: btAud.go()
+                                }
+                            }
+                        }
 
                         AudDiv {}
 
@@ -2845,11 +3104,10 @@ Variants {
                                         }
 
                                         // ---- detail ----
-                                        Column {
+                                        FoldCard {
                                             visible: netRow.unfolded
                                             width: parent.width - 22
                                             x: 22
-                                            spacing: 6
 
                                             // passphrase — only when there is no saved key to reuse
                                             Row {

@@ -1,0 +1,39 @@
+# AirPods control daemon. The AUR librepods packages are all upstream: a Qt tray
+# app with no headless mode, no state file and no status verb, which is exactly
+# what the bar reads. thisisgm's fork adds all three (plus AirPods Pro 3), so it
+# is built from a pinned commit here rather than tracked from the AUR.
+#
+# Pinned, not -git: the fork is one person's branch and the bar parses its JSON
+# schema. Bump _commit deliberately, and re-read daemon/main.cpp statusJson()
+# when you do.
+pkgname=librepods-omarchy
+pkgver=0.1.0
+pkgrel=1
+_commit=fff7fec600a5b9a61cdb40e93eccbcceb4b8f824
+arch=(x86_64)
+url='https://github.com/thisisgm/omarchy-pods'
+license=(AGPL-3.0-only)
+pkgdesc='AirPods daemon (AAP over L2CAP) with headless mode and a JSON state file'
+# Checked against readelf NEEDED on both binaries: libpulse and libcrypto are
+# real links, bluez-libs is not (Qt6Bluetooth talks to bluez over D-Bus).
+# bluez-utils is a runtime dep, not a link one: the connect/disconnect/forget
+# verbs shell out to bluetoothctl.
+depends=(qt6-base qt6-declarative qt6-connectivity libpulse openssl bluez-utils)
+makedepends=(cmake ninja qt6-tools pkgconf git)
+provides=(librepods)
+conflicts=(librepods librepods-git librepods-rust-bin librepods-rust-git)
+source=("omarchy-pods::git+https://github.com/thisisgm/omarchy-pods#commit=$_commit")
+sha256sums=('SKIP')
+
+build() {
+  cmake -B build -S omarchy-pods/daemon -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 omarchy-pods/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

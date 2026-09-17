@@ -114,6 +114,43 @@ Singleton {
         if (node) Quickshell.execDetached(["wpctl", "set-default", String(node.id)]);
     }
 
+    // Connecting a bluetooth device from the audio panel should land on it, not
+    // just add it to the list. pipewire only learns the sink a moment after
+    // bluez finishes the handshake, so the wanted device is parked here and the
+    // first sink list carrying it becomes the default.
+    //
+    // Address is the exact key — api.bluez5.address on the node against the
+    // bluez device — with the name kept as a fallback for a node that binds
+    // without its properties. Cleared on a timeout so a connect that never
+    // completes does not hijack whatever plugs in ten minutes later.
+    property string pendingBt: ""
+    property string pendingBtName: ""
+    Timer {
+        id: pendingBtClear
+        interval: 15000
+        onTriggered: { root.pendingBt = ""; root.pendingBtName = ""; }
+    }
+    function wantBt(device) {
+        if (!device) return;
+        root.pendingBt = (device.address ?? "").toLowerCase();
+        root.pendingBtName = device.name ?? "";
+        pendingBtClear.restart();
+    }
+    onSinksChanged: {
+        if (!root.pendingBt && !root.pendingBtName) return;
+        for (const n of root.sinks) {
+            const addr = ((n.properties ?? {})["api.bluez5.address"] ?? "").toLowerCase();
+            const hit = (root.pendingBt !== "" && addr === root.pendingBt)
+                || (root.pendingBtName !== "" && root.devName(n).indexOf(root.pendingBtName) >= 0);
+            if (!hit) continue;
+            root.setDefault(n);
+            root.pendingBt = "";
+            root.pendingBtName = "";
+            pendingBtClear.stop();
+            return;
+        }
+    }
+
     // Back to 100%, unmuted, for every app holding an output stream. Muted-at-
     // 100% is still a silent app, so mute is part of "reset" — otherwise the
     // button looks like it did nothing.
@@ -145,6 +182,26 @@ Singleton {
         const m = p["media.name"] ?? "";
         return m === root.appName(node) ? "" : m;
     }
+    // pipewire publishes the same freedesktop icon names bluez does, on
+    // device.icon_name — so this is Bt.devIcon's mapping against a different
+    // source, not a new table per model. form_factor is folded in because a
+    // bluetooth node carries the useful word there when icon_name is generic.
+    function devIcon(node) {
+        if (root.devName(node).toLowerCase().indexOf("airpods") >= 0) return "airpods";
+        const p = node?.properties ?? {};
+        const i = ((p["device.icon_name"] ?? "") + " " + (p["device.form_factor"] ?? "")).toLowerCase();
+        if (i.includes("headset")) return "headset";
+        if (i.includes("headphone")) return "headphones";
+        if (i.includes("display") || i.includes("video") || i.includes("tv")) return "monitor";
+        if (i.includes("speaker")) return "speaker";
+        if (i.includes("microphone")) return "microphone";
+        if (i.includes("phone")) return "cellphone";
+        if (i.includes("hdmi")) return "monitor";
+        // "audio-card-analog" says nothing about what is plugged into it — the
+        // dock here — so the direction the node runs is the best guess left.
+        return node?.type === PwNodeType.AudioSource ? "microphone" : "speaker";
+    }
+
     function devName(node) {
         if (!node) return "";
         return node.nickname || node.description || node.name;

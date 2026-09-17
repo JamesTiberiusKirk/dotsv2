@@ -230,6 +230,10 @@ hl.window_rule({
     pin   = true,
     size  = { 800, 450 },
 })
+-- Headful automation browsers (playwright via ~/.playwright-mcp.json, go-rod)
+-- launch Brave, so they carry the daily-driver class unless told otherwise.
+-- Both are given an explicit --class so they can be parked out of the way.
+hl.window_rule({ name = "automation-browsers", match = { class = "^(pw-browser|go-rod)$" }, workspace = "3 silent" })
 hl.window_rule({ name = "blue-recorder-float", match = { class = "^(blue-recorder)$" }, float = true })
 hl.window_rule({ name = "select-area-float",   match = { title = "^(Select Area)$" },   float = true })
 hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\.satty|satty)$" }, float = true })
@@ -315,4 +319,9 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
     hl.exec_cmd("~/.config/hypr/scripts/idle start") -- hypridle from generated conf
     hl.exec_cmd("cornd")
+    -- AirPods: bluez publishes nothing for them (battery, ANC and the rest ride
+    -- Apple's own AAP protocol), so this daemon speaks it and republishes the
+    -- state as ~/.local/state/librepods/status.json, which the bar reads.
+    -- Headless: the fork ships a systemd user unit, which is no use on runit.
+    hl.exec_cmd("librepods --headless")
 end)

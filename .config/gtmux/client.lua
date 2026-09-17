@@ -97,7 +97,16 @@ gtmux.bind("<", function() gtmux.swap_window("prev") end)
 gtmux.bind(">", function() gtmux.swap_window("next") end)
 gtmux.bind("!", gtmux.break_pane)
 gtmux.bind("w", gtmux.choose_window)
-gtmux.bind("s", gtmux.choose_session) -- tmux: choose-tree -Zs
+-- prefix+s drives the sidebar dock when it's on screen (cursor + live preview
+-- of the row you're on, Enter commits); the overlay picker is the fallback for
+-- when min_cols/toggle_dock has hidden it.
+gtmux.bind("s", function()
+  if gtmux.dock_visible("sidebar") then
+    gtmux.focus_dock("sidebar")
+  else
+    gtmux.choose_session() -- tmux: choose-tree -Zs
+  end
+end)
 gtmux.bind(":", gtmux.command_prompt)
 gtmux.bind("[", gtmux.enter_copy_mode)
 gtmux.bind("]", gtmux.paste)

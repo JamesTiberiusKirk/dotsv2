@@ -128,6 +128,7 @@ qemu-ui-gtk
 qrcodegen-cmake
 qrencode
 qt5ct
+qt6-connectivity
 qt6ct-kde
 qt6-doc
 quickshell
@@ -145,6 +146,7 @@ shellcheck
 slurp
 sof-firmware
 solaar
+spotify-player
 strace
 stripe-cli-bin
 swaybg

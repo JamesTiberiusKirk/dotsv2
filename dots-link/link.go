@@ -32,7 +32,7 @@ func runStatus(env *Env) error {
 	for _, entry := range entries {
 		fmt.Println("  " + statusLine(env, entry))
 	}
-	renderPkgPlan(filterInstalled(listedPackages(env.DotsDir, env.Host)))
+	renderPkgPlan(missingPkgs(env.DotsDir, env.Host))
 	return nil
 }
 

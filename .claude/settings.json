@@ -37,7 +37,8 @@
     "clangd-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "ponytail@ponytail": true,
-    "voicemode@voicemode": false
+    "voicemode@voicemode": false,
+    "stripe@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ponytail": {
