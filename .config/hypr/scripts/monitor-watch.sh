@@ -7,6 +7,7 @@
 #   - awww registers the new output but paints it black; it never back-fills
 #     the image it is already showing everywhere else
 # Same socket2 idiom as workspace-layouts.sh. Autostarted from base.lua.
+import json
 import os
 import socket
 import subprocess
@@ -22,7 +23,21 @@ WALLPAPER = f"{HOME}/.scripts/menu/common/wallpaper.sh"
 DEBOUNCE = 0.5
 
 
+def screens_off():
+    # DPMS off makes the dock drop the HDMI monitor, which arrives here as a
+    # monitorremoved. Re-applying the layout then modesets every output and
+    # wakes the screens. Ignore hotplug while any output is dark; the idle
+    # script's on-resume re-runs the layout once the screens come back.
+    try:
+        out = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, timeout=5).stdout
+        return any(not m.get("dpmsStatus", True) for m in json.loads(out))
+    except Exception:
+        return False
+
+
 def react():
+    if screens_off():
+        return
     subprocess.run([LAYOUT], timeout=15)
     # --current re-applies the wallpaper in use to every output, cold (no
     # transition), which is the only way the new one stops being black

@@ -36,6 +36,22 @@ apply() {
     done
 }
 
+# Live scale change for one output, then re-save the profile so the next
+# hotplug replays it instead of resetting the panel. Re-execs for the save:
+# $MONS above is a snapshot taken before the change, so saving in this same
+# process would persist the scale we just replaced.
+if [ "${1:-}" = scale ]; then
+    line=$(printf '%s' "$MONS" |
+        jq -r --arg o "${2:-}" --arg s "${3:-}" \
+            '.[]|select(.name==$o)|"\(.name),\(.width)x\(.height)@\(.refreshRate|floor),\(.x)x\(.y),\($s),\(.transform)"')
+    [ -n "$line" ] || { echo "no such output: ${2:-}" >&2; exit 1; }
+    apply "$line"
+    # the modeset is not instant; without the wait the re-read in `save` can
+    # still report the old scale and write it straight back
+    sleep 0.5
+    exec "$0" save
+fi
+
 # Freeze whatever is on screen right now as this profile's layout. Snapshots
 # the compositor rather than parsing anyone's config, so any editor that
 # applies live (wdisplays, nwg-displays) is a valid front-end. Disabled outputs

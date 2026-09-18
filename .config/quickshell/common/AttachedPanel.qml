@@ -35,12 +35,20 @@ Item {
         const next = (root.Window.activeFocusItem || content).nextItemInFocusChain(fwd);
         if (next) next.forceActiveFocus(Qt.TabFocusReason);
     }
-    // Rows consume only the keys they act on (Return, h/l on a slider), so
-    // everything else bubbles up to here from whatever holds focus.
+    // Rows consume only the keys they act on (Return, Left/Right on a slider),
+    // so everything else bubbles up to here from whatever holds focus.
+    // h/l are the vim half of Left/Right and reach the focused row the same
+    // way j/k reach the focus chain: a row opts in by declaring hstep(dir),
+    // which its own Left/Right handlers already call. Rows without one (a
+    // toggle, a trailing icon) simply ignore the key.
     Keys.onPressed: e => {
         if (!root.keyNav) return;
         if (e.key === Qt.Key_J || e.key === Qt.Key_Down) root.step(true);
         else if (e.key === Qt.Key_K || e.key === Qt.Key_Up) root.step(false);
+        else if (e.key === Qt.Key_H || e.key === Qt.Key_L) {
+            const it = root.Window.activeFocusItem;
+            if (it && typeof it.hstep === "function") it.hstep(e.key === Qt.Key_L ? 1 : -1);
+        }
         else if (e.key === Qt.Key_Escape) Sys.closeAll();
         else return;
         e.accepted = true;

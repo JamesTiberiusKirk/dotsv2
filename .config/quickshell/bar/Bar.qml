@@ -13,6 +13,7 @@ import QtQuick.Controls
 import QtQuick.Shapes
 import QtQuick.Layouts
 import "../common"
+import "popouts"
 
 Variants {
     model: Quickshell.screens
@@ -113,86 +114,79 @@ Variants {
             PwObjectTracker { objects: [panel.sink] }
 
             SystemClock { id: clock; precision: SystemClock.Minutes }
+            // for popouts in their own file: one clock, so the resume resync
+            // below keeps applying to them too
+            readonly property date clockDate: clock.date
             // SystemClock has no resync; toggling it re-reads the wall clock
             // and re-arms the minute tick from now rather than from before sleep
             Connections {
                 target: Sys
                 function onResumed() { clock.enabled = false; clock.enabled = true; }
             }
-            QtObject { id: sysPopout; property bool open: false }
-            QtObject { id: dockerPopout; property bool open: false }
-            QtObject { id: vmPopout; property bool open: false }
-            QtObject {
-                id: dispPopout
-                property bool open: false
-                onOpenChanged: Sys.panelOpen = open
-            }
-            QtObject {
-                id: pwrPopout
-                property bool open: false
-                onOpenChanged: Sys.powerPanelOpen = open
-            }
-            QtObject { id: tsPopout; property bool open: false }
-            QtObject { id: trayPopout; property bool open: false }
-            QtObject { id: clankerPopout; property bool open: false }
-            QtObject {
-                id: btPopout
-                property bool open: false
-                onOpenChanged: Bt.panelOpen = open
-            }
-            QtObject {
-                id: audPopout
-                property bool open: false
-                // is the airpods settings fold open
-                property bool podsOpen: false
-                onOpenChanged: {
-                    Audio.panelOpen = open;
-                    if (!open) podsOpen = false;
-                }
-            }
-            QtObject {
-                id: netPopout
-                property bool open: false
-                // which SSID has its detail row unfolded; "" = none
-                property string expanded: ""
-                onOpenChanged: {
-                    Sys.netPanelOpen = open;
-                    if (!open) expanded = "";
-                }
-            }
 
             // A popout takes the keyboard only when the menu opened it. One that
-            // always wants keys is the netPopout bug below: Hyprland focuses a
+            // always wants keys is the network popout bug (see its own file):
+            // Hyprland focuses a
             // layer the moment it maps, and with the pointer still on the cell
             // that focus never comes back for the second, closing click.
             function navOn(p) { return p.open && Sys.kbdNav; }
             function navFocus(p) { return navOn(p) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None; }
 
-            function closeIslandPopouts() {
-                Notifs.centerOpen = false;
-                calPopout.open = false;
-                sysPopout.open = false;
-                dockerPopout.open = false;
-                vmPopout.open = false;
-                dispPopout.open = false;
-                pwrPopout.open = false;
-                netPopout.open = false;
-                audPopout.open = false;
-                btPopout.open = false;
-                tsPopout.open = false;
-                trayPopout.open = false;
-                clankerPopout.open = false;
+            // Every Popout adds itself here on creation. The three derived
+            // things below used to be three hand-maintained lists of twelve.
+            property var popouts: []
+            // Only the ones that exist right now: `available` gates a popout
+            // whose cell is conditional (clanker needs an agent), so the menu
+            // does not offer a row that opens nothing.
+            readonly property var livePopouts: popouts.filter(p => p.available)
+
+            // Is that popout showing? For a cell that lights up while its own
+            // popout is open. By name, because the popouts live in their own
+            // files now and their ids do not reach this far.
+            function isOpen(name) {
+                const p = popoutsByName[name];
+                return p ? p.open : false;
             }
 
-            // Popouts by the name the menu uses. Same path a cell click takes:
-            // close the rest, then flip this one.
-            readonly property var popoutsByName: ({
-                calendar: calPopout, system: sysPopout, docker: dockerPopout, vm: vmPopout, display: dispPopout, power: pwrPopout,
-                network: netPopout, audio: audPopout, bluetooth: btPopout, tailscale: tsPopout, tray: trayPopout, clanker: clankerPopout
-            })
-            readonly property bool anyPopoutOpen: calPopout.open || sysPopout.open || dockerPopout.open || vmPopout.open || dispPopout.open || pwrPopout.open
-                || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || trayPopout.open || clankerPopout.open
+            // The path a cell click takes: close the rest, then flip this one.
+            function toggle(name) {
+                const p = popoutsByName[name];
+                if (!p) return;
+                const next = !p.open;
+                closeIslandPopouts();
+                p.open = next;
+            }
+
+            function closeIslandPopouts() {
+                // Not a popout and not in the registry, but it has always
+                // closed alongside them; folding it into the loop would drop it.
+                Notifs.centerOpen = false;
+                for (const p of popouts) p.open = false;
+            }
+
+            // Popouts by the name the menu uses, derived from the registry.
+            readonly property var popoutsByName: {
+                const m = {};
+                for (const p of popouts) m[p.panelName] = p;
+                return m;
+            }
+            readonly property bool anyPopoutOpen: popouts.some(p => p.open)
+            // Is a popout itself holding the keyboard? Then the dismiss layer
+            // must not ask for it: taking focus away from a popout that holds
+            // a focus grab clears the grab, and the popout closes on the spot.
+            // That is exactly what broke every menu-opened popout.
+            readonly property bool anyPopoutGrabbing: popouts.some(p => p.grabbing)
             onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
+
+            // What the menu (and through it the launcher) lists. Assigned
+            // wholesale rather than appended: one bar per screen, each writing
+            // the same list, so the last one simply wins.
+            // Sorted by name: popouts register in completion order, which is not
+            // declaration order and is not something to depend on for the order
+            // rows appear in the menu.
+            onLivePopoutsChanged: Sys.barPanels = livePopouts
+                .map(p => ({ name: p.panelName, icon: p.iconName }))
+                .sort((a, b) => a.name.localeCompare(b.name))
 
             Connections {
                 target: Sys
@@ -261,26 +255,6 @@ Variants {
             // Text-as-root with the pill drawn behind it: sizing an outer
             // Rectangle from an inner Text's implicitWidth does not resolve
             // inside an inline component, so the label is the root instead.
-            component PillBtn: Text {
-                id: pb
-                property bool active: false
-                signal pressed()
-                topPadding: 4; bottomPadding: 4; leftPadding: 10; rightPadding: 10
-                font.family: Theme.font
-                font.pixelSize: 11
-                color: pb.active ? Theme.accentText : Theme.text
-                activeFocusOnTab: true
-                Keys.onReturnPressed: pb.pressed()
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: pb.active ? Theme.accent : Theme.track
-                    border.width: pb.activeFocus ? 1 : 0
-                    border.color: Theme.bright
-                    z: -1
-                }
-                MouseArea { anchors.fill: parent; onClicked: pb.pressed() }
-            }
 
             // Icon plus label. Was a bare Text with the icon baked into the
             // string as a nerd-font glyph; icons are SVG now, so the two are
@@ -464,11 +438,6 @@ Variants {
                     // Three things share this island, each with its own
                     // popout: docker, the VMs, and the machine itself. One
                     // click used to open a single list of all of it.
-                    function toggle(p) {
-                        const next = !p.open;
-                        panel.closeIslandPopouts();
-                        p.open = next;
-                    }
 
                     Island {
                         id: svcIsland
@@ -482,14 +451,14 @@ Variants {
                             id: dockerCell
                             icon: "docker"; text: Sys.docker; vform: "stack"
                             color: Sys.dockerUp ? Theme.text : Theme.dim
-                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(dockerPopout) }
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("docker") }
                         }
                         // server, not the memory chip it used to be — that glyph
                         // sat next to the CPU and RAM cells reading as a third one
                         Cell {
                             id: vmCell
                             icon: "server"; text: Sys.vm; vform: "stack"
-                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(vmPopout) }
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("vm") }
                         }
                         // cpu / mem / disk are one target: they are the same
                         // machine, and the popout shows the lot
@@ -508,7 +477,7 @@ Variants {
                                 Cell { visible: Sys.memText !== ""; icon: "memory"; text: panel.vertical ? Sys.memText.split("/")[0] : Sys.memText; vform: "stack" }
                                 Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree; vform: "stack" }
                             }
-                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(sysPopout) }
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("system") }
                         }
                         // AI agents: worst limit across every subscription.
                         // Hidden until some collector has found usage.
@@ -518,7 +487,7 @@ Variants {
                             icon: Clanker.agent ? "agent-" + Clanker.agent.id : "robot"; vform: "stack"
                             text: Clanker.shown >= 0 ? Math.round(Clanker.shown * 100) + "%" : ""
                             color: Clanker.alarming ? Theme.urgent : Theme.text
-                            MouseArea { anchors.fill: parent; onClicked: svcWrap.toggle(clankerPopout) }
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("clanker") }
                         }
                     }
                 }
@@ -719,9 +688,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !netPopout.open;
-                                panel.closeIslandPopouts();
-                                netPopout.open = next;
+                                panel.toggle("network");
                             }
                         }
                     }
@@ -737,9 +704,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !tsPopout.open;
-                                panel.closeIslandPopouts();
-                                tsPopout.open = next;
+                                panel.toggle("tailscale");
                             }
                         }
                     }
@@ -769,9 +734,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !pwrPopout.open;
-                                panel.closeIslandPopouts();
-                                pwrPopout.open = next;
+                                panel.toggle("power");
                             }
                         }
                     }
@@ -818,9 +781,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !dispPopout.open;
-                                panel.closeIslandPopouts();
-                                dispPopout.open = next;
+                                panel.toggle("display");
                             }
                         }
                     }
@@ -854,9 +815,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !audPopout.open;
-                                panel.closeIslandPopouts();
-                                audPopout.open = next;
+                                panel.toggle("audio");
                             }
                             onWheel: w => {
                                 if (!parent.av) return;
@@ -878,9 +837,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !btPopout.open;
-                                panel.closeIslandPopouts();
-                                btPopout.open = next;
+                                panel.toggle("bluetooth");
                             }
                         }
                     }
@@ -894,9 +851,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !audPopout.open;
-                                panel.closeIslandPopouts();
-                                audPopout.open = next;
+                                panel.toggle("audio");
                             }
                         }
                     }
@@ -914,13 +869,11 @@ Variants {
                         visible: count > 0
                         icon: "dots-horizontal"
                         text: "" + count
-                        color: trayPopout.open ? Theme.bright : Theme.text
+                        color: panel.isOpen("tray") ? Theme.bright : Theme.text
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !trayPopout.open;
-                                panel.closeIslandPopouts();
-                                trayPopout.open = next;
+                                panel.toggle("tray");
                             }
                         }
                     }
@@ -965,18 +918,11 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                const next = !calPopout.open;
-                                panel.closeIslandPopouts();
-                                calPopout.open = next;
+                                panel.toggle("calendar");
                             }
                         }
                     }
                 }
-            }
-
-            QsMenuAnchor {
-                id: trayMenu
-                anchor.window: panel
             }
 
             Connections {
@@ -987,9 +933,21 @@ Variants {
                 }
             }
 
-            // ---- click-away backdrop for the bar popouts ----
+            // ---- dismiss layer for the bar popouts ----
+            // Click-away and Escape for every popout, in one place rather than
+            // twelve. Escape lives here, not on the popout, on purpose: a
+            // popout that asks for the keyboard whenever it is open is the
+            // netPopout bug written up below — Hyprland focuses a layer the
+            // moment it maps, and the second click on its own cell never gets
+            // back to the bar to close it. This layer stops at the bar's edge
+            // and holds no focus grab, so the cell keeps its clicks while
+            // Escape still lands somewhere.
+            //
+            // AttachedPanel also answers Escape, for the case where the menu
+            // opened the popout and the popout itself holds the keyboard.
             PanelWindow {
-                visible: calPopout.open || sysPopout.open || dispPopout.open || pwrPopout.open || netPopout.open || audPopout.open || btPopout.open || tsPopout.open || clankerPopout.open
+                id: dismissLayer
+                visible: panel.anyPopoutOpen
                 screen: panel.screen
                 anchors { top: true; left: true; right: true; bottom: true }
                 margins {
@@ -1002,2679 +960,91 @@ Variants {
                 exclusionMode: ExclusionMode.Ignore
                 WlrLayershell.layer: WlrLayer.Top
                 WlrLayershell.namespace: "quickshell-backdrop"
+                // Only when no popout holds the keyboard itself: a menu-opened
+                // popout has its own focus grab and answers Escape through
+                // AttachedPanel, and stealing focus from it would close it.
+                WlrLayershell.keyboardFocus: panel.anyPopoutOpen && !panel.anyPopoutGrabbing
+                    ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
                 MouseArea {
                     anchors.fill: parent
                     onClicked: panel.closeIslandPopouts()
                 }
-            }
-
-            // ---- tray popout (click the dots cell) ----
-            PanelWindow {
-                id: trayPanel
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(trayIsland) + panel.pos(trayCell)
-                readonly property real sourceWidth: panel.ext(trayCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: trayPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(trayPopout)
-                HyprlandFocusGrab {
-                    windows: [trayPanel]
-                    active: panel.navOn(trayPopout)
-                    onCleared: trayPopout.open = false
-                }
-                implicitWidth: 240
-                implicitHeight: trayCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
+                Item {
                     anchors.fill: parent
-                    shown: trayPopout.open
-                    keyNav: panel.navOn(trayPopout)
-                    neckX: trayPanel.sourceX - trayPanel.popupX
-                    neckWidth: trayPanel.sourceWidth
-
-                    Column {
-                        id: trayCol
-                        width: parent.width
-                        spacing: 2
-
-                        Repeater {
-                            model: SystemTray.items.values
-                            Item {
-                                id: trayRow
-                                required property var modelData
-                                width: trayCol.width
-                                height: 28
-                                activeFocusOnTab: true
-                                Keys.onReturnPressed: {
-                                    trayRow.modelData.activate();
-                                    panel.closeIslandPopouts();
-                                }
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 7
-                                    color: trayHover.hovered || trayRow.activeFocus ? Theme.track : "transparent"
-                                }
-                                IconImage {
-                                    id: trayRowIcon
-                                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-                                    implicitSize: 16
-                                    source: trayRow.modelData.icon
-                                }
-                                Text {
-                                    anchors { left: trayRowIcon.right; leftMargin: 10; right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                                    // title is what the app registers; the id is a bus name, last resort
-                                    text: trayRow.modelData.title || trayRow.modelData.tooltipTitle || trayRow.modelData.id
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.text
-                                    elide: Text.ElideRight
-                                }
-                                HoverHandler { id: trayHover }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    onClicked: e => {
-                                        if (e.button === Qt.LeftButton) {
-                                            trayRow.modelData.activate();
-                                            panel.closeIslandPopouts();
-                                        } else if (trayRow.modelData.hasMenu) {
-                                            // the item's own menu, hung off this row rather
-                                            // than off the bar; the popout stays for it
-                                            trayMenu.anchor.window = trayPanel;
-                                            trayMenu.menu = trayRow.modelData.menu;
-                                            trayMenu.anchor.rect.x = trayRow.mapToItem(null, 0, 0).x + trayRow.width;
-                                            trayMenu.anchor.rect.y = trayRow.mapToItem(null, 0, 0).y;
-                                            trayMenu.open();
-                                        } else {
-                                            trayRow.modelData.secondaryActivate();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    focus: true
+                    Keys.onEscapePressed: panel.closeIslandPopouts()
                 }
             }
 
-            // ---- calendar popout (click clock) ----
-            // layer surface (not xdg popup) so hyprland's blur layerrule applies
-            PanelWindow {
-                id: calPopout
-
-                property bool open: false
-                property date shown: new Date()
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(trayIsland) + panel.pos(clockCell)
-                readonly property real sourceWidth: panel.ext(clockCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-                onOpenChanged: if (open) shown = new Date()
-
-                visible: open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(calPopout)
-                HyprlandFocusGrab {
-                    windows: [calPopout]
-                    active: panel.navOn(calPopout)
-                    onCleared: calPopout.open = false
-                }
-                implicitWidth: 250
-                implicitHeight: calCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: calPopout.open
-                    keyNav: panel.navOn(calPopout)
-                    neckX: calPopout.sourceX - calPopout.popupX
-                    neckWidth: calPopout.sourceWidth
-
-                    Column {
-                        id: calCol
-                        width: parent.width
-                        spacing: 8
-
-                        // full date, the old custom/date module
-                        Text {
-                            text: Qt.formatDate(clock.date, "dddd, d MMMM yyyy")
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-
-                        Item {
-                            id: calHead
-                            function step(n) { calPopout.shown = new Date(calPopout.shown.getFullYear(), calPopout.shown.getMonth() + n, 1); }
-                            width: calCol.width
-                            height: 18
-                            // the whole header is one stop; h/l page the month,
-                            // rather than two arrow stops to tab between
-                            activeFocusOnTab: true
-                            Keys.onLeftPressed: calHead.step(-1)
-                            Keys.onRightPressed: calHead.step(1)
-                            Rectangle {
-                                anchors { fill: parent; margins: -3 }
-                                radius: 5
-                                color: calHead.activeFocus ? Theme.track : "transparent"
-                            }
-                            Text {
-                                text: Qt.locale().monthName(calPopout.shown.getMonth()) + " " + calPopout.shown.getFullYear()
-                                font.family: Theme.font; font.pixelSize: Theme.fontSize
-                                font.weight: Font.DemiBold
-                                color: Theme.bright
-                            }
-                            Row {
-                                anchors.right: parent.right
-                                spacing: 14
-                                Text {
-                                    text: "‹"; font.pixelSize: 14; color: calHead.activeFocus ? Theme.bright : Theme.text
-                                    MouseArea {
-                                        anchors.fill: parent; anchors.margins: -6
-                                        onClicked: calHead.step(-1)
-                                    }
-                                }
-                                Text {
-                                    text: "›"; font.pixelSize: 14; color: calHead.activeFocus ? Theme.bright : Theme.text
-                                    MouseArea {
-                                        anchors.fill: parent; anchors.margins: -6
-                                        onClicked: calHead.step(1)
-                                    }
-                                }
-                            }
-                        }
-
-                        DayOfWeekRow {
-                            width: calCol.width
-                            delegate: Text {
-                                required property var model
-                                text: model.shortName
-                                horizontalAlignment: Text.AlignHCenter
-                                font.family: Theme.font; font.pixelSize: 10
-                                color: Theme.dim
-                            }
-                        }
-                        MonthGrid {
-                            id: monthGrid
-                            width: calCol.width
-                            month: calPopout.shown.getMonth()
-                            year: calPopout.shown.getFullYear()
-                            spacing: 2
-                            delegate: Text {
-                                required property var model
-                                text: model.day
-                                horizontalAlignment: Text.AlignHCenter
-                                font.family: Theme.font
-                                font.pixelSize: 11
-                                font.weight: model.today ? Font.Bold : Font.Normal
-                                color: model.today ? Theme.accent
-                                     : model.month === monthGrid.month ? Theme.text : Theme.dim
-                            }
-                        }
-                    }
-                }
+            TrayPopout {
+                bar: panel
+                cell: trayCell
             }
 
-            // ---- display panel (click the backlight cell) ----
-            // Built from what the machine actually has: one slider per DRM
-            // backlight, the sync lock only when there are two to lock, and the
-            // Duo-only rows only on the Duo. A desktop has no backlights at all,
-            // so the trigger cell is hidden and this never opens.
-            PanelWindow {
-                id: displayPopout
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(backlightCell)
-                readonly property real sourceWidth: panel.ext(backlightCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: dispPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(dispPopout)
-                HyprlandFocusGrab {
-                    windows: [displayPopout]
-                    active: panel.navOn(dispPopout)
-                    onCleared: dispPopout.open = false
-                }
-                implicitWidth: 280
-                implicitHeight: dispCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: dispPopout.open
-                    keyNav: panel.navOn(dispPopout)
-                    neckX: displayPopout.sourceX - displayPopout.popupX
-                    neckWidth: displayPopout.sourceWidth
-
-                    Column {
-                        id: dispCol
-
-                        width: parent.width
-                        spacing: 10
-
-                        // Generalised out of the brightness slider so the
-                        // night-light temperature could reuse it: same drag
-                        // ownership, same 50ms write throttle, different range
-                        // and a caller-supplied commit.
-                        component ValueSlider: Item {
-                            id: sl
-                            property string label
-                            // Optional leading icon. iconOn dims rather than hides it,
-                            // so a list where only one row is marked stays aligned.
-                            property string icon: ""
-                            property bool iconOn: true
-                            // Second leading icon, for what the row *is* rather
-                            // than whether it is selected — `icon` is already
-                            // the default-device tick on every device row.
-                            property string leadIcon: ""
-                            // Right-hand extras, both optional: a dim note before
-                            // the value, and an icon with its own hit area and
-                            // tab stop for a second action on the row.
-                            property string note: ""
-                            property string trailIcon: ""
-                            signal trailPressed()
-                            readonly property real trailPad: rightRow.width + 8
-                            property int value: 0
-                            property int minValue: 0
-                            property int maxValue: 100
-                            property string suffix: "%"
-                            // control present but inert: the backlight still
-                            // takes writes, they just light nothing
-                            property bool off: false
-                            signal commit(int v)
-
-                            // One wheel notch moves a twentieth of the range, so
-                            // 0-100 still steps by 5 the way it always did.
-                            readonly property int wheelStep:
-                                Math.max(1, Math.round((maxValue - minValue) / 20))
-
-                            width: dispCol.width
-                            height: 30
-                            opacity: off ? 0.4 : 1
-                            // h/l move by the same notch the wheel does. Still a
-                            // tab stop when off: a muted device's Return still
-                            // selects it, and skipping it would strand it.
-                            activeFocusOnTab: true
-                            Keys.onLeftPressed: sl.nudge(-1)
-                            Keys.onRightPressed: sl.nudge(1)
-                            function nudge(dir) {
-                                if (sl.off) return;
-                                sl.shown = Math.max(sl.minValue, Math.min(sl.maxValue, sl.shown + dir * sl.wheelStep));
-                                sl.commit(sl.shown);
-                            }
-
-                            Rectangle {
-                                anchors { fill: parent; margins: -3 }
-                                radius: 5
-                                color: sl.activeFocus ? Theme.track : "transparent"
-                            }
-
-                            // While dragging, the slider owns the value: the 2s
-                            // poll is far slower than the drag and would keep
-                            // snapping the handle back to a stale reading.
-                            property bool held: false
-                            property int shown: 0
-                            onValueChanged: if (!held) shown = value
-                            Component.onCompleted: shown = value
-
-                            Row {
-                                id: slLabel
-
-                                spacing: 4
-
-                                Icon {
-                                    name: sl.icon
-                                    visible: sl.icon !== ""
-                                    opacity: sl.iconOn ? 1 : 0
-                                    size: 13
-                                    color: sl.off ? Theme.dim : Theme.text
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Icon {
-                                    name: sl.leadIcon
-                                    visible: sl.leadIcon !== ""
-                                    size: 13
-                                    color: sl.off ? Theme.dim : Theme.text
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: sl.label
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: sl.off ? Theme.dim : Theme.text
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            Row {
-                                id: rightRow
-                                anchors.right: parent.right
-                                spacing: 6
-                                // Above the row-wide "make this the default"
-                                // MouseArea, which is a later sibling of this Row.
-                                z: 10
-
-                                Text {
-                                    visible: sl.note !== ""
-                                    // notes carry their own colours per span
-                                    textFormat: Text.StyledText
-                                    text: sl.note
-                                    font.family: Theme.font; font.pixelSize: 10
-                                    color: Theme.dim
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: sl.off ? "off" : sl.shown + sl.suffix
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.dim
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                // z: the strip this sits on already carries a
-                                // click meaning "make this the default device",
-                                // and that MouseArea is declared later, so it
-                                // would otherwise swallow the icon.
-                                Item {
-                                    id: trail
-                                    visible: sl.trailIcon !== ""
-                                    width: 15; height: 15
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    activeFocusOnTab: sl.trailIcon !== ""
-                                    Keys.onReturnPressed: sl.trailPressed()
-
-                                    Rectangle {
-                                        anchors { fill: parent; margins: -2 }
-                                        radius: 4
-                                        color: trail.activeFocus ? Theme.track : "transparent"
-                                    }
-                                    Icon {
-                                        anchors.centerIn: parent
-                                        name: sl.trailIcon
-                                        size: 13
-                                        color: Theme.dim
-                                    }
-                                    MouseArea {
-                                        anchors { fill: parent; margins: -4 }
-                                        onClicked: sl.trailPressed()
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                id: track
-                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 2 }
-                                height: 6
-                                radius: 3
-                                color: Theme.track
-
-                                readonly property real frac:
-                                    (sl.shown - sl.minValue) / Math.max(1, sl.maxValue - sl.minValue)
-
-                                Rectangle {
-                                    width: parent.width * track.frac
-                                    height: parent.height
-                                    radius: 3
-                                    color: sl.off ? Theme.dim : Theme.accent
-                                }
-                                Rectangle {
-                                    visible: !sl.off
-                                    x: Math.max(0, Math.min(parent.width - width, parent.width * track.frac - width / 2))
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 12; height: 12; radius: 6
-                                    color: Theme.bright
-                                }
-
-                                function valueAt(mx) {
-                                    const v = sl.minValue + mx / width * (sl.maxValue - sl.minValue);
-                                    return Math.max(sl.minValue, Math.min(sl.maxValue, Math.round(v)));
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: -8 // 6px track is a small target
-                                    enabled: !sl.off
-                                    preventStealing: true
-                                    onPressed: m => { sl.held = true; sl.shown = track.valueAt(m.x); writeTimer.restart(); }
-                                    onPositionChanged: m => { if (sl.held) { sl.shown = track.valueAt(m.x); writeTimer.restart(); } }
-                                    onReleased: { sl.held = false; writeTimer.stop(); sl.commit(sl.shown); }
-                                    onWheel: w => {
-                                        sl.shown = Math.max(sl.minValue, Math.min(sl.maxValue,
-                                            sl.shown + (w.angleDelta.y > 0 ? sl.wheelStep : -sl.wheelStep)));
-                                        sl.commit(sl.shown);
-                                    }
-                                }
-                                // one write per 50ms of dragging, not one per frame
-                                Timer {
-                                    id: writeTimer
-                                    interval: 50
-                                    onTriggered: sl.commit(sl.shown)
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: Sys.brightnessRows
-                            ValueSlider {
-                                label: modelData.label
-                                value: modelData.pct
-                                // never 0: a panel driven fully dark is
-                                // indistinguishable from one that died
-                                minValue: 1
-                                off: modelData.off
-                                onCommit: v => Sys.setBrightness(modelData.name, v)
-                            }
-                        }
-
-                        // nothing to lock together with a single panel
-                        ToggleRow {
-                            visible: Sys.isDuo && Sys.backlights.length > 1
-                            label: "lock together"
-                            checked: Sys.brightnessSync
-                            onToggled: v => Sys.setBrightnessSync(v)
-                        }
-
-                        // ---- night light ----
-                        // Above the Duo rows: it applies to every host, and the
-                        // temperature belongs next to brightness.
-                        Rectangle {
-                            width: dispCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-                        ToggleRow {
-                            label: "night light"
-                            checked: Sys.nightLight
-                            onToggled: v => Sys.setNightLight(v)
-                        }
-                        ValueSlider {
-                            label: "temperature"
-                            value: Sys.nightTemp
-                            minValue: 2500   // heavy amber
-                            maxValue: 6500   // neutral daylight, no visible shift
-                            suffix: "K"
-                            onCommit: v => Sys.setNightTemp(v)
-                        }
-
-                        // ---- idle ladder (hypridle) ----
-                        // One row per stage: label, ∓5 min stepper, enable
-                        // switch. Stepping a disabled stage re-enables it
-                        // (matching the script: `set` implies on). "keep
-                        // awake" drops all the timeouts — the ladder greys.
-                        component StepBtn: Rectangle {
-                            id: sb
-                            property string glyph
-                            signal clicked
-                            width: 16; height: 16; radius: 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: sbArea.containsMouse ? Theme.track : "transparent"
-                            Text {
-                                anchors.centerIn: parent
-                                text: sb.glyph
-                                font.family: Theme.font; font.pixelSize: 12
-                                color: Theme.text
-                            }
-                            MouseArea {
-                                id: sbArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: sb.clicked()
-                            }
-                        }
-                        component IdleRow: Item {
-                            id: ir
-                            property string label
-                            property int minutes
-                            property bool on
-                            signal toggled(bool v)
-                            signal setMinutes(int m)
-
-                            width: dispCol.width
-                            height: 20
-                            opacity: (Sys.idleRunning && !Sys.idleAwake) ? 1 : 0.4
-                            // Return is the switch, h/l are the ∓5 steppers
-                            activeFocusOnTab: true
-                            Keys.onReturnPressed: ir.toggled(!ir.on)
-                            Keys.onLeftPressed: ir.setMinutes(Math.max(1, ir.minutes - 5))
-                            Keys.onRightPressed: ir.setMinutes(Math.min(180, ir.minutes + 5))
-
-                            Rectangle {
-                                anchors { fill: parent; margins: -3 }
-                                radius: 5
-                                color: ir.activeFocus ? Theme.track : "transparent"
-                            }
-                            Text {
-                                text: ir.label
-                                anchors.verticalCenter: parent.verticalCenter
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: ir.on ? Theme.text : Theme.dim
-                            }
-                            Row {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                spacing: 6
-
-                                StepBtn {
-                                    glyph: "−"
-                                    onClicked: ir.setMinutes(Math.max(1, ir.minutes - 5))
-                                }
-                                Text {
-                                    // fixed width so +/- don't shift as digits change
-                                    width: 44
-                                    horizontalAlignment: Text.AlignHCenter
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: ir.minutes + " min"
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: ir.on ? Theme.text : Theme.dim
-                                }
-                                StepBtn {
-                                    glyph: "+"
-                                    onClicked: ir.setMinutes(Math.min(180, ir.minutes + 5))
-                                }
-                                // same switch as ToggleRow, its own hit area
-                                Rectangle {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 30; height: 16; radius: 8
-                                    color: ir.on ? Theme.accent : Theme.track
-                                    Behavior on color { ColorAnimation { duration: 120 } }
-                                    Rectangle {
-                                        x: ir.on ? parent.width - width - 2 : 2
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: 12; height: 12; radius: 6
-                                        color: ir.on ? Theme.accentText : Theme.bright
-                                        Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: ir.toggled(!ir.on)
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: dispCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-                        ToggleRow {
-                            label: "keep awake"
-                            checked: Sys.idleAwake
-                            onToggled: v => Sys.setIdleAwake(v)
-                        }
-                        IdleRow {
-                            label: "lock"
-                            minutes: Sys.idleLock; on: Sys.idleLockOn
-                            onToggled: v => Sys.setIdleStage("lock", v)
-                            onSetMinutes: m => Sys.setIdleMinutes("lock", m)
-                        }
-                        IdleRow {
-                            label: "screen off"
-                            minutes: Sys.idleScreen; on: Sys.idleScreenOn
-                            onToggled: v => Sys.setIdleStage("screen", v)
-                            onSetMinutes: m => Sys.setIdleMinutes("screen", m)
-                        }
-                        IdleRow {
-                            label: "suspend"
-                            minutes: Sys.idleSuspend; on: Sys.idleSuspendOn
-                            onToggled: v => Sys.setIdleStage("suspend", v)
-                            onSetMinutes: m => Sys.setIdleMinutes("suspend", m)
-                        }
-
-                        Rectangle {
-                            visible: Sys.isDuo
-                            width: dispCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-                        ToggleRow {
-                            visible: Sys.isDuo
-                            label: "sub screen"
-                            checked: Sys.subScreen
-                            onToggled: v => Sys.setSubScreen(v)
-                        }
-                        ToggleRow {
-                            visible: Sys.isDuo
-                            label: "auto-rotate"
-                            checked: Sys.autoRotate
-                            onToggled: v => Sys.setAutoRotate(v)
-                        }
-                    }
-                }
+            CalendarPopout {
+                bar: panel
+                cell: clockCell
             }
 
-            // ---- power panel (click the battery cell) ----
-            // Battery detail plus the profile selector. Profiles bind straight
-            // to PowerProfiles (Quickshell.Services.UPower) — the daemon is the
-            // state, so there is nothing local to keep in sync.
-            PanelWindow {
-                id: powerPopout
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(batteryCell)
-                readonly property real sourceWidth: panel.ext(batteryCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                readonly property var dev: Sys.batteryDevice
-                readonly property bool charging: dev ? dev.state === UPowerDeviceState.Charging : false
-
-                visible: pwrPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(pwrPopout)
-                HyprlandFocusGrab {
-                    windows: [powerPopout]
-                    active: panel.navOn(pwrPopout)
-                    onCleared: pwrPopout.open = false
-                }
-                implicitWidth: 360
-                implicitHeight: pwrCol.implicitHeight + 28
-                color: "transparent"
-
-                // seconds -> "4h 18m" / "18m". 0 means UPower has no estimate yet
-                // (it needs a rate sample) rather than "empty right now".
-                function dur(s) {
-                    if (!(s > 0)) return "—";
-                    const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60);
-                    return h > 0 ? h + "h " + m + "m" : m + "m";
-                }
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: pwrPopout.open
-                    keyNav: panel.navOn(pwrPopout)
-                    neckX: powerPopout.sourceX - powerPopout.popupX
-                    neckWidth: powerPopout.sourceWidth
-
-                    Column {
-                        id: pwrCol
-
-                        width: parent.width
-                        spacing: 6
-
-                        // label left, value right — the whole panel is this shape
-                        component StatRow: Item {
-                            id: sr
-                            property string label
-                            property string value
-                            property color valueColor: Theme.text
-                            property real indent: 0
-                            // optional leading icon (the top-cpu rows use it)
-                            property string icon: ""
-                            width: pwrCol.width
-                            height: 15
-                            Row {
-                                x: sr.indent
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 5
-
-                                Icon {
-                                    name: sr.icon
-                                    visible: sr.icon !== ""
-                                    size: 12
-                                    color: Theme.dim
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: sr.label
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.dim
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            Text {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: sr.value
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: sr.valueColor
-                            }
-                        }
-                        component Sep: Rectangle {
-                            width: pwrCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-
-                        // ---- battery ----
-                        Item {
-                            width: pwrCol.width
-                            height: 22
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: Math.round(powerPopout.dev?.percentage > 1
-                                    ? powerPopout.dev.percentage
-                                    : (powerPopout.dev?.percentage ?? 0) * 100) + "%"
-                                font.family: Theme.font; font.pixelSize: 17
-                                color: Theme.bright
-                            }
-                            Text {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: powerPopout.charging
-                                    ? powerPopout.dur(powerPopout.dev?.timeToFull ?? 0) + " to full"
-                                    : powerPopout.dur(powerPopout.dev?.timeToEmpty ?? 0) + " left"
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.text
-                            }
-                        }
-                        StatRow {
-                            label: powerPopout.charging ? "charge rate" : "discharge rate"
-                            value: (powerPopout.dev?.changeRate ?? 0).toFixed(1) + " W"
-                        }
-                        StatRow {
-                            // healthSupported is false on batteries that report no
-                            // design capacity — showing 0% there would read as dead
-                            visible: powerPopout.dev?.healthSupported ?? false
-                            label: "health"
-                            value: Math.round(powerPopout.dev?.healthPercentage ?? 0) + "%"
-                        }
-
-                        Sep {}
-
-                        // ---- profile selector ----
-                        // One segment per profile. performance is dropped when the
-                        // daemon says the machine cannot sustain it.
-                        Row {
-                            id: profRow
-                            width: pwrCol.width
-                            spacing: 4
-
-                            // "ultra" is not a daemon profile: it runs ~/.scripts/powersave
-                            // (power-saver + turbo off + 60Hz + no eye-candy), see Sys.ultraSave.
-                            readonly property var profiles: ["ultra"].concat(PowerProfiles.hasPerformanceProfile
-                                ? [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance]
-                                : [PowerProfile.PowerSaver, PowerProfile.Balanced])
-
-                            Repeater {
-                                model: profRow.profiles
-                                Rectangle {
-                                    id: seg
-                                    readonly property bool ultra: modelData === "ultra"
-                                    readonly property bool active: ultra ? Sys.ultraSave
-                                        : !Sys.ultraSave && PowerProfiles.profile === modelData
-                                    readonly property string icon:
-                                        ultra ? "sleep"
-                                        : modelData === PowerProfile.PowerSaver ? "leaf"
-                                        : modelData === PowerProfile.Performance ? "rocket-launch"
-                                        : "scale-balance"
-                                    readonly property string name:
-                                        ultra ? "ultra"
-                                        : modelData === PowerProfile.PowerSaver ? "saver"
-                                        : modelData === PowerProfile.Performance ? "turbo"
-                                        : "balanced"
-                                    property bool hovered: false
-                                    function select() {
-                                        if (seg.ultra) { Sys.setUltraSave(true); return; }
-                                        if (Sys.ultraSave) {
-                                            Sys.setUltraSave(false, modelData === PowerProfile.PowerSaver ? "power-saver"
-                                                : modelData === PowerProfile.Performance ? "performance" : "balanced");
-                                            return;
-                                        }
-                                        PowerProfiles.profile = modelData;
-                                    }
-
-                                    width: (profRow.width - profRow.spacing * (profRow.profiles.length - 1))
-                                        / profRow.profiles.length
-                                    height: 26
-                                    radius: 4
-                                    activeFocusOnTab: true
-                                    Keys.onReturnPressed: seg.select()
-                                    color: active ? Theme.accent : (hovered || seg.activeFocus ? Theme.track : "transparent")
-                                    border.width: active ? 0 : 1
-                                    border.color: Theme.islandBorder
-                                    Behavior on color { ColorAnimation { duration: 120 } }
-
-                                    // Row, not Column: verticalCenter is the layout
-                                    // axis in a Column, so anchoring both children
-                                    // that way stacks them on the same line.
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 4
-                                        Icon {
-                                            name: seg.icon
-                                            size: 13
-                                            color: seg.active ? Theme.accentText : Theme.text
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        Text {
-                                            text: seg.name
-                                            font.family: Theme.font; font.pixelSize: 11
-                                            color: seg.active ? Theme.accentText : Theme.text
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        onEntered: seg.hovered = true
-                                        onExited: seg.hovered = false
-                                        onClicked: seg.select()
-                                    }
-                                }
-                            }
-                        }
-                        // why the daemon is holding performance back, when it is
-                        StatRow {
-                            visible: PowerProfiles.degradationReason !== PerformanceDegradationReason.None
-                            label: "throttled"
-                            value: PowerProfiles.degradationReason === PerformanceDegradationReason.LapDetected
-                                ? "lap detected" : "high temperature"
-                            valueColor: Theme.warn
-                        }
-
-                        Sep {}
-
-                        // ---- charge cap ----
-                        // Hidden on hardware with no threshold node. The 80 is
-                        // upowerd's, not ours — it is not a writable property.
-                        ToggleRow {
-                            visible: Sys.chargeLimit >= 0
-                            label: "charge limit \u00b7 80%"
-                            checked: Sys.chargeLimitOn
-                            onToggled: v => Sys.setChargeLimit(v)
-                        }
-
-                        Sep { visible: Sys.topProcs.length > 0 }
-
-                        // ---- top cpu ----
-                        // CPU time, not watts: nothing attributes power per process
-                        // without a powertop calibration run.
-                        Text {
-                            visible: Sys.topProcs.length > 0
-                            text: "top cpu"
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-                        Repeater {
-                            model: Sys.topProcs
-                            StatRow {
-                                indent: 8
-                                icon: panel.procIcon(modelData.name)
-                                label: modelData.name
-                                value: modelData.pct.toFixed(1) + "%"
-                            }
-                        }
-                    }
-                }
+            DisplayPopout {
+                bar: panel
+                cell: backlightCell
             }
 
-            // ---- tailscale panel (click ts cell) ----
-            PanelWindow {
-                id: tsPanel
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(tsCell)
-                readonly property real sourceWidth: panel.ext(tsCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: tsPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(tsPopout)
-                HyprlandFocusGrab {
-                    windows: [tsPanel]
-                    active: panel.navOn(tsPopout)
-                    onCleared: tsPopout.open = false
-                }
-                implicitWidth: 300
-                implicitHeight: tsCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: tsPopout.open
-                    keyNav: panel.navOn(tsPopout)
-                    neckX: tsPanel.sourceX - tsPanel.popupX
-                    neckWidth: tsPanel.sourceWidth
-
-                    Column {
-                        id: tsCol
-                        width: parent.width
-                        spacing: 8
-
-                        component TsDiv: Rectangle {
-                            width: tsCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-                        component TsHead: Text {
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-                        // click copies `value`; the label reads "copied" for a
-                        // second so the click is seen to land. Popout stays open.
-                        component TsCopy: Text {
-                            id: tc
-                            property string value
-                            property string label
-                            text: copied.running ? "copied" : label
-                            elide: Text.ElideRight
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: tc.activeFocus ? Theme.bright : Theme.dim
-                            activeFocusOnTab: true
-                            Keys.onReturnPressed: tc.copy()
-                            function copy() {
-                                Quickshell.execDetached(["wl-copy", "--", tc.value]);
-                                copied.restart();
-                            }
-                            Timer { id: copied; interval: 1000 }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: tc.copy()
-                            }
-                        }
-
-                        ToggleRow {
-                            label: "tailscale"
-                            checked: Sys.tsUp
-                            onToggled: value => Sys.tsSetUp(value)
-                        }
-                        Row {
-                            visible: Sys.tsUp
-                            width: tsCol.width
-                            spacing: 6
-                            TsCopy { label: Sys.tsNode; value: Sys.tsDns }
-                            TsHead { text: "\u00b7" }
-                            TsCopy { label: Sys.tsIp; value: Sys.tsIp }
-                        }
-
-                        // ---- exit node ----
-                        TsDiv { visible: Sys.tsUp && Sys.tsExitOptions.length > 0 }
-                        TsHead {
-                            visible: Sys.tsUp && Sys.tsExitOptions.length > 0
-                            text: "exit node"
-                        }
-                        Item {
-                            id: exNone
-                            visible: Sys.tsUp && Sys.tsExitOptions.length > 0
-                            width: tsCol.width
-                            height: 20
-                            activeFocusOnTab: Sys.tsExit !== ""
-                            Keys.onReturnPressed: Sys.tsSetExit("")
-
-                            Rectangle {
-                                anchors { fill: parent; margins: -2 }
-                                radius: 5
-                                color: exNone.activeFocus ? Theme.track : "transparent"
-                            }
-                            Row {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 5
-
-                                Icon {
-                                    name: "check"
-                                    size: 13
-                                    // reserved, not removed — the peer rows below
-                                    // line their names up with this one
-                                    opacity: Sys.tsExit === "" ? 1 : 0
-                                    color: Theme.accent
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: "none"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    font.family: Theme.font; font.pixelSize: 12
-                                    color: Sys.tsExit === "" ? Theme.bright : Theme.text
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: Sys.tsExit !== ""
-                                onClicked: Sys.tsSetExit("")
-                            }
-                        }
-                        Repeater {
-                            model: Sys.tsUp ? Sys.tsExitOptions : []
-
-                            Item {
-                                id: exRow
-                                readonly property var peer: modelData
-                                readonly property bool current: peer.ip === Sys.tsExit
-
-                                width: tsCol.width
-                                height: 20
-                                activeFocusOnTab: exRow.peer.on
-                                Keys.onReturnPressed: Sys.tsSetExit(exRow.current ? "" : exRow.peer.ip)
-
-                                Rectangle {
-                                    anchors { fill: parent; margins: -2 }
-                                    radius: 5
-                                    color: exRow.activeFocus ? Theme.track : "transparent"
-                                }
-                                Row {
-                                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                                    spacing: 5
-
-                                    Icon {
-                                        name: "check"
-                                        size: 13
-                                        opacity: exRow.current ? 1 : 0
-                                        color: Theme.accent
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    Text {
-                                        width: Math.max(0, parent.width - 18)
-                                        elide: Text.ElideRight
-                                        text: exRow.peer.n + (exRow.peer.on ? "" : "  (offline)")
-                                        font.family: Theme.font; font.pixelSize: 12
-                                        color: exRow.current ? Theme.bright
-                                             : exRow.peer.on ? Theme.text : Theme.dim
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: exRow.peer.on
-                                    onClicked: Sys.tsSetExit(exRow.current ? "" : exRow.peer.ip)
-                                }
-                            }
-                        }
-
-                        // ---- peers ----
-                        TsDiv { visible: Sys.tsUp }
-                        Item {
-                            visible: Sys.tsUp
-                            width: tsCol.width
-                            height: 16
-
-                            TsHead {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "peers"
-                            }
-                            TsHead {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: Sys.tsPeersOnline + "/" + Sys.tsPeerCount + " up"
-                            }
-                        }
-                        Flickable {
-                            id: tsScroll
-                            visible: Sys.tsUp
-                            width: tsCol.width
-                            height: Math.min(contentHeight, 200)
-                            contentHeight: peerCol.implicitHeight
-                            clip: true
-                            SmoothScroll { flick: tsScroll }
-
-                            // clipped list: a row reached by j/k has to be scrolled into view
-                            function reveal(it) {
-                                const y = it.mapToItem(peerCol, 0, 0).y;
-                                if (y < contentY) contentY = y;
-                                else if (y + it.height > contentY + height) contentY = y + it.height - height;
-                            }
-
-                            Column {
-                                id: peerCol
-                                width: parent.width
-
-                                Repeater {
-                                    model: Sys.tsPeerList
-
-                                    Item {
-                                        id: pRow
-                                        readonly property var peer: modelData
-
-                                        width: peerCol.width
-                                        height: 20
-
-                                        // focus ring, same as the exit-node rows: the name's own
-                                        // on/off colour wins over TsCopy's focus colour
-                                        Rectangle {
-                                            anchors { fill: parent; margins: -2 }
-                                            radius: 5
-                                            color: pName.activeFocus || pIp.activeFocus ? Theme.track : "transparent"
-                                        }
-
-                                        // name copies the full MagicDNS name, ip copies the ip
-                                        TsCopy {
-                                            id: pName
-                                            onActiveFocusChanged: if (activeFocus) tsScroll.reveal(pRow)
-                                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                            width: parent.width - 120
-                                            label: (pRow.peer.on ? "\u25cf  " : "\u25cb  ") + pRow.peer.n
-                                            value: pRow.peer.d
-                                            font.pixelSize: 12
-                                            color: pRow.peer.on ? Theme.text : Theme.dim
-                                        }
-                                        TsCopy {
-                                            id: pIp
-                                            onActiveFocusChanged: if (activeFocus) tsScroll.reveal(pRow)
-                                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                            label: pRow.peer.ip
-                                            value: pRow.peer.ip
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // never surfaced anywhere before: a silently broken
-                        // MagicDNS looks exactly like a working one
-                        TsDiv { visible: Sys.tsHealth.length > 0 }
-                        Repeater {
-                            model: Sys.tsHealth
-                            Text {
-                                width: tsCol.width
-                                wrapMode: Text.WordWrap
-                                text: modelData
-                                font.family: Theme.font; font.pixelSize: 10
-                                color: Theme.urgent
-                            }
-                        }
-                    }
-                }
+            PowerPopout {
+                bar: panel
+                cell: batteryCell
             }
 
-            // ---- bluetooth panel (click bt cell) ----
-            PanelWindow {
-                id: btPanel
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(btCell)
-                readonly property real sourceWidth: panel.ext(btCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: btPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(btPopout)
-                HyprlandFocusGrab {
-                    windows: [btPanel]
-                    active: panel.navOn(btPopout)
-                    onCleared: btPopout.open = false
-                }
-                implicitWidth: 300
-                implicitHeight: btCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: btPopout.open
-                    keyNav: panel.navOn(btPopout)
-                    neckX: btPanel.sourceX - btPanel.popupX
-                    neckWidth: btPanel.sourceWidth
-
-                    Column {
-                        id: btCol
-                        width: parent.width
-                        spacing: 8
-
-                        ToggleRow {
-                            label: "bluetooth"
-                            checked: Bt.enabled
-                            onToggled: value => Bt.setEnabled(value)
-                        }
-
-                        Rectangle {
-                            visible: Bt.enabled
-                            width: btCol.width; height: 1; color: Theme.islandBorder
-                        }
-
-                        Text {
-                            visible: Bt.enabled && Bt.devices.length === 0
-                            text: "nothing paired"
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-
-                        Repeater {
-                            model: Bt.enabled ? Bt.devices : []
-
-                            Item {
-                                id: btRow
-                                readonly property var dev: modelData
-                                // Busy for the whole retry window, not just
-                                // bluez's Connecting flicker — the row is the
-                                // only feedback that the retry is still running.
-                                readonly property bool busy:
-                                    dev.state === BluetoothDeviceState.Connecting
-                                    || Bt.connecting === dev
-                                    || dev.state === BluetoothDeviceState.Disconnecting
-
-                                width: btCol.width
-                                height: 24
-                                activeFocusOnTab: !btRow.busy
-                                Keys.onReturnPressed: Bt.toggle(btRow.dev)
-
-                                Rectangle {
-                                    anchors { fill: parent; margins: -2 }
-                                    radius: 5
-                                    color: btRow.activeFocus ? Theme.track : "transparent"
-                                }
-                                Icon {
-                                    id: btRowIcon
-
-                                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                    name: Bt.devIcon(btRow.dev)
-                                    size: 14
-                                    color: btRow.dev.connected ? Theme.text : Theme.dim
-                                }
-                                Text {
-                                    anchors { left: btRowIcon.right; leftMargin: 6; right: btMarks.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                                    elide: Text.ElideRight
-                                    text: btRow.dev.name
-                                    font.family: Theme.font; font.pixelSize: 12
-                                    color: btRow.dev.connected ? Theme.bright : Theme.text
-                                }
-                                Row {
-                                    id: btMarks
-                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    spacing: 6
-
-                                    // AirPods publish nothing over bluez — battery
-                                    // rides Apple's own protocol, which the
-                                    // librepods daemon speaks. Three cells, so
-                                    // the text replaces the single % rather than
-                                    // sitting next to it.
-                                    //
-                                    // Not gated on Pods.connected: battery keeps
-                                    // arriving over the BLE advertisement after
-                                    // the audio link drops, which is exactly the
-                                    // back-in-the-case state where the case level
-                                    // is the number worth showing.
-                                    Text {
-                                        readonly property bool pods:
-                                            Bt.isPods(btRow.dev) && Pods.hasBattery
-                                        visible: pods || btRow.dev.batteryAvailable
-                                        // Each pod carries its own colour, so the
-                                        // markup sets them and `color` is only the
-                                        // single-value bluez case.
-                                        textFormat: Text.StyledText
-                                        text: pods
-                                            ? Pods.batteryMarkup(Theme.text, Theme.dim, Theme.warn, Theme.urgent)
-                                            : Math.round(btRow.dev.battery * 100) + "%"
-                                        font.family: Theme.font; font.pixelSize: 11
-                                        color: btRow.dev.battery <= 0.2 ? Theme.urgent
-                                             : btRow.dev.battery <= 0.35 ? Theme.warn
-                                             : Theme.dim
-                                    }
-                                    Text {
-                                        visible: btRow.busy
-                                        text: "\u2026"
-                                        font.family: Theme.font; font.pixelSize: 12
-                                        color: Theme.warn
-                                    }
-                                    Icon {
-                                        visible: !btRow.busy && btRow.dev.connected
-                                        name: "check"
-                                        size: 14
-                                        color: Theme.accent
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: !btRow.busy
-                                    onClicked: Bt.toggle(btRow.dev)
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            visible: Bt.enabled
-                            width: btCol.width; height: 1; color: Theme.islandBorder
-                        }
-                        // pairing needs an agent to answer passkey prompts, which
-                        // this panel has no way to show — blueman already does it
-                        Text {
-                            id: btPair
-                            visible: Bt.enabled
-                            text: "pair a new device\u2026"
-                            font.family: Theme.font; font.pixelSize: 11
-                            font.underline: btPair.activeFocus
-                            color: Theme.accent
-                            activeFocusOnTab: true
-                            Keys.onReturnPressed: btPair.launch()
-                            function launch() {
-                                Quickshell.execDetached(["blueman-manager"]);
-                                panel.closeIslandPopouts();
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: btPair.launch()
-                            }
-                        }
-                    }
-                }
+            TailscalePopout {
+                bar: panel
+                cell: tsCell
             }
 
-            // ---- audio panel (click volume cell) ----
-            PanelWindow {
-                id: audioPopout
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(volCell)
-                readonly property real sourceWidth: panel.ext(volCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: audPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(audPopout)
-                HyprlandFocusGrab {
-                    windows: [audioPopout]
-                    active: panel.navOn(audPopout)
-                    onCleared: audPopout.open = false
-                }
-                implicitWidth: 340
-                implicitHeight: audCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: audPopout.open
-                    keyNav: panel.navOn(audPopout)
-                    neckX: audioPopout.sourceX - audioPopout.popupX
-                    neckWidth: audioPopout.sourceWidth
-
-                    Column {
-                        id: audCol
-                        width: parent.width
-                        spacing: 8
-
-                        component AudDiv: Rectangle {
-                            width: audCol.width; height: 1
-                            color: Theme.islandBorder
-                        }
-
-                        // section header: name on the left, mute on the right
-                        component AudHead: Item {
-                            id: ah
-                            property string label
-                            property var target: null       // the PwNode to mute
-                            readonly property var na: ah.target?.audio ?? null
-
-                            width: audCol.width
-                            height: 18
-                            activeFocusOnTab: ah.na !== null
-                            Keys.onReturnPressed: if (ah.na) ah.na.muted = !ah.na.muted
-
-                            Rectangle {
-                                anchors { fill: parent; margins: -2 }
-                                radius: 5
-                                color: ah.activeFocus ? Theme.track : "transparent"
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: ah.label
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
-                            }
-                            Icon {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                visible: ah.na !== null
-                                name: ah.na && ah.na.muted ? "volume-off" : "volume-high"
-                                size: 15
-                                color: ah.na && ah.na.muted ? Theme.urgent : Theme.text
-                                MouseArea {
-                                    anchors { fill: parent; margins: -6 }
-                                    onClicked: if (ah.na) ah.na.muted = !ah.na.muted
-                                }
-                            }
-                        }
-
-                        // A device is its own slider — carrying the name once,
-                        // its own volume, and the tick when it is the default.
-                        // Clicking the name row selects it; the track keeps the
-                        // bottom of the row to itself so a drag never switches.
-                        component DevSlider: Column {
-                            id: ds
-                            property var node: null
-                            property bool current: false
-                            readonly property var na: ds.node?.audio ?? null
-                            // Output list only. AirPods are a capture device too,
-                            // and one set of controls in one place is the point.
-                            property bool podsFold: false
-                            readonly property bool pods: ds.podsFold && Pods.connected
-                                && Audio.devName(ds.node).toLowerCase().indexOf("airpods") >= 0
-
-                            width: audCol.width
-                            spacing: 4
-
-                            ValueSlider {
-                                width: audCol.width
-                                icon: "check"
-                                iconOn: ds.current
-                                leadIcon: Audio.devIcon(ds.node)
-                                label: Audio.devName(ds.node)
-                                note: ds.pods
-                                    ? Pods.batteryMarkup(Theme.text, Theme.dim, Theme.warn, Theme.urgent)
-                                    : ""
-                                trailIcon: !ds.pods ? ""
-                                         : audPopout.podsOpen ? "chevron-up" : "chevron-down"
-                                onTrailPressed: audPopout.podsOpen = !audPopout.podsOpen
-                                suffix: "%"
-                                maxValue: 150
-                                off: ds.na?.muted ?? false
-                                value: ds.na ? Math.round(ds.na.volume * 100) : 0
-                                onCommit: v => { if (ds.na) ds.na.volume = v / 100; }
-                                // h/l is the volume, Return makes it the default
-                                Keys.onReturnPressed: if (!ds.current) Audio.setDefault(ds.node)
-
-                                // top strip only — the track keeps the bottom of
-                                // the row so a drag never switches device
-                                MouseArea {
-                                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                                    height: 16
-                                    enabled: !ds.current
-                                    onClicked: Audio.setDefault(ds.node)
-                                }
-                                // hover-only ban: hides the device from the
-                                // list, retrievable under the "hidden" row
-                                HoverHandler { id: dsHover }
-                                Icon {
-                                    anchors { right: parent.right; top: parent.top; rightMargin: parent.trailPad }
-                                    visible: dsHover.hovered
-                                    name: "eye-off"
-                                    size: 13
-                                    color: Theme.dim
-                                    MouseArea {
-                                        anchors { fill: parent; margins: -4 }
-                                        onClicked: Audio.ban(ds.node)
-                                    }
-                                }
-                            }
-                            // only the selected device carries signal
-                            Meter { visible: ds.current; node: ds.node }
-
-                            // AirPods settings, folded under their own row. Not a
-                            // section of its own: the device is already named and
-                            // drawn here, and repeating it bought nothing.
-                            FoldCard {
-                                visible: ds.pods && audPopout.podsOpen
-
-                                // Flow, not Row: four pills do not fit the panel
-                                // on a model that supports all four modes.
-                                Flow {
-                                    visible: Pods.supportsNoiseControl
-                                    width: parent.width
-                                    spacing: 6
-
-                                    // No "off": the daemon reports it supported on
-                                    // a Pro 2, but these pods take the packet and
-                                    // ignore it — measured three times in a row
-                                    // with both pods in ear, while transparency
-                                    // and anc applied in two seconds. A pill that
-                                    // never does anything is worse than no pill.
-                                    // Apple gates Off behind the noise-control
-                                    // checkboxes on an iPhone; enable it there and
-                                    // put mode 0 back in this list.
-                                    Repeater {
-                                        model: [
-                                            { l: "anc",          v: 1, c: "noise:anc" },
-                                            { l: "transparency", v: 2, c: "noise:transparency" },
-                                            { l: "adaptive",     v: 3, c: "noise:adaptive" }
-                                        ]
-                                        PillBtn {
-                                            visible: modelData.v !== 3 || Pods.supportsAdaptive
-                                            text: modelData.l
-                                            active: Pods.noiseMode === modelData.v
-                                            onPressed: Pods.ctl(modelData.c)
-                                        }
-                                    }
-                                }
-
-                                // The firmware only takes a level while adaptive
-                                // is the live mode; showing it otherwise is a
-                                // control that silently does nothing.
-                                ValueSlider {
-                                    visible: Pods.supportsAdaptive && Pods.noiseMode === 3
-                                    width: parent.width
-                                    label: "adaptive"
-                                    suffix: "%"
-                                    value: Pods.adaptiveLevel
-                                    onCommit: v => Pods.ctl("adaptive:" + v)
-                                }
-
-                                ToggleRow {
-                                    visible: Pods.supportsCa
-                                    label: "conversation awareness"
-                                    checked: Pods.ca
-                                    onToggled: value => Pods.ctl("ca:" + (value ? "on" : "off"))
-                                }
-                                ToggleRow {
-                                    visible: Pods.supportsOneBud
-                                    label: "one-bud anc"
-                                    checked: Pods.oneBud
-                                    onToggled: value => Pods.ctl("onebud:" + (value ? "on" : "off"))
-                                }
-
-                                Text {
-                                    text: "pause when removed"
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.dim
-                                }
-                                Flow {
-                                    width: parent.width
-                                    spacing: 6
-
-                                    Repeater {
-                                        model: [
-                                            { l: "one",  v: 0, c: "ear:one" },
-                                            { l: "both", v: 1, c: "ear:both" },
-                                            { l: "off",  v: 2, c: "ear:off" }
-                                        ]
-                                        PillBtn {
-                                            text: modelData.l
-                                            active: Pods.earMode === modelData.v
-                                            onPressed: Pods.ctl(modelData.c)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // banned devices, folded away under a count; each row
-                        // has an eye to bring it back
-                        component Hidden: Column {
-                            id: hd
-                            property var list: []
-                            property bool open: false
-
-                            visible: hd.list.length > 0
-                            width: audCol.width
-                            spacing: 4
-
-                            Item {
-                                id: hdHead
-                                width: audCol.width
-                                height: 18
-                                activeFocusOnTab: true
-                                Keys.onReturnPressed: hd.open = !hd.open
-                                Rectangle {
-                                    anchors { fill: parent; margins: -2 }
-                                    radius: 5
-                                    color: hdHead.activeFocus ? Theme.track : "transparent"
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "hidden (" + hd.list.length + ")"
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.dim
-                                }
-                                Icon {
-                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    name: hd.open ? "chevron-up" : "chevron-down"
-                                    size: 13
-                                    color: Theme.dim
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: hd.open = !hd.open
-                                }
-                            }
-                            FoldCard {
-                                visible: hd.open
-                                spacing: 4
-
-                                Repeater {
-                                    model: hd.open ? hd.list : []
-                                    Item {
-                                        id: hdRow
-                                        width: parent.width
-                                        height: 18
-                                        activeFocusOnTab: true
-                                        Keys.onReturnPressed: Audio.unban(modelData)
-                                        Rectangle {
-                                            anchors { fill: parent; margins: -2 }
-                                            radius: 5
-                                            color: hdRow.activeFocus ? Theme.track : "transparent"
-                                        }
-                                        Text {
-                                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                            width: parent.width - 24
-                                            elide: Text.ElideRight
-                                            text: Audio.devName(modelData)
-                                            font.family: Theme.font; font.pixelSize: 11
-                                            color: Theme.dim
-                                        }
-                                        Icon {
-                                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                            name: "eye"
-                                            size: 13
-                                            color: Theme.dim
-                                            MouseArea {
-                                                anchors { fill: parent; margins: -4 }
-                                                onClicked: Audio.unban(modelData)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // a live level bar; the monitor is a real pipewire
-                        // stream, so it is created only while the panel is open
-                        component Meter: Rectangle {
-                            id: mt
-                            property var node: null
-
-                            // quickshell always opens a stereo capture, so a mono
-                            // node (most voice apps record mono) reads a flat zero
-                            // and logs an error per attempt. Nothing to draw, so
-                            // draw nothing rather than a bar that never moves.
-                            readonly property bool meterable:
-                                (mt.node?.audio?.channels?.length ?? 0) >= 2
-
-                            visible: mt.meterable
-                            width: audCol.width
-                            height: 4
-                            radius: 2
-                            color: Theme.track
-
-                            PwNodePeakMonitor {
-                                id: mon
-                                node: mt.meterable ? mt.node : null
-                                enabled: Audio.panelOpen && mt.meterable
-                            }
-                            Rectangle {
-                                width: parent.width * Math.min(1, mon.peak)
-                                height: parent.height
-                                radius: 2
-                                color: mon.peak > 0.9 ? Theme.urgent : Theme.ok
-                                Behavior on width { NumberAnimation { duration: 80 } }
-                            }
-                        }
-
-                        // an application stream: what it is, and its own volume
-                        component AppRow: Column {
-                            id: ar
-                            property var node: null
-                            readonly property var na: ar.node?.audio ?? null
-
-                            width: audCol.width
-                            spacing: 4
-
-                            Item {
-                                id: arHead
-                                width: parent.width
-                                height: 20
-                                activeFocusOnTab: ar.na !== null
-                                Keys.onReturnPressed: if (ar.na) ar.na.muted = !ar.na.muted
-
-                                Rectangle {
-                                    anchors { fill: parent; margins: -2 }
-                                    radius: 5
-                                    color: arHead.activeFocus ? Theme.track : "transparent"
-                                }
-                                Text {
-                                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                    width: parent.width - 24
-                                    elide: Text.ElideRight
-                                    text: Audio.appName(ar.node)
-                                        + (Audio.appDetail(ar.node) ? "  \u00b7  " + Audio.appDetail(ar.node) : "")
-                                    font.family: Theme.font; font.pixelSize: 12
-                                    color: Theme.text
-                                }
-                                Icon {
-                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    visible: ar.na !== null
-                                    name: ar.na && ar.na.muted ? "volume-off" : "volume-high"
-                                    size: 14
-                                    color: ar.na && ar.na.muted ? Theme.urgent : Theme.dim
-                                    MouseArea {
-                                        anchors { fill: parent; margins: -6 }
-                                        onClicked: if (ar.na) ar.na.muted = !ar.na.muted
-                                    }
-                                }
-                            }
-                            ValueSlider {
-                                visible: ar.na !== null
-                                width: audCol.width
-                                label: ""
-                                suffix: "%"
-                                maxValue: 150
-                                value: ar.na ? Math.round(ar.na.volume * 100) : 0
-                                onCommit: v => { if (ar.na) ar.na.volume = v / 100; }
-                            }
-                            Meter { node: ar.node }
-                        }
-
-                        // ---- output ----
-                        AudHead { label: "output"; target: Audio.sink }
-
-                        Repeater {
-                            model: Audio.sinks
-                            DevSlider { node: modelData; current: modelData === Audio.sink; podsFold: true }
-                        }
-                        Hidden { list: Audio.bannedSinks }
-
-                        // Paired audio kit that is not connected. pipewire never
-                        // sees these — bluez has to connect one before a sink
-                        // exists at all — so the audio panel is the only place
-                        // that can get a headset back without a detour through
-                        // the bluetooth panel. Audio.wantBt makes it the default
-                        // once the sink turns up a moment later.
-                        Repeater {
-                            model: Bt.enabled ? Bt.audioDevices : []
-
-                            Item {
-                                id: btAud
-                                readonly property var dev: modelData
-                                // Busy for the whole retry window, not just
-                                // bluez's Connecting flicker — the row is the
-                                // only feedback that the retry is still running.
-                                readonly property bool busy:
-                                    dev.state === BluetoothDeviceState.Connecting
-                                    || Bt.connecting === dev
-
-                                width: audCol.width
-                                height: 22
-                                activeFocusOnTab: !btAud.busy
-                                Keys.onReturnPressed: btAud.go()
-                                function go() {
-                                    Audio.wantBt(btAud.dev);
-                                    Bt.toggle(btAud.dev);
-                                }
-
-                                Rectangle {
-                                    anchors { fill: parent; margins: -2 }
-                                    radius: 5
-                                    color: btAud.activeFocus ? Theme.track : "transparent"
-                                }
-                                Row {
-                                    anchors { left: parent.left; right: btAudMark.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                                    spacing: 6
-
-                                    Icon {
-                                        name: Bt.devIcon(btAud.dev)
-                                        size: 13
-                                        color: Theme.dim
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    Text {
-                                        text: btAud.dev.name
-                                        elide: Text.ElideRight
-                                        font.family: Theme.font; font.pixelSize: 11
-                                        color: Theme.dim
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-                                Text {
-                                    id: btAudMark
-                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: btAud.busy ? "\u2026" : "connect"
-                                    font.family: Theme.font; font.pixelSize: 10
-                                    color: btAud.busy ? Theme.warn : Theme.accent
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: !btAud.busy
-                                    onClicked: btAud.go()
-                                }
-                            }
-                        }
-
-                        AudDiv {}
-
-                        // ---- input ----
-                        AudHead { label: "input"; target: Audio.source }
-
-                        Repeater {
-                            model: Audio.sources
-                            DevSlider { node: modelData; current: modelData === Audio.source }
-                        }
-                        Hidden { list: Audio.bannedSources }
-
-                        // ---- apps playing ----
-                        AudDiv { visible: Audio.playing.length > 0 }
-                        Item {
-                            visible: Audio.playing.length > 0
-                            width: audCol.width
-                            height: 20
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "playing"
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
-                            }
-                            PillBtn {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "reset"
-                                onPressed: Audio.resetAppLevels()
-                            }
-                        }
-                        Repeater {
-                            model: Audio.playing
-                            AppRow { node: modelData }
-                        }
-
-                        // ---- apps on the mic ----
-                        AudDiv { visible: Audio.capturing.length > 0 }
-                        Text {
-                            visible: Audio.capturing.length > 0
-                            text: "using mic"
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.warn
-                        }
-                        Repeater {
-                            model: Audio.capturing
-                            AppRow { node: modelData }
-                        }
-                    }
-                }
+            BluetoothPopout {
+                bar: panel
+                cell: btCell
             }
 
-            // ---- network panel (click net cell) ----
-            PanelWindow {
-                id: networkPopout
-
-                readonly property real sourceX: panel.pos(rightRow) + panel.pos(powerIsland) + panel.pos(netCell)
-                readonly property real sourceWidth: panel.ext(netCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: netPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                // Keyboard only while a passphrase field is actually showing.
-                // Asking for it whenever the panel was open made this the one
-                // popout that did not close on a second click of its cell:
-                // Hyprland focuses a layer that wants keys the moment it maps,
-                // and with the pointer parked on the cell that focus stayed on
-                // the panel — the second click never reached the bar. OnDemand,
-                // not Exclusive, so the compositor's own bindings keep working
-                // while the field is up.
-                // Hyprland only hands an OnDemand layer focus on map or on a click
-                // into it; flipping the mode after the row click is ignored, so the
-                // grab is what actually moves the keyboard here.
-                // Menu-opened counts as wanting keys too, same reasoning.
-                // pskFocus is the old flag, set by the passphrase field below.
-                property bool pskFocus: false
-                readonly property bool wantKeys: pskFocus || panel.navOn(netPopout)
-                WlrLayershell.keyboardFocus: netPopout.open && wantKeys ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-                HyprlandFocusGrab {
-                    windows: [networkPopout]
-                    active: netPopout.open && networkPopout.wantKeys
-                    onCleared: netPopout.open = false
-                }
-                implicitWidth: 320
-                implicitHeight: netCol.implicitHeight + 28
-                color: "transparent"
-
-                // five-step strength glyph, same ladder as the bar cell
-                function bars(v) {
-                    if (v >= 0.75) return "wifi-strength-4";
-                    if (v >= 0.5) return "wifi-strength-3";
-                    if (v >= 0.25) return "wifi-strength-2";
-                    if (v > 0) return "wifi-strength-1";
-                    return "wifi-strength-outline";
-                }
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: netPopout.open
-                    keyNav: panel.navOn(netPopout)
-                    neckX: networkPopout.sourceX - networkPopout.popupX
-                    neckWidth: networkPopout.sourceWidth
-
-                    Column {
-                        id: netCol
-                        width: parent.width
-                        spacing: 8
-
-                        Text {
-                            text: Sys.netLabel
-                            font.family: Theme.font; font.pixelSize: 15
-                            color: Theme.bright
-                        }
-                        Text {
-                            text: Sys.netUp
-                                ? [Sys.netIp,
-                                   Sys.wifiNetwork ? WifiSecurityType.toString(Sys.wifiNetwork.security) : "wired",
-                                   Sys.wifiNetwork ? Math.round(Sys.wifiNetwork.signalStrength * 100) + "%" : ""
-                                  ].filter(x => x).join("  ·  ")
-                                : "no connection"
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-
-                        // a wired-only box has nothing below the header worth drawing
-                        Rectangle {
-                            visible: Sys.wifiDevice !== null
-                            width: netCol.width; height: 1; color: Theme.islandBorder
-                        }
-
-                        ToggleRow {
-                            visible: Sys.wifiDevice !== null
-                            label: "wifi"
-                            checked: Networking.wifiEnabled
-                            onToggled: value => Networking.wifiEnabled = value
-                        }
-
-                        Rectangle {
-                            visible: Sys.wifiDevice !== null && Networking.wifiEnabled
-                            width: netCol.width; height: 1; color: Theme.islandBorder
-                        }
-
-                        Text {
-                            visible: Networking.wifiEnabled && Sys.wifiList.length === 0
-                            text: "scanning…"
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-
-                        // capped height with a scroll rather than a truncated list:
-                        // a crowded band can turn up 30 APs and the weak one at the
-                        // bottom is often exactly the one being looked for
-                        Flickable {
-                            id: netScroll
-                            width: netCol.width
-                            height: Math.min(contentHeight, 260)
-                            contentHeight: netList.implicitHeight
-                            clip: true
-                            SmoothScroll { flick: netScroll }
-
-                            // the list is clipped, so a row reached by j/k has
-                            // to be brought into view or the ring lands off-panel
-                            function reveal(it) {
-                                const y = it.mapToItem(netList, 0, 0).y;
-                                if (y < contentY) contentY = y;
-                                else if (y + it.height > contentY + height) contentY = y + it.height - height;
-                            }
-
-                            Column {
-                                id: netList
-                                width: parent.width
-                                spacing: 4
-
-                                Repeater {
-                                    model: Sys.wifiList
-
-                                    Column {
-                                        id: netRow
-
-                                        readonly property var net: modelData
-                                        readonly property bool secured: net.security !== WifiSecurityType.Open
-                                        readonly property bool unfolded: netPopout.expanded === net.name
-                                        readonly property bool secretShown: Sys.secretSsid === net.name
-                                        property string pskText: ""
-                                        property bool qrShown: false
-                                        property bool reveal: false
-                                        property string failMsg: ""
-
-                                        // NM rejects a bad key asynchronously; without this the row
-                                        // just flickers back to disconnected and says nothing
-                                        Connections {
-                                            target: netRow.net
-                                            function onConnectionFailed(reason) {
-                                                netRow.failMsg = ConnectionFailReason.toString(reason);
-                                            }
-                                            function onConnectedChanged() {
-                                                if (netRow.net.connected) netRow.failMsg = "";
-                                            }
-                                        }
-
-                                        width: netList.width
-                                        spacing: 6
-
-                                        function join(psk) {
-                                            if (!psk) return;
-                                            netRow.failMsg = "";
-                                            netRow.net.connectWithPsk(psk);
-                                        }
-
-                                        Item {
-                                            id: netHead
-                                            width: parent.width
-                                            height: 24
-                                            activeFocusOnTab: true
-                                            Keys.onReturnPressed: netHead.fold()
-                                            onActiveFocusChanged: if (activeFocus) netScroll.reveal(netHead)
-                                            function fold() {
-                                                const name = netRow.net.name;
-                                                netPopout.expanded = netPopout.expanded === name ? "" : name;
-                                                netRow.reveal = false;
-                                                netRow.qrShown = false;
-                                                netRow.failMsg = "";
-                                                Sys.loadSecret("");
-                                            }
-
-                                            Rectangle {
-                                                anchors { fill: parent; margins: -2 }
-                                                radius: 5
-                                                color: netHead.activeFocus ? Theme.track : "transparent"
-                                            }
-                                            Row {
-                                                anchors { left: parent.left; right: marks.left; verticalCenter: parent.verticalCenter; rightMargin: 6 }
-                                                spacing: 8
-
-                                                Icon {
-                                                    name: networkPopout.bars(netRow.net.signalStrength)
-                                                    size: 15
-                                                    color: netRow.net.connected ? Theme.accent : Theme.text
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                }
-                                                Text {
-                                                    width: Math.max(0, parent.width - 26)
-                                                    text: netRow.net.name
-                                                    elide: Text.ElideRight
-                                                    font.family: Theme.font; font.pixelSize: 12
-                                                    color: netRow.net.connected ? Theme.bright : Theme.text
-                                                }
-                                            }
-                                            Row {
-                                                id: marks
-                                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                                spacing: 6
-
-                                                Text {
-                                                    visible: netRow.net.stateChanging
-                                                    text: "…"
-                                                    font.family: Theme.font; font.pixelSize: 12
-                                                    color: Theme.warn
-                                                }
-                                                Icon {
-                                                    visible: netRow.secured
-                                                    name: "lock"
-                                                    size: 13
-                                                    color: netRow.net.known ? Theme.text : Theme.dim
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                }
-                                                Icon {
-                                                    name: netRow.unfolded ? "chevron-up" : "chevron-down"
-                                                    size: 13
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    color: Theme.dim
-                                                }
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                onClicked: netHead.fold()
-                                            }
-                                        }
-
-                                        // ---- detail ----
-                                        FoldCard {
-                                            visible: netRow.unfolded
-                                            width: parent.width - 22
-                                            x: 22
-
-                                            // passphrase — only when there is no saved key to reuse
-                                            Row {
-                                                visible: netRow.secured && !netRow.net.known
-                                                spacing: 6
-
-                                                Rectangle {
-                                                    width: 140; height: 24; radius: 4
-                                                    color: Theme.track
-
-                                                    TextInput {
-                                                        anchors { fill: parent; margins: 6 }
-                                                        font.family: Theme.font; font.pixelSize: 11
-                                                        color: Theme.bright
-                                                        echoMode: netRow.reveal ? TextInput.Normal : TextInput.Password
-                                                        clip: true
-                                                        // the surface takes focus on click, but nothing
-                                                        // hands it to the field inside the delegate
-                                                        onVisibleChanged: {
-                                                            networkPopout.pskFocus = visible;
-                                                            if (visible) forceActiveFocus();
-                                                        }
-                                                        onTextChanged: netRow.pskText = text
-                                                        Keys.onReturnPressed: netRow.join(netRow.pskText)
-                                                        Keys.onEscapePressed: panel.closeIslandPopouts()
-                                                    }
-                                                }
-                                                PillBtn {
-                                                    text: netRow.reveal ? "hide" : "show"
-                                                    onPressed: netRow.reveal = !netRow.reveal
-                                                }
-                                                PillBtn {
-                                                    text: "join"
-                                                    active: netRow.pskText !== ""
-                                                    onPressed: netRow.join(netRow.pskText)
-                                                }
-                                            }
-
-                                            // saved key, revealed on request
-                                            Row {
-                                                visible: netRow.net.known && netRow.secured
-                                                spacing: 6
-
-                                                Text {
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    text: netRow.secretShown && netRow.reveal
-                                                        ? (Sys.secretPsk || "no saved key")
-                                                        : "••••••••"
-                                                    font.family: Theme.font; font.pixelSize: 11
-                                                    color: Theme.text
-                                                }
-                                                PillBtn {
-                                                    text: netRow.secretShown && netRow.reveal ? "hide" : "password"
-                                                    onPressed: {
-                                                        if (netRow.secretShown && netRow.reveal) {
-                                                            netRow.reveal = false;
-                                                        } else {
-                                                            netRow.reveal = true;
-                                                            Sys.loadSecret(netRow.net.name);
-                                                        }
-                                                    }
-                                                }
-                                                PillBtn {
-                                                    visible: Sys.hasQrencode
-                                                    text: "qr"
-                                                    active: netRow.qrShown
-                                                    onPressed: {
-                                                        netRow.qrShown = !netRow.qrShown;
-                                                        if (netRow.qrShown) Sys.loadSecret(netRow.net.name);
-                                                    }
-                                                }
-                                            }
-
-                                            Image {
-                                                visible: netRow.qrShown && netRow.secretShown && Sys.qrPath !== ""
-                                                source: Sys.qrPath ? "file://" + Sys.qrPath : ""
-                                                // the path is stable across regenerations, so the
-                                                // cache would keep serving the previous network's code
-                                                cache: false
-                                                fillMode: Image.PreserveAspectFit
-                                                width: 150; height: 150
-                                                smooth: false
-                                            }
-
-                                            Text {
-                                                visible: netRow.failMsg !== ""
-                                                width: parent.width
-                                                wrapMode: Text.WordWrap
-                                                text: netRow.failMsg
-                                                font.family: Theme.font; font.pixelSize: 11
-                                                color: Theme.urgent
-                                            }
-
-                                            Row {
-                                                spacing: 6
-
-                                                PillBtn {
-                                                    text: netRow.net.connected ? "disconnect" : "connect"
-                                                    active: netRow.net.connected
-                                                    visible: netRow.net.known || !netRow.secured
-                                                    onPressed: netRow.net.connected ? netRow.net.disconnect() : netRow.net.connect()
-                                                }
-                                                PillBtn {
-                                                    visible: netRow.net.known
-                                                    text: "forget"
-                                                    onPressed: {
-                                                        netRow.net.forget();
-                                                        netPopout.expanded = "";
-                                                        Sys.loadSecret("");
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    }
-                }
+            AudioPopout {
+                bar: panel
+                cell: volCell
             }
 
-            // ---- resource panel (click resource island) ----
-            PanelWindow {
-                id: resourcePopout
-
-                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(sysCells)
-                readonly property real sourceWidth: panel.ext(sysCells)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: sysPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(sysPopout)
-                HyprlandFocusGrab {
-                    windows: [resourcePopout]
-                    active: panel.navOn(sysPopout)
-                    onCleared: sysPopout.open = false
-                }
-                implicitWidth: 320
-                implicitHeight: resourceCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: sysPopout.open
-                    keyNav: panel.navOn(sysPopout)
-                    neckX: resourcePopout.sourceX - resourcePopout.popupX
-                    neckWidth: resourcePopout.sourceWidth
-
-                    Column {
-                        id: resourceCol
-
-                        width: parent.width
-                        spacing: 8
-
-                        component ResourceMeter: Item {
-                            property string label
-                            property real value // 0..1
-                            property string detail: Math.round(value * 100) + "%"
-
-                            width: resourceCol.width
-                            height: 18
-
-                            Text {
-                                text: label
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.text
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Rectangle {
-                                anchors { right: rvalue.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                                width: 100; height: 4; radius: 2
-                                color: Theme.track
-                                Rectangle {
-                                    width: parent.width * Math.max(0, Math.min(1, value))
-                                    height: parent.height; radius: 2
-                                    color: Theme.accent
-                                }
-                            }
-                            Text {
-                                id: rvalue
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: detail
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
-                            }
-                        }
-
-                        component ResourceInfoRow: Item {
-                            property string label
-                            property string value
-
-                            width: resourceCol.width
-                            height: 16
-
-                            Text {
-                                text: label
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.text
-                            }
-                            Text {
-                                anchors.right: parent.right
-                                text: value
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
-                            }
-                        }
-
-                        ResourceMeter { label: "cpu"; value: Sys.cpu }
-                        ResourceInfoRow { label: "mem"; value: Sys.memText }
-                        ResourceInfoRow { visible: Sys.swapText !== ""; label: "swap"; value: Sys.swapText }
-                        ResourceInfoRow { label: "disk free"; value: Sys.diskFree }
-                        ResourceInfoRow { label: "net"; value: Sys.netText }
-                    }
-                }
+            NetworkPopout {
+                bar: panel
+                cell: netCell
             }
 
-            // ---- clanker panel (click the robot cell) ----
-            // omarchy's agents panel, in this bar's idiom: tab chips per
-            // agent, plan line, limit meters with reset countdowns, then
-            // tokens by day and by model. Hover a token row for the split.
-            PanelWindow {
-                id: clankerPanel
-
-                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(clankerCell)
-                readonly property real sourceWidth: panel.ext(clankerCell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-                readonly property var a: Clanker.agent
-
-                visible: clankerPopout.open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(clankerPopout)
-                HyprlandFocusGrab {
-                    windows: [clankerPanel]
-                    active: panel.navOn(clankerPopout)
-                    onCleared: clankerPopout.open = false
-                }
-                implicitWidth: 340
-                implicitHeight: clankerCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: clankerPopout.open
-                    keyNav: panel.navOn(clankerPopout)
-                    neckX: clankerPanel.sourceX - clankerPanel.popupX
-                    neckWidth: clankerPanel.sourceWidth
-
-                    Column {
-                        id: clankerCol
-                        width: parent.width
-                        spacing: 8
-
-                        // label left, bar + value right; hover text swaps the value
-                        component TokenRow: Item {
-                            property string label
-                            property real value       // 0..1 of the heaviest row
-                            property string detail
-                            property string hover: ""
-                            property bool bold: false
-                            signal tapped()
-                            width: clankerCol.width
-                            height: 16
-                            activeFocusOnTab: true
-                            Keys.onReturnPressed: tapped()
-                            Rectangle {
-                                anchors { fill: parent; margins: -2 }
-                                radius: 5
-                                color: parent.activeFocus ? Theme.track : "transparent"
-                            }
-                            Text {
-                                text: label
-                                font.family: Theme.font; font.pixelSize: 11; font.bold: bold
-                                color: Theme.text
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Rectangle {
-                                anchors { right: tvalue.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                                width: 90; height: 4; radius: 2
-                                color: Theme.track
-                                Rectangle { width: parent.width * Math.max(0, Math.min(1, value)); height: parent.height; radius: 2; color: Theme.accent }
-                            }
-                            Text {
-                                id: tvalue
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: (tHover.containsMouse || parent.activeFocus) && hover !== "" ? hover : detail
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.dim
-                            }
-                            MouseArea { id: tHover; anchors.fill: parent; hoverEnabled: true; onClicked: parent.tapped() }
-                        }
-                        component SectionHead: Text {
-                            font.family: Theme.font; font.pixelSize: 10
-                            color: Theme.dim
-                            topPadding: 4
-                        }
-
-                        // tab chips: only when there is something to switch between
-                        Item {
-                            visible: Clanker.agents.length > 1
-                            width: clankerCol.width; height: 22
-                            Row {
-                                spacing: 14
-                                Repeater {
-                                    model: Clanker.agents
-                                    Item {
-                                        required property var modelData
-                                        required property int index
-                                        readonly property bool on: index === Clanker.current
-                                        width: tabText.width; height: 22
-                                        activeFocusOnTab: true
-                                        Keys.onReturnPressed: Clanker.select(modelData.id)
-                                        Rectangle {
-                                            anchors { fill: parent; margins: -3 }
-                                            radius: 5
-                                            color: parent.activeFocus ? Theme.track : "transparent"
-                                        }
-                                        Text {
-                                            id: tabText
-                                            text: modelData.name || modelData.id
-                                            font.family: Theme.font; font.pixelSize: 11; font.bold: on
-                                            color: on ? Theme.bright : Theme.dim
-                                        }
-                                        Rectangle {
-                                            anchors.bottom: parent.bottom
-                                            width: parent.width; height: 2
-                                            color: Theme.accent
-                                            visible: on
-                                        }
-                                        MouseArea { anchors.fill: parent; onClicked: Clanker.select(modelData.id) }
-                                    }
-                                }
-                            }
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.track }
-                        }
-
-                        // hero: name + plan, or the auth problem in its place
-                        Item {
-                            width: clankerCol.width; height: 30
-                            Icon { id: heroIcon; name: clankerPanel.a ? "agent-" + clankerPanel.a.id : "robot"; size: 22; color: Theme.bright; anchors.verticalCenter: parent.verticalCenter }
-                            Column {
-                                anchors { left: heroIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                                Text {
-                                    text: clankerPanel.a ? clankerPanel.a.name : ""
-                                    font.family: Theme.font; font.pixelSize: 13; font.bold: true
-                                    color: Theme.bright
-                                }
-                                Text {
-                                    readonly property string status: clankerPanel.a ? (clankerPanel.a.usageStatusText || "") : ""
-                                    text: status !== "" ? status : (clankerPanel.a ? (clankerPanel.a.tierLabel || "") : "")
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: status !== "" ? Theme.warn : Theme.dim
-                                }
-                            }
-                            Icon {
-                                name: "refresh"; size: 14; color: activeFocus ? Theme.bright : Theme.dim
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                activeFocusOnTab: true
-                                Keys.onReturnPressed: Clanker.refresh()
-                                MouseArea { anchors.fill: parent; onClicked: Clanker.refresh() }
-                            }
-                        }
-
-                        // limits could not be fetched: say how to fix it
-                        Rectangle {
-                            readonly property string help: clankerPanel.a && clankerPanel.a.usageStatusText ? (clankerPanel.a.authHelpText || "") : ""
-                            visible: help !== ""
-                            width: clankerCol.width; height: helpText.height + 12; radius: 6
-                            color: Theme.track
-                            Text {
-                                id: helpText
-                                x: 8; y: 6; width: parent.width - 16
-                                text: parent.help
-                                wrapMode: Text.WordWrap
-                                font.family: Theme.font; font.pixelSize: 11
-                                color: Theme.warn
-                            }
-                        }
-
-                        // limits: % of each allowance and the time to reset;
-                        // click a row to pin it as the bar cell's stat (bold = pinned)
-                        Repeater {
-                            model: clankerPanel.a ? (clankerPanel.a.limits || []) : []
-                            TokenRow {
-                                required property var modelData
-                                required property int index
-                                readonly property real pct: Number(modelData.percent)
-                                readonly property string reset: Clanker.untilText(modelData.resetsAt)
-                                label: modelData.title || modelData.label
-                                bold: index === Clanker.limitIndex
-                                value: pct
-                                detail: (pct >= 0 ? Math.round(pct * 100) + "%" : "--") + (reset !== "" ? "  ·  " + reset : "")
-                                onTapped: Clanker.selectLimit(index)
-                            }
-                        }
-
-                        // prepaid agents report a balance instead of limits
-                        TokenRow {
-                            readonly property var b: clankerPanel.a ? clankerPanel.a.balance : null
-                            visible: !!b
-                            label: "balance"
-                            value: b && b.funded > 0 ? b.remaining / b.funded : 0
-                            detail: b ? b.remaining.toFixed(2) + " " + (b.currency || "") + (b.estimated ? " ~" : "") : ""
-                            hover: b ? b.spent.toFixed(2) + " of " + b.funded.toFixed(2) + " spent" : ""
-                        }
-
-                        // tokens by day, last week, today bold at the bottom
-                        SectionHead {
-                            visible: dayRep.count > 0
-                            readonly property var hosts: clankerPanel.a ? (clankerPanel.a.hosts || []) : []
-                            text: "tokens by day" + (hosts.length > 1 ? "  ·  " + hosts.join(" + ") : "")
-                        }
-                        Repeater {
-                            id: dayRep
-                            readonly property var days: clankerPanel.a ? (clankerPanel.a.recentDays || []) : []
-                            readonly property real peak: days.reduce((m, d) => Math.max(m, Number(d.messageCount) || 0), 0)
-                            model: days
-                            TokenRow {
-                                required property var modelData
-                                required property int index
-                                readonly property bool today: modelData.date === Clanker.todayStr()
-                                label: new Date(modelData.date + "T00:00").toLocaleDateString(Qt.locale(), "ddd d")
-                                bold: today
-                                value: dayRep.peak > 0 ? (Number(modelData.messageCount) || 0) / dayRep.peak : 0
-                                detail: Clanker.tokText(modelData.messageCount)
-                                hover: today && clankerPanel.a ? clankerPanel.a.todayPrompts + " prompts · " + clankerPanel.a.todaySessions + " sessions" : ""
-                            }
-                        }
-
-                        // tokens by model, heaviest first, hover for the split
-                        SectionHead { visible: modelRep.count > 0; text: "tokens by model" }
-                        Repeater {
-                            id: modelRep
-                            readonly property var rows: {
-                                const mu = clankerPanel.a ? (clankerPanel.a.modelUsage || {}) : {};
-                                const out = [];
-                                for (const k in mu) {
-                                    const u = mu[k];
-                                    const total = (u.inputTokens || 0) + (u.outputTokens || 0) + (u.cacheCreationInputTokens || 0) + (u.cacheReadInputTokens || 0);
-                                    out.push({ model: k, total: total, u: u });
-                                }
-                                out.sort((x, y) => y.total - x.total);
-                                return out;
-                            }
-                            readonly property real peak: rows.length ? rows[0].total : 0
-                            model: rows
-                            TokenRow {
-                                required property var modelData
-                                label: modelData.model
-                                value: modelRep.peak > 0 ? modelData.total / modelRep.peak : 0
-                                detail: Clanker.tokText(modelData.total)
-                                hover: "in " + Clanker.tokText(modelData.u.inputTokens) + " · out " + Clanker.tokText(modelData.u.outputTokens)
-                                    + " · cache " + Clanker.tokText((modelData.u.cacheCreationInputTokens || 0) + (modelData.u.cacheReadInputTokens || 0))
-                            }
-                        }
-                    }
-                }
+            ResourcePopout {
+                bar: panel
+                cell: sysCells
             }
 
-            // ---- docker / vm popouts (click their cells) ----
-            // Same list shape for both: name left, status right, a line of
-            // dim text when there is nothing to list.
-            component ListPopout: PanelWindow {
-                id: lp
-                property bool open: false
-                property Item cell
-                property string title
-                property var rows: []      // [{ name, status }]
-                property string empty: "nothing running"
-
-                readonly property real sourceX: panel.pos(leftRow) + panel.pos(svcWrap) + panel.pos(cell)
-                readonly property real sourceWidth: panel.ext(cell)
-                readonly property real popupX: panel.attachedPanelX(sourceX, sourceWidth, panel.vertical ? implicitHeight : implicitWidth)
-
-                visible: open
-                screen: panel.screen
-                anchors { top: true; left: true }
-                margins { top: panel.popoutTop(popupX, implicitWidth, implicitHeight); left: panel.popoutLeft(popupX, implicitWidth, implicitHeight) }
-                exclusionMode: ExclusionMode.Ignore
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.namespace: "quickshell-popout"
-                WlrLayershell.keyboardFocus: panel.navFocus(lp)
-                HyprlandFocusGrab {
-                    windows: [lp]
-                    active: panel.navOn(lp)
-                    // lp.open is a binding to the popout state object, so this
-                    // one clears through the panel rather than assigning it
-                    onCleared: panel.closeIslandPopouts()
-                }
-                implicitWidth: 320
-                implicitHeight: lpCol.implicitHeight + 28
-                color: "transparent"
-
-                AttachedPanel {
-                    anchors.fill: parent
-                    shown: lp.open
-                    keyNav: panel.navOn(lp)
-                    neckX: lp.sourceX - lp.popupX
-                    neckWidth: lp.sourceWidth
-
-                    Column {
-                        id: lpCol
-                        width: parent.width
-                        spacing: 6
-
-                        Text {
-                            text: lp.title
-                            font.family: Theme.font; font.pixelSize: 11
-                            font.weight: Font.DemiBold
-                            color: Theme.bright
-                        }
-                        Text {
-                            visible: lp.rows.length === 0
-                            text: lp.empty
-                            font.family: Theme.font; font.pixelSize: 11
-                            color: Theme.dim
-                        }
-                        Repeater {
-                            model: lp.rows
-                            // Two lines: the name is what you opened this for
-                            // and container names run long, so it gets the
-                            // whole width; the status sits under it.
-                            Column {
-                                required property var modelData
-                                width: lpCol.width
-                                spacing: 1
-                                Text {
-                                    width: parent.width
-                                    text: modelData.name
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.text
-                                    elide: Text.ElideRight
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: modelData.status
-                                    font.family: Theme.font; font.pixelSize: 10
-                                    color: Theme.dim
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
-                }
+            ClankerPopout {
+                bar: panel
+                cell: clankerCell
             }
+
 
             ListPopout {
-                open: dockerPopout.open
+                id: dockerPopout
+                bar: panel
                 cell: dockerCell
-                title: "docker"
+                panelName: "docker"
+                iconName: "docker"
+                heading: "docker"
                 rows: Sys.dockerList
                 empty: Sys.dockerUp ? "no containers running" : "daemon is down"
             }
             ListPopout {
-                open: vmPopout.open
+                id: vmPopout
+                bar: panel
                 cell: vmCell
-                title: "virtual machines"
+                panelName: "vm"
+                iconName: "server"
+                heading: "virtual machines"
                 rows: Sys.vmList
                 empty: "no vms running"
             }
