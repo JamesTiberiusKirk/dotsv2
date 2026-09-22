@@ -106,7 +106,8 @@ PanelWindow {
         }
         // While open, Hyprland sits in the `launcher` submap (binds.lua): the
         // whole keymap minus the ALT nav layer, so ALT+hjkl reach this surface.
-        Hyprland.dispatch(visible ? 'hl.dsp.submap("launcher")' : 'hl.dsp.submap("reset")');
+        // Sys dispatches it — it owns the submap, so the popouts cannot undo it.
+        Sys.launcherOpen = visible;
     }
 
     IpcHandler {

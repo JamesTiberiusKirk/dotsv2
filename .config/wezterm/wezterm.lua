@@ -103,7 +103,7 @@ local function apply_theme()
   config.colors = t.colors
 
   -- a light bg at 0.50 lands mid-grey over most wallpapers; give it more body
-  config.window_background_opacity = t.mode == 'light' and 0.70 or 0.50
+  config.window_background_opacity = t.mode == 'light' and 0.70 or 0.6
 
   -- opaque in ultra power-save: nothing behind the window gets composited, and
   -- with hyprglass off translucency would just be unblurred see-through

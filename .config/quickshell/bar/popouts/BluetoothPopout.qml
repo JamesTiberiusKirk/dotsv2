@@ -19,7 +19,6 @@ Popout {
     id: btPanel
 
     panelName: "bluetooth"
-    iconName: "bluetooth"
     implicitWidth: 300
     onOpenChanged: Bt.panelOpen = open
 

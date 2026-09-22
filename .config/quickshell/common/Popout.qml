@@ -33,20 +33,19 @@ PanelWindow {
     // Registry key. The menu row is "bar/<panelName>", and Sys.openPanel takes
     // the same string. Not `name`: several Qt types already own that.
     property string panelName
-    // Menu row icon.
-    property string iconName
 
     // ---- options, each one backed by variation that already exists ----
     // width is implicitWidth, PanelWindow's own; in use today: 240..360
     property int rowSpacing: 8              // 8 is the common case; 2, 6 and 10 exist
     property string heading: ""             // calendar and docker/vm draw one, the rest do not
     property var tabs: []                   // empty: no chips, behaves exactly as before
-    property bool available: true           // clanker's row is gated on having an agent
-    // Take the keyboard even when the menu did not open this. Only the network
-    // popout wants it, for the passphrase field: a popout that always asks for
-    // keys cannot be closed by a second click on its own cell, because Hyprland
+    // InputFields currently showing in this popout; they count themselves in
+    // and out. While any is up the popout takes the keyboard even when the
+    // menu did not open it. Only then: a popout that always asks for keys
+    // cannot be closed by a second click on its own cell, because Hyprland
     // focuses a layer the moment it maps and that focus never returns to the bar.
-    property bool wantsKeys: false
+    // A count, not a flag, so two fields in one popout cannot undo each other.
+    property int inputs: 0
 
     // ---- state ----
     property bool open: false
@@ -80,12 +79,6 @@ PanelWindow {
     readonly property real popupX: root.bar.attachedPanelX(
         sourceX, sourceWidth, root.bar.vertical ? implicitHeight : implicitWidth)
 
-    // Join the panel's registry, which is what drives close-all, lookup by
-    // name and the menu. concat, never push: an in-place array mutation emits
-    // no change signal, so every binding derived from the list would go stale.
-    Component.onCompleted: root.bar.popouts = root.bar.popouts.concat(root)
-    Component.onDestruction: root.bar.popouts = root.bar.popouts.filter(p => p !== root)
-
     // Reopening starts back at the first tab only if the current one vanished
     // (a tab list can be conditional); otherwise the tab you left it on sticks.
     onTabsChanged: if (tabs.length > 0 && tabs.indexOf(currentTab) < 0) currentTab = tabs[0];
@@ -100,7 +93,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "quickshell-popout"
-    readonly property bool grabbing: bar.navOn(root) || (open && wantsKeys)
+    readonly property bool grabbing: bar.navOn(root) || (open && inputs > 0)
     WlrLayershell.keyboardFocus: grabbing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     implicitWidth: 320
     implicitHeight: col.implicitHeight + 28

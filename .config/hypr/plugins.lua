@@ -9,11 +9,30 @@
 if hl.plugin.hyprglass then
     local hg = hl.plugin.hyprglass
 
-    -- Defaults are already calibrated near Apple's liquid glass; only opt
-    -- layer surfaces in globally, everything else stays stock. Refraction
-    -- pushed past stock (0.6) for a more pronounced edge bend.
+    -- Tuned toward macOS dark-mode vibrancy: heavy blur, *de*saturated, and a
+    -- dark tint over the backdrop. The plugin's own dark defaults go the other
+    -- way (saturation 1.5, a 0x88-alpha light grey-blue tint), which lit the
+    -- window up over dark wallpapers instead of calming it down.
     hg.config({
-        refraction_strength = 0.25,
+        blur_strength     = 6.0,
+        blur_iterations   = 4,
+        saturation        = 0.85,
+        brightness        = 1.0,
+        contrast          = 1.0,
+        -- both adaptive knobs off: they key off backdrop luminance, which is
+        -- exactly the "dark wallpaper -> bright window" behaviour we don't want.
+        adaptive_boost    = 0.0,
+        adaptive_dim      = 0.0,
+        -- 0xB0 alpha of near-black. This is what makes the glass readable
+        -- regardless of what's behind it.
+        tint_color        = 0xB01E1E20,
+        glass_opacity     = 1.0,
+        refraction_strength = 0.35,
+        lens_distortion   = 0.4,
+        -- thin rim highlight; stock specular biases white to the top edge.
+        specular_strength = 0.12,
+        fresnel_strength  = 0.25,
+        edge_thickness    = 1.2,
         chromatic_aberration = 0.0,
         layers = { enabled = true },
     })

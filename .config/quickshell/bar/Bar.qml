@@ -132,13 +132,13 @@ Variants {
             function navOn(p) { return p.open && Sys.kbdNav; }
             function navFocus(p) { return navOn(p) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None; }
 
-            // Every Popout adds itself here on creation. The three derived
-            // things below used to be three hand-maintained lists of twelve.
-            property var popouts: []
-            // Only the ones that exist right now: `available` gates a popout
-            // whose cell is conditional (clanker needs an agent), so the menu
-            // does not offer a row that opens nothing.
-            readonly property var livePopouts: popouts.filter(p => p.available)
+            // Every popout on this bar. Declared, not registered: the set is
+            // the same on every screen and every boot, so a list that builds
+            // itself at runtime only bought races — popouts unregistering as a
+            // bar died left the menu's rows gone until the shell restarted.
+            readonly property var popouts: [trayPopout, calendarPopout, displayPopout, powerPopout,
+                tailscalePopout, bluetoothPopout, audioPopout, networkPopout, resourcePopout,
+                clankerPopout, dockerPopout, vmPopout]
 
             // Is that popout showing? For a cell that lights up while its own
             // popout is open. By name, because the popouts live in their own
@@ -177,16 +177,14 @@ Variants {
             // That is exactly what broke every menu-opened popout.
             readonly property bool anyPopoutGrabbing: popouts.some(p => p.grabbing)
             onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
-
-            // What the menu (and through it the launcher) lists. Assigned
-            // wholesale rather than appended: one bar per screen, each writing
-            // the same list, so the last one simply wins.
-            // Sorted by name: popouts register in completion order, which is not
-            // declaration order and is not something to depend on for the order
-            // rows appear in the menu.
-            onLivePopoutsChanged: Sys.barPanels = livePopouts
-                .map(p => ({ name: p.panelName, icon: p.iconName }))
-                .sort((a, b) => a.name.localeCompare(b.name))
+            onAnyPopoutGrabbingChanged: Sys.barPopoutsGrabbing += anyPopoutGrabbing ? 1 : -1
+            // A screen going away takes this bar with it, popout still open:
+            // the counters are global, so without this they never come back
+            // down and Hyprland's submap is decided off a bar that is gone.
+            Component.onDestruction: {
+                if (anyPopoutOpen) Sys.barPopoutsOpen -= 1;
+                if (anyPopoutGrabbing) Sys.barPopoutsGrabbing -= 1;
+            }
 
             Connections {
                 target: Sys
@@ -978,51 +976,61 @@ Variants {
             }
 
             TrayPopout {
+                id: trayPopout
                 bar: panel
                 cell: trayCell
             }
 
             CalendarPopout {
+                id: calendarPopout
                 bar: panel
                 cell: clockCell
             }
 
             DisplayPopout {
+                id: displayPopout
                 bar: panel
                 cell: backlightCell
             }
 
             PowerPopout {
+                id: powerPopout
                 bar: panel
                 cell: batteryCell
             }
 
             TailscalePopout {
+                id: tailscalePopout
                 bar: panel
                 cell: tsCell
             }
 
             BluetoothPopout {
+                id: bluetoothPopout
                 bar: panel
                 cell: btCell
             }
 
             AudioPopout {
+                id: audioPopout
                 bar: panel
                 cell: volCell
             }
 
             NetworkPopout {
+                id: networkPopout
                 bar: panel
                 cell: netCell
             }
 
             ResourcePopout {
+                id: resourcePopout
                 bar: panel
                 cell: sysCells
             }
 
             ClankerPopout {
+                id: clankerPopout
                 bar: panel
                 cell: clankerCell
             }
@@ -1033,7 +1041,6 @@ Variants {
                 bar: panel
                 cell: dockerCell
                 panelName: "docker"
-                iconName: "docker"
                 heading: "docker"
                 rows: Sys.dockerList
                 empty: Sys.dockerUp ? "no containers running" : "daemon is down"
@@ -1043,7 +1050,6 @@ Variants {
                 bar: panel
                 cell: vmCell
                 panelName: "vm"
-                iconName: "server"
                 heading: "virtual machines"
                 rows: Sys.vmList
                 empty: "no vms running"

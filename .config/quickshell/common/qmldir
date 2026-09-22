@@ -16,4 +16,5 @@ singleton Clanker 1.0 Clanker.qml
 singleton Media 1.0 Media.qml
 Popout 1.0 Popout.qml
 PillBtn 1.0 PillBtn.qml
+InputField 1.0 InputField.qml
 ValueSlider 1.0 ValueSlider.qml

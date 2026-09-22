@@ -19,7 +19,6 @@ Popout {
     id: resourcePopout
 
     panelName: "system"
-    iconName: "cpu-64-bit"
     implicitWidth: 320
 
     component ResourceMeter: Item {

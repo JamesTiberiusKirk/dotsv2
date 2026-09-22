@@ -22,10 +22,8 @@ Popout {
     id: clankerPanel
 
     panelName: "clanker"
-    iconName: "robot"
     implicitWidth: 340
     // the cell and the menu row are both gated on having an agent
-    available: Clanker.agents.length > 0
 
     readonly property var a: Clanker.agent
 

@@ -277,22 +277,28 @@ Singleton {
     // whose only binding is Esc → closeAll — a mouse-opened popout takes no
     // keyboard focus (that broke pointer focus on the bell), so Esc has to be
     // caught at the compositor. Everything else passes through a submap.
-    // [{ name, icon }] for every bar popout that currently exists, written by
-    // the bar from its own registry. Menu.qml builds the "bar/<name>" rows
-    // from this, and the launcher reads Menu.items, so a new popout reaches
-    // both without either being edited.
-    property var barPanels: []
-
     property int barPopoutsOpen: 0
     readonly property bool anythingOpen: barPopoutsOpen > 0 || Notifs.centerOpen
-    // A popout opened from the keyboard takes keyboard focus and handles Esc
-    // and j/k itself, so the submap must stay out of its way: its catchall
-    // would close the popout on the first nav key. Mouse-opened popouts are
-    // unchanged — they take no focus, so the compositor still catches Esc.
-    onAnythingOpenChanged: {
-        Hyprland.dispatch(anythingOpen && !kbdNav ? 'hl.dsp.submap("popout")' : 'hl.dsp.submap("reset")');
-        if (!anythingOpen) kbdNav = false;
-    }
+    onAnythingOpenChanged: if (!anythingOpen) kbdNav = false
+    // How many bar panels have a popout holding the keyboard — opened from
+    // the menu, or showing an InputField. The `popout` submap's catchall
+    // closes everything on any key, so while one of these is up it must be
+    // off, or the first keystroke typed into it closes it. The popout
+    // handles Esc itself then (AttachedPanel, InputField).
+    property int barPopoutsGrabbing: 0
+    // Set by the launcher while it is open (its own submap, see binds.lua).
+    property bool launcherOpen: false
+
+    // The one place Hyprland's submap is decided. Two writers used to each
+    // dispatch on their own events, and whichever ran last won.
+    readonly property string submap: launcherOpen ? "launcher"
+        : anythingOpen && barPopoutsGrabbing === 0 ? "popout" : "reset"
+    // Deferred: one popout closing moves both counters, one after the other,
+    // and dispatching each step would send a "popout" between two "reset"s —
+    // dispatches are not guaranteed to land in order. callLater coalesces
+    // them into one dispatch of the settled value.
+    onSubmapChanged: Qt.callLater(root.applySubmap)
+    function applySubmap() { Hyprland.dispatch('hl.dsp.submap("' + submap + '")'); }
     // Set by openPanel before the popout maps: Hyprland only hands an OnDemand
     // layer focus on map, so this has to be true by the time it appears.
     property bool kbdNav: false

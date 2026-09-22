@@ -19,7 +19,6 @@ Popout {
     id: tsPanel
 
     panelName: "tailscale"
-    iconName: "server"
     implicitWidth: 300
 
     component TsDiv: Rectangle {

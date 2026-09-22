@@ -22,7 +22,6 @@ Popout {
     id: powerPopout
 
     panelName: "power"
-    iconName: "battery"
     implicitWidth: 360
     rowSpacing: 6
     onOpenChanged: Sys.powerPanelOpen = open

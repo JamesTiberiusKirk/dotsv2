@@ -20,7 +20,6 @@ Popout {
     id: calPopout
 
     panelName: "calendar"
-    iconName: "calendar"
     implicitWidth: 250
 
     property date shown: new Date()

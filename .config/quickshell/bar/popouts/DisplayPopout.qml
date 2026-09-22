@@ -23,7 +23,6 @@ Popout {
     id: displayPopout
 
     panelName: "display"
-    iconName: "monitor"
     implicitWidth: 280
     rowSpacing: 10
     tabs: ["screen", "idle", "monitors"]

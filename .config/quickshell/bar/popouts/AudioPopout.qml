@@ -19,7 +19,6 @@ Popout {
     id: audioPopout
 
     panelName: "audio"
-    iconName: "volume-high"
     implicitWidth: 340
     // is the airpods settings fold open
     property bool podsOpen: false

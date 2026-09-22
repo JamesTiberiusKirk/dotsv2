@@ -24,11 +24,17 @@ Singleton {
     FolderListModel { id: commonScripts; folder: "file://" + root.home + "/.scripts/menu/common"; showDirs: false; showHidden: false }
     // never "": an empty folder means cwd, which listed ~/.dots while hostname was still loading
     FolderListModel { id: hostScripts; folder: "file://" + root.home + "/.scripts/menu/" + (Sys.hostname || "-"); showDirs: false; showHidden: false }
+    // A FolderListModel on a folder that does not exist (no ~/.scripts/menu/<host>)
+    // falls back to cwd — $HOME under hypr — and every home file became a
+    // script row. So a row only counts if its file sits in the folder asked
+    // for; endsWith, since `common` is a symlink and may come back resolved.
     function scriptRows() {
         const rows = {};
-        for (const m of [commonScripts, hostScripts]) // host last, so it wins on name clash
+        for (const [m, dir] of [[commonScripts, "/.scripts/menu/common"], // host last, so it wins on name clash
+                                [hostScripts, "/.scripts/menu/" + (Sys.hostname || "-")]])
             for (let i = 0; i < m.count; i++) {
                 const f = m.get(i, "filePath"), name = m.get(i, "fileName").replace(/\.sh$/, "");
+                if (!f.slice(0, f.lastIndexOf("/")).endsWith(dir)) continue;
                 rows[name] = { path: "scripts/" + name, icon: "console",
                                cmd: root.home + "/.scripts/menu-run '" + f + "'" };
             }
@@ -121,13 +127,18 @@ Singleton {
         // cell; the bar picks the panel on the focused screen (Sys.openPanel).
         // openPanel, not togglePanel: it flags the open as keyboard-driven, so
         // the popout takes focus and j/k/Return work inside it.
-        // The bar registers its own popouts (Sys.barPanels), so a new one shows
-        // up here, and in the launcher through Menu.items, without this list
-        // being touched. Order is the bar's declaration order. A popout that
-        // cannot open right now — clanker with no agent — sets `available:
-        // false` and never reaches this list.
-        for (const p of Sys.barPanels)
-            rows.push({ path: "bar/" + p.name, icon: p.icon, run: () => Sys.openPanel(p.name) });
+        // Spelled out rather than read off the bar: the bar's list used to be
+        // mirrored into Sys at runtime, and a bar dying with its screen wiped
+        // the mirror, so these rows vanished until the shell restarted. Names
+        // must match each popout's `panelName` — openPanel silently does
+        // nothing for a name no popout answers to.
+        for (const [p, icon] of [["audio", "volume-high"], ["bluetooth", "bluetooth"],
+                                 ["calendar", "calendar"], ["clanker", "robot"],
+                                 ["display", "monitor"], ["docker", "docker"],
+                                 ["network", "wifi-strength-4"], ["power", "battery"],
+                                 ["system", "cpu-64-bit"], ["tailscale", "server"],
+                                 ["tray", "dots-horizontal"], ["vm", "server"]])
+            rows.push({ path: "bar/" + p, icon: icon, run: () => Sys.openPanel(p) });
         for (const [side, icon] of [["top", "arrow-up"], ["bottom", "arrow-down"], ["left", "arrow-left"], ["right", "arrow-right"]])
             rows.push({ path: "bar/side/" + side + " " + mark(ShellState.side === side), icon: icon, run: () => ShellState.side = side });
 

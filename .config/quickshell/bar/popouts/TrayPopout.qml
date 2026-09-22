@@ -25,7 +25,6 @@ Popout {
     }
 
     panelName: "tray"
-    iconName: "dots-horizontal"
     implicitWidth: 240
     rowSpacing: 2
 

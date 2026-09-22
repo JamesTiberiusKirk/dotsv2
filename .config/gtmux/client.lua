@@ -13,6 +13,7 @@
 -- bind/draw, not for static config like this.
 gtmux.options.mouse = true
 gtmux.options.mode_keys = "vi"
+gtmux.options.copy_line_numbers = "relative"
 
 -- Command-prompt line editing (tmux: set -g status-keys vi). vi can't be modal
 -- in gtmux (ESC cancels the prompt); use "emacs" if you want the C-u/C-w kill keys.

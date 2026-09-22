@@ -19,7 +19,6 @@ Popout {
     id: networkPopout
 
     panelName: "network"
-    iconName: "wifi-strength-4"
     implicitWidth: 320
     // which SSID has its detail row unfolded; "" = none
     property string expanded: ""
@@ -28,20 +27,6 @@ Popout {
         if (!open) expanded = "";
     }
 
-    // Keyboard only while a passphrase field is actually showing.
-    // Asking for it whenever the panel was open made this the one
-    // popout that did not close on a second click of its cell:
-    // Hyprland focuses a layer that wants keys the moment it maps,
-    // and with the pointer parked on the cell that focus stayed on
-    // the panel — the second click never reached the bar. OnDemand,
-    // not Exclusive, so the compositor's own bindings keep working
-    // while the field is up.
-    // Hyprland only hands an OnDemand layer focus on map or on a click
-    // into it; flipping the mode after the row click is ignored, so the
-    // grab is what actually moves the keyboard here.
-    // Menu-opened counts as wanting keys too, same reasoning.
-    // pskFocus is the old flag, set by the passphrase field below.
-    property bool pskFocus: false
     // five-step strength glyph, same ladder as the bar cell
     function bars(v) {
         if (v >= 0.75) return "wifi-strength-4";
@@ -50,7 +35,6 @@ Popout {
         if (v > 0) return "wifi-strength-1";
         return "wifi-strength-outline";
     }
-    wantsKeys: networkPopout.pskFocus
 
     Text {
         text: Sys.netLabel
@@ -234,26 +218,12 @@ Popout {
                             visible: netRow.secured && !netRow.net.known
                             spacing: 6
 
-                            Rectangle {
-                                width: 140; height: 24; radius: 4
-                                color: Theme.track
-
-                                TextInput {
-                                    anchors { fill: parent; margins: 6 }
-                                    font.family: Theme.font; font.pixelSize: 11
-                                    color: Theme.bright
-                                    echoMode: netRow.reveal ? TextInput.Normal : TextInput.Password
-                                    clip: true
-                                    // the surface takes focus on click, but nothing
-                                    // hands it to the field inside the delegate
-                                    onVisibleChanged: {
-                                        networkPopout.pskFocus = visible;
-                                        if (visible) forceActiveFocus();
-                                    }
-                                    onTextChanged: netRow.pskText = text
-                                    Keys.onReturnPressed: netRow.join(netRow.pskText)
-                                    Keys.onEscapePressed: bar.closeIslandPopouts()
-                                }
+                            InputField {
+                                popout: networkPopout
+                                password: true
+                                reveal: netRow.reveal
+                                onTextChanged: netRow.pskText = text
+                                onAccepted: netRow.join(netRow.pskText)
                             }
                             PillBtn {
                                 text: netRow.reveal ? "hide" : "show"
