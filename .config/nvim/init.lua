@@ -606,7 +606,8 @@ ws.add{
 -- }, { mode = 'v' })
 
 require('mason').setup()
-require('mason-lspconfig').setup()
+-- vtsls is our TS server; stop mason-lspconfig auto-enabling ts_ls too
+require('mason-lspconfig').setup { automatic_enable = { exclude = { 'ts_ls' } } }
 
 vim.filetype.add({ extension = { templ = "templ" } })
 

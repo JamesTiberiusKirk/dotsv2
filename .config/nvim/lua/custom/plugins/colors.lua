@@ -91,6 +91,12 @@ return {
   },
   { "ellisonleao/gruvbox.nvim" },
   { "pineapplegiant/spaceduck" },
-  { "folke/tokyonight.nvim" },
+  {
+    "folke/tokyonight.nvim",
+    opts = {
+      transparent = true,
+      styles = { sidebars = "transparent", floats = "transparent" },
+    },
+  },
   { "overcache/NeoSolarized" },
 }
