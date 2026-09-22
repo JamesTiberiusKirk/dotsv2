@@ -75,6 +75,7 @@ system/etc/elogind/sleep.conf.d/10-hibernate-shutdown.conf
 system/etc/elogind/system-sleep/10-hibernate-image-size
 system/etc/runit/sv/keyd
 system/etc/runit/sv/ntpd
+system/etc/runit/sv/sshd
 system/etc/runit/sv/tailscale
 
 # music

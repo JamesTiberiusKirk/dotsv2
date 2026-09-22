@@ -121,14 +121,13 @@ Singleton {
         // cell; the bar picks the panel on the focused screen (Sys.openPanel).
         // openPanel, not togglePanel: it flags the open as keyboard-driven, so
         // the popout takes focus and j/k/Return work inside it.
-        for (const [name, icon] of [
-                ["calendar", "calendar"], ["system", "cpu-64-bit"], ["docker", "docker"], ["vm", "server"], ["display", "monitor"], ["power", "battery"],
-                ["network", "wifi-strength-4"], ["audio", "volume-high"], ["bluetooth", "bluetooth"], ["tailscale", "server"],
-                ["tray", "dots-horizontal"]])
-            rows.push({ path: "bar/" + name, icon: icon, run: () => Sys.openPanel(name) });
-        // same gate as the bar cell: no agents, no panel to open
-        if (Clanker.agents.length > 0)
-            rows.push({ path: "bar/clanker", icon: "robot", run: () => Sys.openPanel("clanker") });
+        // The bar registers its own popouts (Sys.barPanels), so a new one shows
+        // up here, and in the launcher through Menu.items, without this list
+        // being touched. Order is the bar's declaration order. A popout that
+        // cannot open right now — clanker with no agent — sets `available:
+        // false` and never reaches this list.
+        for (const p of Sys.barPanels)
+            rows.push({ path: "bar/" + p.name, icon: p.icon, run: () => Sys.openPanel(p.name) });
         for (const [side, icon] of [["top", "arrow-up"], ["bottom", "arrow-down"], ["left", "arrow-left"], ["right", "arrow-right"]])
             rows.push({ path: "bar/side/" + side + " " + mark(ShellState.side === side), icon: icon, run: () => ShellState.side = side });
 

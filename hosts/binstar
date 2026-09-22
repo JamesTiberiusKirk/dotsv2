@@ -81,6 +81,7 @@ system/etc/elogind/system-sleep/20-charge-threshold
 system/etc/elogind/system-sleep/30-cs35l41-reload
 system/etc/runit/sv/keyd
 system/etc/runit/sv/ntpd
+system/etc/runit/sv/sshd
 system/etc/runit/sv/tailscale
 
 # music

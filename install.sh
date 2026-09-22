@@ -77,6 +77,17 @@ export PATH=$PATH:$HOME/go/bin
 (cd "$DOTS" && make install)
 [ "$HOST" != binstar ] || (cd "$DOTS" && make install-duo)
 # DOTS_HOST: in the install chroot the kernel hostname is still the live ISO's
+# ---- ssh: authorized_keys from GitHub ----
+# sshd here is keys-only (see system/etc/runit/sv/sshd/run), so this file is the
+# only way in. GitHub stays the single source of truth: revoke a key there and
+# it's gone on the next converge. Never truncate on a failed fetch — an empty
+# authorized_keys locks this host out of ssh entirely.
+keys=$(curl -fsS https://github.com/JamesTiberiusKirk.keys) && [ -n "$keys" ] && {
+  install -dm 0700 "$HOME/.ssh"
+  printf '%s\n' "$keys" > "$HOME/.ssh/authorized_keys"
+  chmod 600 "$HOME/.ssh/authorized_keys"
+} || echo "WARN: could not fetch GitHub ssh keys — left ~/.ssh/authorized_keys as is"
+
 DOTS_HOST=$HOST dots-link sync --remote --yes
 
 # ---- first theme, if none applied yet: hyprland.lua requires the generated

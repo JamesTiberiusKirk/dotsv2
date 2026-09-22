@@ -1,0 +1,25 @@
+#!/bin/sh
+# sshd bound to this host's tailnet address only.
+#
+# Naming any ListenAddress drops sshd's default 0.0.0.0 wildcard bind, so this
+# is the whole "tailnet only" mechanism — no firewall involved. The address is
+# resolved here rather than in an sshd_config drop-in because it differs per
+# host, and because tailscale0 does not have it yet when runit starts us.
+exec 2>&1
+set -e
+
+ssh-keygen -A
+
+# wait for tailscaled to hand us an address; binding before it exists fails
+until ip=$(tailscale ip -4 2>/dev/null) && [ -n "$ip" ]; do
+  sleep 2
+done
+
+# command-line -o is parsed before sshd_config, and sshd is first-value-wins,
+# so these beat anything in /etc/ssh/sshd_config.d
+exec /usr/bin/sshd -D -e \
+  -o "ListenAddress=$ip" \
+  -o AddressFamily=inet \
+  -o PasswordAuthentication=no \
+  -o KbdInteractiveAuthentication=no \
+  -o PermitRootLogin=no

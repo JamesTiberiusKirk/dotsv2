@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+[ -d /var/log/sshd ] || install -dm 0755 /var/log/sshd
+
+exec svlogd -tt /var/log/sshd

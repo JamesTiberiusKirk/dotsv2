@@ -77,6 +77,7 @@
 # system (root-installed copies via dots-link, not symlinks)
 # desktop: no hibernate (hardware), AMD (no intel_pstate), no battery
 system/etc/runit/sv/keyd
+system/etc/runit/sv/sshd
 system/etc/runit/sv/tailscale
 
 # music

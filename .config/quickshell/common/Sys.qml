@@ -179,6 +179,44 @@ Singleton {
         Quickshell.execDetached(["sh", "-c", "~/go/bin/duo autorotate " + (on ? "on" : "off")]);
     }
 
+    // ---- monitor scale ----
+    // [{ name, scale }] per enabled output, for the display panel's scale
+    // pills. Read on panel open and after a write, never on a heartbeat:
+    // reassigning the array resets the Repeater and destroys every delegate,
+    // which mid-click deletes the pill's own hit area (same trap as
+    // backlights, below).
+    property var monitors: []
+    property string monRaw: ""
+    Process {
+        id: monProbe
+        running: false
+        command: ["sh", "-c", "hyprctl -j monitors 2>/dev/null | jq -c '[.[]|{name, scale}]'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const t = text.trim();
+                // identical read: leave the array alone rather than rebuild it
+                if (t === "" || t === root.monRaw) return;
+                root.monRaw = t;
+                try { root.monitors = JSON.parse(t); } catch (e) {}
+            }
+        }
+    }
+    // Hyprland refuses a scale that gives a non-integer logical size and picks
+    // the nearest one that does — 1.5 on a 2560-wide panel comes back as 1.6 —
+    // so the displayed value has to come from the compositor, not from us.
+    // Deliberately does NOT touch `monitors`: the row echoes the click
+    // locally (ScaleRow.shown) so this array changes only when the probe
+    // brings back something genuinely new. Rewriting it here would rebuild
+    // the Repeater on every click and delete the pill's own MouseArea, or
+    // the row holding keyboard focus, mid-gesture.
+    function setScale(name, s) {
+        Quickshell.execDetached(["sh", "-c",
+            "~/.config/hypr/scripts/monitor-layout.sh scale " + name + " " + s]);
+        monReadback.restart();
+    }
+    // The script waits out the modeset before re-saving; read after that.
+    Timer { id: monReadback; interval: 1200; onTriggered: monProbe.running = true }
+
     // Polling stops while the panel is open. backlights is a plain array
     // reassigned wholesale, which resets the Repeater and destroys every slider
     // delegate — mid-drag that deletes the MouseArea out from under the gesture.
@@ -239,6 +277,12 @@ Singleton {
     // whose only binding is Esc → closeAll — a mouse-opened popout takes no
     // keyboard focus (that broke pointer focus on the bell), so Esc has to be
     // caught at the compositor. Everything else passes through a submap.
+    // [{ name, icon }] for every bar popout that currently exists, written by
+    // the bar from its own registry. Menu.qml builds the "bar/<name>" rows
+    // from this, and the launcher reads Menu.items, so a new popout reaches
+    // both without either being edited.
+    property var barPanels: []
+
     property int barPopoutsOpen: 0
     readonly property bool anythingOpen: barPopoutsOpen > 0 || Notifs.centerOpen
     // A popout opened from the keyboard takes keyboard focus and handles Esc
@@ -262,6 +306,7 @@ Singleton {
     }
     function poll() {
         blProbe.running = true;
+        monProbe.running = true;
         if (root.isDuo) duoStateProbe.running = true;
     }
     Timer {

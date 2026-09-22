@@ -64,6 +64,11 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
+  "modelSettings": {
+    "claude-fable-5": {
+      "effortLevel": "medium"
+    }
+  },
   "advisorModel": "opus",
   "tui": "fullscreen",
   "voice": {
@@ -113,10 +118,5 @@
       "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
   },
-  "voiceEnabled": false,
-  "modelSettings": {
-    "claude-fable-5": {
-      "effortLevel": "medium"
-    }
-  }
+  "voiceEnabled": false
 }
