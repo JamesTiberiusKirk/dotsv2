@@ -28,10 +28,38 @@ local function docked()
     return out:find("yes") ~= nil
 end
 
-if docked() then
+-- A manual `duo screen on|off` latches an override, and the dock state alone
+-- cannot see it. That is what made "keyboard off, sub screen off" impossible to
+-- hold: with the keyboard detached this file said "on", and every reload put the
+-- panel back. theme-apply does a reload on each light/dark switch, and the
+-- wallpaper theme regenerates on every repaint, so a monitorremoved from duo
+-- turning eDP-2 off came straight back through
+-- wallpaper.sh -> theme-apply -> hyprctl reload -> this rule. Measured 2026-09-25.
+--
+-- The override still loses to the hardware question when it is absent, so this
+-- file remains correct when duo is not running at all.
+local function overridden()
+    local base = os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")
+    local h = io.open(base .. "/duo/screen-override", "r")
+    if not h then return nil end
+    local v = h:read("*l")
+    h:close()
+    if v == "on" or v == "off" then return v end
+    return nil
+end
+
+local want = overridden()
+if want == nil then
+    want = docked() and "off" or "on"
+end
+
+if want == "off" then
     hl.monitor({ output = "eDP-2", disabled = true })
 else
-    hl.monitor({ output = "eDP-2", mode = "2880x1800@120", position = "0x1200", scale = 1.5 })
+    -- disabled = false is not redundant: a rule that only sets mode/position/
+    -- scale still revives a disabled output, so state it explicitly rather than
+    -- relying on the default.
+    hl.monitor({ output = "eDP-2", mode = "2880x1800@120", position = "0x1200", scale = 1.5, disabled = false })
 end
 
 -- duo (repo: duo/) — dock/undock watcher: eDP-2 off while the keyboard sits on it.

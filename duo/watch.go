@@ -44,6 +44,13 @@ func read(path string) string {
 // placement (USB only), while the Fn layer follows the keyboard being reachable
 // at all — it is just as usable over bluetooth, and was dead there before.
 func watch() error {
+	// Held for the life of the process: closing it releases the flock.
+	lock, err := lockSession()
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+
 	go watchSleep()
 	// At boot, duo watch starts on hyprland.start before USB has necessarily
 	// finished enumerating the pogo-pin keyboard — a snapshot taken too early
@@ -74,6 +81,13 @@ func watch() error {
 	ticks := 0
 
 	for range time.Tick(time.Second) {
+		// Hyprland exiting takes its runtime directory with it. Without this
+		// check the daemon ran on for days against a dead socket, failing every
+		// reassert and sharing state files with the next session's instance.
+		if !sessionAlive() {
+			logf("watch: session gone, exiting")
+			return nil
+		}
 		if now := docked(); now != dock {
 			dock = now
 			// Moving the keyboard is a fresh statement of intent, so it retires
