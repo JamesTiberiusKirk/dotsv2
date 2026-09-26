@@ -86,6 +86,8 @@ alias gpnu='git push --set-upstream origin $(git symbolic-ref --short HEAD)'
 alias gcm='git checkout $(git remote show origin | sed -n "/HEAD branch/s/.*: //p")'
 # git remote show origin | sed -n '/HEAD branch/s/.*: //p'
 
+alias gpvw='gh pr view --web'
+
 
 bindkey '^[[Z' reverse-menu-complete
 
