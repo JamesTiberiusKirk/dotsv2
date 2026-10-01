@@ -19,11 +19,21 @@ Item {
     // the value, and an icon with its own hit area and
     // tab stop for a second action on the row.
     property string note: ""
-    property string trailIcon: ""
+    // expandable: the chevron toggles `expanded`; the caller owns the content
+    // under the row and shows it with `visible: thisSlider.expanded`
+    property bool expandable: false
+    property bool expanded: false
+    property string trailIcon: expandable ? (expanded ? "chevron-up" : "chevron-down") : ""
     signal trailPressed()
+    onTrailPressed: if (expandable) expanded = !expanded
     readonly property real trailPad: rightRow.width + 8
     property int value: 0
     property int minValue: 0
+    // Lowest value the knob can be set to, without moving where the track
+    // starts. A moving minValue re-scales the whole track, so the knob jumps
+    // while its number stands still — the locked brightness row's floor
+    // follows the gap between monitors and did exactly that.
+    property int floor: minValue
     property int maxValue: 100
     property string suffix: "%"
     // control present but inert: the backlight still
@@ -50,7 +60,7 @@ Item {
     Keys.onRightPressed: sl.hstep(1)
     function hstep(dir) {
         if (sl.off) return;
-        sl.shown = Math.max(sl.minValue, Math.min(sl.maxValue, sl.shown + dir * sl.wheelStep));
+        sl.shown = Math.max(sl.floor, Math.min(sl.maxValue, sl.shown + dir * sl.wheelStep));
         sl.commit(sl.shown);
     }
 
@@ -174,7 +184,7 @@ Item {
 
         function valueAt(mx) {
             const v = sl.minValue + mx / width * (sl.maxValue - sl.minValue);
-            return Math.max(sl.minValue, Math.min(sl.maxValue, Math.round(v)));
+            return Math.max(sl.floor, Math.min(sl.maxValue, Math.round(v)));
         }
 
         MouseArea {
@@ -186,7 +196,7 @@ Item {
             onPositionChanged: m => { if (sl.held) { sl.shown = track.valueAt(m.x); writeTimer.restart(); } }
             onReleased: { sl.held = false; writeTimer.stop(); sl.commit(sl.shown); }
             onWheel: w => {
-                sl.shown = Math.max(sl.minValue, Math.min(sl.maxValue,
+                sl.shown = Math.max(sl.floor, Math.min(sl.maxValue,
                     sl.shown + (w.angleDelta.y > 0 ? sl.wheelStep : -sl.wheelStep)));
                 sl.commit(sl.shown);
             }

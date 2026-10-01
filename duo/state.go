@@ -35,10 +35,9 @@ func stateWrite(name, val string) error {
 	return os.WriteFile(statePath(name), []byte(val), 0644)
 }
 
-// Manual override of the bottom screen: "on", "off", or "" for none.
-//
-// Without it the re-assert in watch() would undo a deliberate `duo screen on`
-// within a second of you typing it. It is cleared whenever the keyboard docks
+// Manual override of the bottom screen: "on", "off", or "" for none. Read by
+// ~/.config/hypr/monitors.lua; without it the panel follows the keyboard. It is
+// cleared whenever the keyboard docks
 // or undocks — physically moving the thing is a fresh statement of intent, and
 // a latch you cannot remember setting is worse than no latch.
 func screenOverride() string {
@@ -55,4 +54,20 @@ func setScreenOverride(v string) {
 		return
 	}
 	stateWrite("screen-override", v)
+}
+
+// Display state that should NOT survive a reboot (mirror mode, rotation): a
+// fresh boot comes back stacked and upright. monitors.lua reads the same paths.
+func runtimePath(name string) string {
+	dir := os.Getenv("XDG_RUNTIME_DIR")
+	if dir == "" {
+		dir = os.TempDir()
+	}
+	dir = filepath.Join(dir, "duo")
+	os.MkdirAll(dir, 0700) // best-effort; the write reports the real error
+	return filepath.Join(dir, name)
+}
+
+func runtimeWrite(name, val string) error {
+	return os.WriteFile(runtimePath(name), []byte(val), 0644)
 }

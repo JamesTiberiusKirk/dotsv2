@@ -6,7 +6,7 @@
 #     lands wherever Hyprland auto-placed it
 #   - awww registers the new output but paints it black; it never back-fills
 #     the image it is already showing everywhere else
-# Same socket2 idiom as workspace-layouts.sh. Autostarted from base.lua.
+# Autostarted from base.lua.
 import json
 import os
 import socket

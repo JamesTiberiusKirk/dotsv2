@@ -85,16 +85,12 @@ Singleton {
                 { path: "display/layout/top-only", icon: "monitor", cmd: duo + " layout top-only" });
         }
 
-        // nwg-displays drags outputs around and applies live; the compositor is
-        // then snapshotted into ~/.local/state/hypr/layouts/<profile> so the
-        // hotplug watcher can replay it. Nothing reads the monitors.conf
-        // nwg-displays writes on apply — the lua config has no hl.source, and
-        // the snapshot means the editor is swappable anyway. (wdisplays was
-        // the first pick and screencopies every output live: unusably slow.)
+        // Records what is on screen as this monitor set's saved layout
+        // (~/.local/state/hypr/layouts/). No "arrange" editor: nwg-displays
+        // writes a monitors.conf the lua config never reads, then reloads,
+        // which re-applies the saved layout — it could never change anything.
         const monLayout = root.home + "/.config/hypr/scripts/monitor-layout.sh";
-        rows.push(
-            { path: "display/arrange", icon: "monitor-multiple", cmd: "nwg-displays; " + monLayout + " save" },
-            { path: "display/save arrangement", icon: "view-grid", cmd: monLayout + " save" });
+        rows.push({ path: "display/save arrangement", icon: "view-grid", cmd: monLayout + " save" });
 
         rows.push({ path: "display/night light " + mark(Sys.nightLight), icon: "weather-night", run: () => Sys.setNightLight(!Sys.nightLight) });
         for (const k of [2700, 3500, 4500, 5500])
@@ -134,11 +130,15 @@ Singleton {
         // nothing for a name no popout answers to.
         for (const [p, icon] of [["audio", "volume-high"], ["bluetooth", "bluetooth"],
                                  ["calendar", "calendar"], ["clanker", "robot"],
-                                 ["display", "monitor"], ["docker", "docker"],
+                                 ["display", "monitor"],
                                  ["network", "wifi-strength-4"], ["power", "battery"],
                                  ["system", "cpu-64-bit"], ["tailscale", "server"],
-                                 ["tray", "dots-horizontal"], ["vm", "server"]])
+                                 ["tray", "dots-horizontal"]])
             rows.push({ path: "bar/" + p, icon: icon, run: () => Sys.openPanel(p) });
+        // docker and the VMs are one tabbed popout; each keeps its own row so
+        // searching "docker" or "vms" still lands on it, on the right tab
+        for (const [tab, icon] of [["docker", "docker"], ["vms", "server"]])
+            rows.push({ path: "bar/" + tab, icon: icon, run: () => Sys.openPanel("services:" + tab) });
         for (const [side, icon] of [["top", "arrow-up"], ["bottom", "arrow-down"], ["left", "arrow-left"], ["right", "arrow-right"]])
             rows.push({ path: "bar/side/" + side + " " + mark(ShellState.side === side), icon: icon, run: () => ShellState.side = side });
 

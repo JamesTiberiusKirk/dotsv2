@@ -138,7 +138,7 @@ Variants {
             // bar died left the menu's rows gone until the shell restarted.
             readonly property var popouts: [trayPopout, calendarPopout, displayPopout, powerPopout,
                 tailscalePopout, bluetoothPopout, audioPopout, networkPopout, resourcePopout,
-                clankerPopout, dockerPopout, vmPopout]
+                clankerPopout, servicesPopout]
 
             // Is that popout showing? For a cell that lights up while its own
             // popout is open. By name, because the popouts live in their own
@@ -156,6 +156,7 @@ Variants {
                 closeIslandPopouts();
                 p.open = next;
             }
+
 
             function closeIslandPopouts() {
                 // Not a popout and not in the registry, but it has always
@@ -192,10 +193,14 @@ Variants {
                 function onTogglePanel(name) {
                     // one panel per screen; only the focused one answers
                     if (Hyprland.focusedMonitor?.name !== panel.screen.name) return;
-                    const p = panel.popoutsByName[name];
+                    // "services:docker" opens a tabbed popout on that tab; asking
+                    // for the tab already showing closes it, like any toggle
+                    const [pname, tab] = name.split(":");
+                    const p = panel.popoutsByName[pname];
                     if (!p) return;
-                    const next = !p.open;
+                    const next = !(p.open && (!tab || p.currentTab === tab));
                     panel.closeIslandPopouts();
+                    if (tab) p.currentTab = tab;
                     p.open = next;
                 }
             }
@@ -443,20 +448,18 @@ Variants {
                         width: panel.vertical ? panel.barBodyHeight : svcWrap.width
                         height: panel.vertical ? svcWrap.height : panel.barBodyHeight
 
-                        // Both always shown. Greyed docker means the daemon is
-                        // down; normal colour with a 0 means it is up and idle.
+                        // docker and the VMs share one cell and one popout. The cell
+                        // shows whichever tab the popout last had up — its icon and
+                        // its count. Greyed docker means the daemon is down; normal
+                        // colour with a 0 means it is up and idle.
                         Cell {
-                            id: dockerCell
-                            icon: "docker"; text: Sys.docker; vform: "stack"
-                            color: Sys.dockerUp ? Theme.text : Theme.dim
-                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("docker") }
-                        }
-                        // server, not the memory chip it used to be — that glyph
-                        // sat next to the CPU and RAM cells reading as a third one
-                        Cell {
-                            id: vmCell
-                            icon: "server"; text: Sys.vm; vform: "stack"
-                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("vm") }
+                            id: servicesCell
+                            readonly property bool vms: servicesPopout.currentTab === "vms"
+                            icon: vms ? "server" : "docker"
+                            text: vms ? Sys.vm : Sys.docker
+                            vform: "stack"
+                            color: vms || Sys.dockerUp ? Theme.text : Theme.dim
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("services") }
                         }
                         // cpu / mem / disk are one target: they are the same
                         // machine, and the popout shows the lot
@@ -818,7 +821,7 @@ Variants {
                             onWheel: w => {
                                 if (!parent.av) return;
                                 const d = w.angleDelta.y > 0 ? 0.05 : -0.05;
-                                parent.av.volume = Math.max(0, Math.min(1.5, parent.av.volume + d));
+                                parent.av.volume = Math.max(0, Math.min(1, parent.av.volume + d));
                             }
                         }
                     }
@@ -1036,23 +1039,11 @@ Variants {
             }
 
 
-            ListPopout {
-                id: dockerPopout
+            ServicesPopout {
+                id: servicesPopout
                 bar: panel
-                cell: dockerCell
-                panelName: "docker"
-                heading: "docker"
-                rows: Sys.dockerList
-                empty: Sys.dockerUp ? "no containers running" : "daemon is down"
-            }
-            ListPopout {
-                id: vmPopout
-                bar: panel
-                cell: vmCell
-                panelName: "vm"
-                heading: "virtual machines"
-                rows: Sys.vmList
-                empty: "no vms running"
+                cell: servicesCell
+                panelName: "services"
             }
 
         }

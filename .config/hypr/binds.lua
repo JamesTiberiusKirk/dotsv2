@@ -48,7 +48,8 @@ reg("SUPER + ", {
     -- Compositor-side zoom, not a screen-copy tool: woomer and friends size
     -- their layer surface in physical pixels, which lands 1.5x off on this
     -- fractionally scaled output. Toggles 1x <-> 2x around the cursor.
-    { "Z",      dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(hyprctl getoption cursor:zoom_factor -j | jq -r 'if .float > 1 then 1 else 2 end')"), "Zoom screen 2x (toggle)" },
+    -- eval, not `hyprctl keyword`: the lua config parser rejects keyword outright
+    { "Z",      dsp.exec_cmd([[hyprctl eval "hl.config({ cursor = { zoom_factor = $(hyprctl getoption cursor:zoom_factor -j | jq -r 'if .float > 1 then 1 else 2 end') } }) return \"\""]]), "Zoom screen 2x (toggle)" },
 })
 
 -- ---- Power key ----
@@ -172,7 +173,7 @@ reg("SUPER + ", {
 
 -- ---- Utilities ----
 reg("SUPER + SHIFT + ", {
-    { "C", dsp.exec_cmd("hyprctl reload && qs kill; qs -d"),            "Reload config" },
+    { "C", dsp.exec_cmd("hyprctl reload; qs kill; qs -d -n"),           "Reload config" },
     { "T", dsp.exec_cmd("~/.scripts/theme-toggle"),                     "Toggle theme" },
     { "D", dsp.exec_cmd("qs ipc call notifs dismissAll"),               "Dismiss all notifications" },
     { "S", dsp.exec_cmd("~/.scripts/screenshot.sh"),                    "Screenshot" },
@@ -186,7 +187,7 @@ reg("SUPER + ", {
 
 -- ---- Audio / brightness / media (no modifier) ----
 reg("", {
-    { "XF86AudioRaiseVolume",  dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"),   "Volume up",   { locked = true, repeating = true } },
+    { "XF86AudioRaiseVolume",  dsp.exec_cmd("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"), "Volume up",   { locked = true, repeating = true } },
     { "XF86AudioLowerVolume",  dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),   "Volume down", { locked = true, repeating = true } },
     { "XF86AudioMute",         dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),  "Mute",        { locked = true, repeating = true } },
     { "XF86AudioMicMute",      dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),"Mute mic",    { locked = true, repeating = true } },
@@ -199,6 +200,12 @@ reg("", {
     { "XF86AudioPlay",         dsp.exec_cmd("playerctl play-pause"), "Play/pause",  { locked = true } },
     { "XF86AudioPrev",         dsp.exec_cmd("playerctl previous"),   "Previous track", { locked = true } },
 })
+
+-- Clamshell: every lid edge re-runs the screen layout. monitors.lua reads the
+-- lid itself and darkens the built-in panels while it is shut with an external
+-- plugged in. Locked: it has to fire on the lock screen too. Not in reg(): a
+-- switch is not a key, it does not belong in the cheatsheet.
+hl.bind("switch:Lid Switch", dsp.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh"), { locked = true })
 
 -- ============================ SUBMAPS ============================
 

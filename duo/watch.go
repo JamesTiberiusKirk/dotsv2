@@ -52,6 +52,10 @@ func watch() error {
 	defer lock.Close()
 
 	go watchSleep()
+	// One owner for every external monitor's brightness: the CLI fires intents
+	// at this socket and the worker applies the latest per monitor. See
+	// extbright.go for why a daemon rather than a per-process flock.
+	go extServe()
 	// At boot, duo watch starts on hyprland.start before USB has necessarily
 	// finished enumerating the pogo-pin keyboard — a snapshot taken too early
 	// reads undocked even when it's sitting docked, and since the state never
@@ -71,14 +75,8 @@ func watch() error {
 	applyDock(dock)
 	applyKbd(kbd)
 
-	// hyprland.start also fires load-plugins.sh, which does `hyprctl reload` —
-	// re-running the host config's "eDP-2 enabled" rule. That launch and this
-	// one are both fire-and-forget, so there's no ordering guarantee between
-	// "reload re-enables eDP-2" and "duo disables it": whichever finishes last
-	// wins. Re-assert once more after the boot storm settles.
-	time.AfterFunc(4*time.Second, func() { applyDock(dock) })
 	orient, stable := orientNormal, 0
-	ticks := 0
+	exts := externalsConnected()
 
 	for range time.Tick(time.Second) {
 		// Hyprland exiting takes its runtime directory with it. Without this
@@ -109,40 +107,20 @@ func watch() error {
 			logf("keyboard: present=%v", kbd)
 			applyKbd(kbd)
 		}
-		// Reacting to transitions alone is not enough: `hyprctl reload` re-applies
-		// the host config's monitor rules and re-enables eDP-2 without the dock
-		// state ever changing, so nothing above fires and the panel stays on.
-		// theme-apply and SUPER+CTRL+C both reload, which is why this looked
-		// random. Enforce the desired state rather than only reacting to changes.
-		if ticks++; ticks%reassertEvery == 0 {
-			reassert(dock)
-		}
 		if autoRotate() {
 			orient, stable = followOrientation(orient, stable)
 		}
+		// a monitor came or went: the DDC map is stale until re-detected
+		if now := externalsConnected(); now != exts {
+			exts = now
+			logf("externals: %q", exts)
+			if extSrv != nil {
+				extSrv.reqs <- extReq{refresh: true}
+			}
+		}
+		publish()
 	}
 	return nil
-}
-
-// One `hyprctl monitors` fork per interval, against a display that stays wrong
-// until the next pass — 5s keeps the cost off the idle loop while still being
-// faster than noticing by eye.
-const reassertEvery = 5
-
-func reassert(dock bool) {
-	// Read the latch once: deciding on one read and logging another produced a
-	// line that contradicted the action it was describing.
-	ov := screenOverride()
-	want := !dock
-	if ov != "" {
-		want = ov == "on"
-	}
-	if edp2Active() == want {
-		return
-	}
-	logf("reassert: eDP-2 %s -> %s (docked=%v override=%q)",
-		onOff(!want), onOff(want), dock, ov)
-	applyScreen(want)
 }
 
 func onOff(on bool) string {
@@ -152,17 +130,14 @@ func onOff(on bool) string {
 	return "off"
 }
 
+// applyDock re-runs monitors.lua, which reads the dock state itself; an override
+// latched by `duo screen` still outranks it there.
 func applyDock(docked bool) {
 	if ov := screenOverride(); ov != "" {
-		logf("dock: docked=%v but override=%q holds, leaving eDP-2 alone", docked, ov)
-		return
+		logf("dock: docked=%v but override=%q holds", docked, ov)
 	}
-	applyScreen(!docked)
-}
-
-func applyScreen(on bool) {
-	if err := screenCmd(onOff(on)); err != nil {
-		logf("error: screen %s: %v", onOff(on), err)
+	if err := applyMonitors(); err != nil {
+		logf("error: dock docked=%v: %v", docked, err)
 		fmt.Fprintln(os.Stderr, "duo:", err)
 	}
 }
@@ -233,8 +208,22 @@ func watchSleep() {
 			continue
 		}
 		sc := bufio.NewScanner(out)
+		// The signal arrives twice per edge (logged 2026-10-01 09:37:59 and
+		// 09:38:00 for one resume; cause not traced). Edges alternate, so a
+		// repeat of the last one is always the duplicate.
+		last := ""
 		for sc.Scan() {
 			line := sc.Text()
+			edge := ""
+			if strings.Contains(line, "boolean true") {
+				edge = "sleep"
+			} else if strings.Contains(line, "boolean false") {
+				edge = "resume"
+			}
+			if edge == "" || edge == last {
+				continue
+			}
+			last = edge
 			switch {
 			case strings.Contains(line, "boolean true"):
 				logf("sleep: blanking keyboard backlight")

@@ -14,13 +14,11 @@
 .scripts/rquickshare
 
 # scripts
-.scripts/brightness-step
 .scripts/check-gpu.sh
 .scripts/extracttext.sh
 .scripts/gomodrename.sh
 .scripts/hypr-doc-gen
 .scripts/hyprx
-.scripts/jack-watch
 .scripts/imports
 .scripts/layout-switcher.sh
 .scripts/menu/common
@@ -29,7 +27,6 @@
 .scripts/qsmenu
 .scripts/random-wallpaper.sh
 .scripts/powersave
-.scripts/redshift-toggle
 .scripts/screenshot.sh
 .scripts/menu-run
 .scripts/script-menu.sh
@@ -49,7 +46,6 @@
 
 # config
 .config/alacritty
-.config/darkman
 .config/gtk-3.0
 .config/gtmux
 .config/hypr

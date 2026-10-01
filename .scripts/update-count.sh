@@ -2,6 +2,12 @@
 
 set -euo pipefail
 
+# One copy per user: hyprx starts this on every login and the loop never
+# exits, so without the lock each Hyprland restart stacked another (3 were
+# running on 2026-10-01).
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/update-count.lock"
+flock -n 9 || exit 0
+
 output_file="/tmp/i3status_updates"
 interval=3600
 

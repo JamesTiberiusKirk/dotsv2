@@ -5,7 +5,7 @@
 //
 //	duo watch                        dock/undock daemon (eDP-2 off when keyboard docks)
 //	duo screen on|off|toggle|status  manual bottom-screen control
-//	duo brightness up|down|get|set N [top|bottom] | sync on|off
+//	duo brightness up|down|get|set N [top|bottom|<connector>] | sync on|off | ext
 //	duo layout stacked|mirror|mirror-flip|top-only
 //	duo status
 package main
@@ -46,6 +46,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "duo:", err)
 		os.Exit(1)
 	}
+	// anything that may have changed state: let the daemon republish now
+	switch os.Args[1] {
+	case "screen", "brightness", "layout", "kbd", "rotate", "autorotate":
+		notifyDaemon()
+	}
 }
 
 func arg(i int) string {
@@ -61,9 +66,13 @@ func usage() {
   screen on|off|toggle|status    bottom screen (eDP-2); on/off/toggle latch an
                                  override, cleared next time the keyboard moves
   screen auto                    drop the override, follow the keyboard again
-  brightness up|down|set N [top|bottom]
+  brightness up|down|set N [top|bottom|<connector>]
+                                 no target: locked moves every monitor, unlocked
+                                 moves the focused one; <connector> is DP-1 etc.
   brightness get                 "<top> <bottom>" percent, bottom -1 if absent
-  brightness sync on|off|status  lock the panels together (keys included)
+  brightness ext                 "<connector> <pct>" per external DDC monitor
+  brightness refresh             daemon re-detects externals and re-reads them
+  brightness sync on|off|status  lock every monitor together (keys included)
   layout stacked|mirror|mirror-flip|top-only
   kbd handshake|backlight N      enable the Fn layer / set keyboard backlight (0-3)
   orientation                    accelerometer + hinge angles + detected orientation

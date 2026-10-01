@@ -91,6 +91,10 @@ hl.config({
     misc = {
         force_default_wallpaper = 0,
         disable_hyprland_logo   = true,
+        -- a reload re-applies every output and flips the audio profile; theme-apply
+        -- rewrites colors.lua (required by hyprland.lua) and applies it with eval,
+        -- so a file write must not reload. Reload only via SUPER+SHIFT+C.
+        disable_autoreload      = true,
     },
 
     ecosystem = {
@@ -266,6 +270,17 @@ hl.on("window.title", function(w)
     hl.dispatch(hl.dsp.window.resize({ x = 900, y = 700, relative = false, window = w }))
     hl.dispatch(hl.dsp.window.center({ window = w }))
 end)
+-- The browser's open/save file dialog is the xdg-desktop-portal-gtk window. It
+-- maps floating but full screen; cap it to a dialog-sized, centred window.
+-- Matched on class (the title is site-specific, e.g. "<host> wants to open"),
+-- which also covers the portal's app-chooser / access prompts — all small
+-- dialogs, none of which want to be full screen.
+hl.on("window.open", function(w)
+    if w.class ~= "xdg-desktop-portal-gtk" then return end
+    hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
+    hl.dispatch(hl.dsp.window.resize({ x = 1000, y = 700, relative = false, window = w }))
+    hl.dispatch(hl.dsp.window.center({ window = w }))
+end)
 
 -------------------
 ---- LAYERRULES ---
@@ -324,13 +339,12 @@ hl.layer_rule({
 hl.on("hyprland.start", function()
     -- first: load plugins + reload config so glass rules exist before bars spawn
     hl.exec_cmd("~/.config/hypr/scripts/load-plugins.sh")
-    hl.exec_cmd("qs") -- owns bar + notifications + launcher (see .config/quickshell)
+    hl.exec_cmd("qs -n") -- owns bar + notifications + launcher (see .config/quickshell)
     hl.exec_cmd("owncloud")
     hl.exec_cmd("hyprland-autoname-workspaces")
     hl.exec_cmd("~/.config/hypr/scripts/monitor-layout.sh")
     hl.exec_cmd("~/.config/hypr/scripts/monitor-watch.sh") -- hotplug: re-apply layout + wallpaper
     hl.exec_cmd("~/.scripts/menu/common/wallpaper.sh --current") -- swww, daemon spawned by the script
-    hl.exec_cmd("~/.config/hypr/scripts/workspace-layouts.sh")
     hl.exec_cmd("~/.config/hypr/scripts/idle start") -- hypridle from generated conf
     hl.exec_cmd("cornd")
     -- AirPods: bluez publishes nothing for them (battery, ANC and the rest ride

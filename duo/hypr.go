@@ -7,23 +7,14 @@ import (
 	"strings"
 )
 
-// Monitor rules for the two stacked 2880x1800@120 panels at scale 1.5
-// (positions are in logical pixels: 1800/1.5 = 1200).
-//
-// disabled = false is not redundant: once an output has been disabled, a rule
-// that only sets mode/position/scale is accepted but leaves it off. mirror =
-// "none" is the same trap one level down — a rule that omits mirror leaves a
-// previously set one in place, so "layout stacked" out of "layout mirror"
-// silently did nothing at all.
-//
-// transform 2 is 180°: the tent presets flip the panel facing away from you.
-const (
-	edp1Rule    = `hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 1.5, transform = 0, mirror = "none", disabled = false })`
-	edp1Flipped = `hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 1.5, transform = 2, mirror = "none", disabled = false })`
-	edp2Rule    = `hl.monitor({ output = "eDP-2", mode = "2880x1800@120", position = "0x1200", scale = 1.5, transform = 0, mirror = "none", disabled = false })`
-	edp2Off     = `hl.monitor({ output = "eDP-2", disabled = true })`
-	edp2Mir     = `hl.monitor({ output = "eDP-2", transform = 0, mirror = "eDP-1", disabled = false })`
-)
+// Screen geometry lives in ~/.config/hypr/monitors.lua, not here. duo records
+// what it decided — bottom panel power (screen-override), mirror mode and
+// rotation (runtime files) — then re-runs that file, the same one every config
+// reload runs. A reload therefore lands on duo's state instead of undoing it,
+// which is what the old 5s re-assert loop existed to paper over.
+const monitorsLua = `dofile(os.getenv("HOME").."/.config/hypr/monitors.lua")`
+
+func applyMonitors() error { return hyprEval(monitorsLua) }
 
 func hyprEval(code string) error {
 	out, err := exec.Command("hyprctl", "eval", code+` return ""`).CombinedOutput()
@@ -33,20 +24,21 @@ func hyprEval(code string) error {
 	return nil
 }
 
-// screenLatched is the user-facing path: it records the intent *before* acting,
-// so a re-assert tick landing in between cannot see an un-latched panel and
-// undo the very change being made. screenCmd stays unlatched because the watch
-// loop uses it as its actuator and must not claim the user asked.
+// screenLatched records the intent, then applies it: monitors.lua reads the
+// latch, so the state file is the action.
 func screenLatched(action string) error {
-	if action == "status" {
-		return screenCmd(action)
-	}
-	// Without this the only way out of a latch is physically moving the
-	// keyboard, which is a poor answer to "put it back on automatic".
-	if action == "auto" {
+	switch action {
+	case "status":
+		// Mirroring counts as on: the panel is lit and drawing power, which is
+		// the whole reason anything asks.
+		fmt.Println(onOff(edp2Active()))
+		return nil
+	case "auto":
+		// Without this the only way out of a latch is physically moving the
+		// keyboard, which is a poor answer to "put it back on automatic".
 		setScreenOverride("")
 		logf("manual: screen auto -> override cleared")
-		return screenCmd(onOff(!docked()))
+		return applyMonitors()
 	}
 	want := action
 	if action == "toggle" {
@@ -57,7 +49,7 @@ func screenLatched(action string) error {
 	}
 	prev := screenOverride()
 	setScreenOverride(want)
-	if err := screenCmd(want); err != nil {
+	if err := applyMonitors(); err != nil {
 		setScreenOverride(prev) // never leave a latch behind for a move that failed
 		return err
 	}
@@ -65,52 +57,50 @@ func screenLatched(action string) error {
 	return nil
 }
 
-func screenCmd(action string) error {
-	switch action {
-	case "on":
-		return hyprEval(edp2Rule)
-	case "off":
-		return hyprEval(edp2Off)
-	case "toggle":
-		if edp2Active() {
-			return hyprEval(edp2Off)
-		}
-		return hyprEval(edp2Rule)
-	case "status":
-		// Mirroring counts as on: the panel is lit and drawing power, which is
-		// the whole reason anything asks.
-		fmt.Println(map[bool]string{true: "on", false: "off"}[edp2Active()])
-		return nil
+// layoutCmd picks how the two panels relate. The two-panel presets latch the
+// bottom panel on and top-only latches it off — the same latch `duo screen`
+// uses, so the dock watcher and a reload both respect the choice. A preset
+// also resets rotation: the mirror presets have no rotated form.
+func layoutCmd(preset string) error {
+	mode, power := "stacked", "on"
+	switch preset {
+	case "stacked", "mirror", "mirror-flip":
+		mode = preset
+	case "top-only":
+		power = "off"
+	default:
+		return fmt.Errorf("layout: want stacked|mirror|mirror-flip|top-only, got %q", preset)
 	}
-	return fmt.Errorf("screen: want on|off|toggle|auto|status, got %q", action)
+	if err := runtimeWrite("mode", mode); err != nil {
+		return err
+	}
+	if err := runtimeWrite("rotation", string(orientNormal)); err != nil {
+		return err
+	}
+	return screenLatched(power)
 }
 
-func layoutCmd(preset string) error {
-	switch preset {
-	case "stacked":
-		if err := hyprEval(edp1Rule); err != nil {
-			return err
-		}
-		return hyprEval(edp2Rule)
-	case "mirror":
-		if err := hyprEval(edp1Rule); err != nil {
-			return err
-		}
-		return hyprEval(edp2Mir)
-	case "mirror-flip":
-		// Tent/share mode: both panels show the same thing and the top is
-		// upside down, for whoever is sitting on the other side of the machine.
-		if err := hyprEval(edp1Flipped); err != nil {
-			return err
-		}
-		return hyprEval(edp2Mir)
-	case "top-only":
-		if err := hyprEval(edp1Rule); err != nil {
-			return err
-		}
-		return hyprEval(edp2Off)
+// focusedMonitor is the name of the monitor holding Hyprland focus (the one the
+// pointer/keyboard is on), or "" if that can't be read. Drives which screen the
+// brightness keys move when the panels are unlocked.
+func focusedMonitor() string {
+	out, err := exec.Command("hyprctl", "monitors", "-j").Output()
+	if err != nil {
+		return ""
 	}
-	return fmt.Errorf("layout: want stacked|mirror|mirror-flip|top-only, got %q", preset)
+	var mons []struct {
+		Name    string `json:"name"`
+		Focused bool   `json:"focused"`
+	}
+	if json.Unmarshal(out, &mons) != nil {
+		return ""
+	}
+	for _, m := range mons {
+		if m.Focused {
+			return m.Name
+		}
+	}
+	return ""
 }
 
 // edp2Active reports whether eDP-2 is currently an enabled output.

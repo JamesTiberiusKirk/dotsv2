@@ -11,13 +11,16 @@
 # Reading the kernel also means a ghost output (hyprctl claims it is there, the
 # connector says `disconnected`) stops counting as present.
 #
-# A saved profile in $STORE wins over the built-in cases below. `save` freezes
-# whatever is currently on screen; the live editors are `duo layout` and
-# `duo scale` in the display popout (the menu's `display/arrange` is dead —
-# nwg-displays writes monitors.conf and the lua config never sources it).
+# Two paths. Hosts whose config loads monitors.lua (binstar) take the block
+# right after the lock: monitors.lua owns every rule, profiles are keyed by
+# monitor identity, and this script only edits saved layouts and re-runs it.
+# Every other host takes the old path below: profiles keyed by connector, rules
+# applied here by eval, and a saved profile in $STORE wins over the built-in
+# cases.
 #
-# Called at startup from base.lua and on every hotplug by monitor-watch.sh.
-# `hyprctl reload` is NOT enough — it re-runs hosts/<host>.lua, not this.
+# Called at startup from base.lua, on every hotplug by monitor-watch.sh, after
+# sleep and screen-off by hypridle (scripts/idle), and by the display popout's
+# scale pills / the menu's "save arrangement".
 set -u
 
 STORE="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/layouts"
@@ -32,6 +35,91 @@ flock 9
 
 MONS=$(hyprctl monitors -j 2>/dev/null) || exit 0
 HOST=${HOSTNAME:-$(cat /etc/hostname)}
+
+# Hosts whose config loads monitors.lua: that file is the only thing that turns
+# state into monitor rules, so this script just edits the saved layout and
+# re-runs it. Profiles there are keyed by monitor identity (EDID), not port.
+# Everything below this block is the old path for hosts not yet migrated.
+MONS_LUA="$HOME/.config/hypr/monitors.lua"
+if grep -qs 'monitors.lua' "$HOME/.config/hypr/hosts/$HOST.lua"; then
+    RUN=${XDG_RUNTIME_DIR:-/tmp}
+    MAP="$RUN/hypr-monitors"
+    # monitors.lua is the single point of failure for every screen: say so loudly
+    rerun() {
+        local out
+        out=$(hyprctl eval "dofile(\"$MONS_LUA\") return \"\"" 2>&1)
+        case $out in error*|*rror*) echo "monitors.lua: $out" >&2; notify-send -u critical "monitors.lua" "$out" ;; esac
+    }
+    # the dry run refreshes the connector -> identity map without touching screens
+    lua "$MONS_LUA" >/dev/null
+    file="$STORE/$(sed -n 's/^profile //p' "$MAP")"
+    id_of() { awk -v c="$1" '$1==c{print $2}' "$MAP"; }
+    # live geometry: name,WxH,hz,pos,scale,transform (lit outputs only)
+    live() { printf '%s' "$MONS" | jq -r '.[] | "\(.name),\(.width)x\(.height),\(.refreshRate|round),\(.x)x\(.y),\(.scale),\(.transform)"'; }
+
+    case "${1:-}" in
+    scale)
+        # Changes one number. Not a snapshot: whatever else is on screen
+        # (powersave Hz, duo rotation, a dark panel) stays out of the file.
+        id=$(id_of "${2:-}")
+        [ -n "$id" ] || { echo "no such output: ${2:-}" >&2; exit 1; }
+        if grep -q "^$id," "$file" 2>/dev/null; then
+            awk -F, -v OFS=, -v id="$id" -v s="${3:-}" '$1==id{$4=s}1' "$file" >"$file.tmp" && mv "$file.tmp" "$file"
+        else
+            live | awk -F, -v OFS=, -v c="$2" -v id="$id" -v s="${3:-}" \
+                '$1==c{print id, $2"@"$3, $4, s, ($1 ~ /^eDP/ ? 0 : $6)}' >>"$file"
+        fi
+        rerun
+        ;;
+    save)
+        # Records the arrangement, not the moment. Left out on purpose: powersave's
+        # refresh (the saved mode is kept), and on the built-in panels anything duo
+        # owns — rotation, mirroring, power. A panel that is rotated, mirrored or
+        # dark keeps its previous line.
+        ultra=$(cat "$RUN/ultrasave" 2>/dev/null)
+        rot=$(cat "$RUN/duo/rotation" 2>/dev/null || echo normal)
+        dmode=$(cat "$RUN/duo/mode" 2>/dev/null || echo stacked)
+        tmp="$file.tmp"
+        : >"$tmp"
+        while IFS=, read -r name res hz pos s t; do
+            id=$(id_of "$name")
+            [ -n "$id" ] || continue
+            old=$(grep "^$id," "$file" 2>/dev/null)
+            mode="$res@$hz"
+            [ "$ultra" = 1 ] && [ -n "$old" ] && mode=$(cut -d, -f2 <<<"$old")
+            if [[ $name == eDP* ]]; then
+                if [ "$rot" != normal ] || [ "$dmode" != stacked ]; then
+                    [ -n "$old" ] && echo "$old" >>"$tmp"
+                    continue
+                fi
+                t=0
+            fi
+            echo "$id,$mode,$pos,$s,$t" >>"$tmp"
+        done < <(live)
+        # outputs not lit right now (eDP-2 under the keyboard) keep their line
+        [ -f "$file" ] && grep -vF -f <(cut -d, -f1 "$tmp" | sed 's/$/,/') "$file" >>"$tmp"
+        mv "$tmp" "$file"
+        echo "saved $file"
+        ;;
+    *)
+        rerun
+        # A monitor the kernel refused to light (atomic commit EINVAL, seen
+        # after waking from DPMS) stays "enabled" at 0x0 until Hyprland
+        # restarts — no rule change revives it — and breaks everything that
+        # draws on every output (grim, wayfreeze, awww). Say so, instead of a
+        # silent black screen. The wait lets the modeset settle first.
+        sleep 1
+        stuck=$(hyprctl monitors all -j 2>/dev/null |
+            jq -r '.[] | select((.disabled | not) and .width == 0) | "\(.name): \(.description)"')
+        if [ -n "$stuck" ]; then
+            echo "stuck: $stuck" >&2
+            notify-send -u critical "monitor stuck" "$stuck
+replug its cable, or restart Hyprland"
+        fi
+        ;;
+    esac
+    exit 0
+fi
 
 # The DRM card Hyprland is actually driving, found by matching a connector name
 # against the compositor's output names. A multi-GPU host has connectors on
@@ -55,9 +143,9 @@ CARD=$(drm_dir) || CARD=
 
 OVERRIDE="${XDG_STATE_HOME:-$HOME/.local/state}/duo/screen-override"
 
-# duo's intent for eDP-2, computed the same way duo's reassert() does: it
-# follows the keyboard unless a manual `duo screen on|off` has latched an
-# override. Kept in sync with duo/watch.go reassert() and duo/watch.go docked().
+# duo's intent for eDP-2: it follows the keyboard unless a manual `duo screen
+# on|off` has latched an override. Kept in sync with monitors.lua and
+# duo/watch.go docked().
 edp2_wanted() {
     local ov v
     ov=$(cat "$OVERRIDE" 2>/dev/null) || ov=

@@ -99,7 +99,7 @@ Popout {
                      : audioPopout.podsOpen ? "chevron-up" : "chevron-down"
             onTrailPressed: audioPopout.podsOpen = !audioPopout.podsOpen
             suffix: "%"
-            maxValue: 150
+            maxValue: 100
             off: ds.na?.muted ?? false
             value: ds.na ? Math.round(ds.na.volume * 100) : 0
             onCommit: v => { if (ds.na) ds.na.volume = v / 100; }
@@ -378,7 +378,7 @@ Popout {
             width: audioPopout.contentWidth
             label: ""
             suffix: "%"
-            maxValue: 150
+            maxValue: 100
             value: ar.na ? Math.round(ar.na.volume * 100) : 0
             onCommit: v => { if (ar.na) ar.na.volume = v / 100; }
         }

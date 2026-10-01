@@ -6,7 +6,9 @@
 --
 -- Load order: base -> colors (theme) -> binds -> plugins -> host overlay.
 -- require() in Hyprland is a custom per-call scope and re-runs on reload,
--- so theme switching (theme-apply rewrites colors.lua + hyprctl reload) works.
+-- so a reload picks up the current colors.lua. theme-apply itself does not
+-- reload: it rewrites colors.lua and dofile()s it via hyprctl eval, and
+-- misc.disable_autoreload (base.lua) keeps the file write from reloading.
 -- ============================================================================
 
 local function hostname()

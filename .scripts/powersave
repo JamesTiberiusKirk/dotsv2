@@ -14,6 +14,23 @@ PSTATE=/sys/devices/system/cpu/intel_pstate
 
 wifi_con() { nmcli -t -f NAME,TYPE con show --active | awk -F: '$2=="802-11-wireless"{print $1; exit}'; }
 
+# Hosts whose config loads monitors.lua: it is the only writer of monitor rules,
+# so powersave hands it the low modes as state instead of evaling rules itself
+# (a rule from here would be undone by the next hotplug, dock or rotate).
+HOST=${HOSTNAME:-$(cat /etc/hostname)}
+uses_monitors_lua() { grep -qs 'monitors.lua' "$HOME/.config/hypr/hosts/$HOST.lua"; }
+MODES="${XDG_RUNTIME_DIR:-/tmp}/ultrasave-modes"
+rerun_monitors() { "$HOME/.config/hypr/scripts/monitor-layout.sh"; }   # re-runs monitors.lua, loud on error
+
+# Lowest refresh each lit monitor offers at its current resolution, "name mode".
+min_modes() {
+  hyprctl monitors -j | jq -r '.[] | select(.disabled | not)
+    | "\(.width)x\(.height)" as $res
+    | (.availableModes | map((capture("^\($res)@(?<hz>[0-9.]+)Hz")? | .hz | tonumber)) | min) as $hz
+    | select($hz != null)
+    | "\(.name) \(.width)x\(.height)@\($hz)"'
+}
+
 # Drop every monitor to the lowest refresh rate its current resolution offers.
 # Portable across hosts (binstar 120→60, dellstar/legion whatever their panel
 # has); `off` reverts via hyprctl reload, which re-applies the config rules.
@@ -33,7 +50,15 @@ on() {
   # lua config: `hyprctl keyword` is a no-op, hl.* through eval is the live path
   # hyprglass is a plugin decoration with its own blur pass — it ignores
   # decoration.blur, so killing stock blur alone leaves the expensive one on.
-  hyprctl eval "$(min_hz_monitors)
+  if uses_monitors_lua; then
+    min_modes >"$MODES"
+    echo 1 > "$STATE"   # before the rerun: monitors.lua reads it
+    rerun_monitors
+    rules=
+  else
+    rules=$(min_hz_monitors)
+  fi
+  hyprctl eval "$rules
     hl.config({ decoration = { blur = { enabled = false }, shadow = { enabled = false } },
                 animations = { enabled = false } })
     if hl.plugin.hyprglass then hl.plugin.hyprglass.config({ enabled = false }) end" >/dev/null
@@ -44,7 +69,18 @@ on() {
 off() {
   [ -w $PSTATE/no_turbo ] && echo 0 > $PSTATE/no_turbo
   [ -w $PSTATE/max_perf_pct ] && echo 100 > $PSTATE/max_perf_pct
-  hyprctl reload >/dev/null          # one call reverts everything eval set above
+  if uses_monitors_lua; then
+    # base.lua has all three on; a reload would also re-run everything else
+    echo 0 > "$STATE"   # before the rerun: monitors.lua reads it
+    rm -f "$MODES"
+    rerun_monitors
+    hyprctl eval 'hl.config({ decoration = { blur = { enabled = true }, shadow = { enabled = true } },
+                              animations = { enabled = true } })
+      if hl.plugin.hyprglass then hl.plugin.hyprglass.config({ enabled = true }) end
+      return ""' >/dev/null
+  else
+    hyprctl reload >/dev/null          # one call reverts everything eval set above
+  fi
   w=$(wifi_con); [ -z "$w" ] || nmcli con modify "$w" wifi.powersave 2
   powerprofilesctl set "${1:-balanced}"
   echo 0 > "$STATE"

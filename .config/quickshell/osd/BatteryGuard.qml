@@ -49,8 +49,11 @@ PanelWindow {
                 // suppress before hibernating so resume at ≤5% doesn't
                 // instantly re-fire the countdown loop
                 root.dismissed = true;
-                // ponytail: sudo zzz -Z (proven path, passwordless sudo); loginctl hibernate if elogind polkit ever gets set up
-                Quickshell.execDetached(["sudo", "zzz", "-Z"]);
+                // through elogind, not `sudo zzz -Z`: zzz skipped the lock
+                // (woke unlocked), hypridle's screens-off/layout and the
+                // system-sleep hooks (charge limit, amp reload). polkit
+                // already allows it for the active session (pkcheck yes).
+                Quickshell.execDetached(["loginctl", "hibernate"]);
             }
         }
     }

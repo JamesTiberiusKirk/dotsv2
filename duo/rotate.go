@@ -4,29 +4,9 @@ import (
 	"fmt"
 )
 
-// Rotating the machine doesn't just transform each panel — it changes how they
-// sit relative to each other. Stacked in landscape (eDP-1 above eDP-2), they
-// end up side by side in portrait, and which one is on the left depends on
-// which way you turned it.
-//
-// Logical sizes at scale 1.5: landscape 1920x1200 per panel, portrait 1200x1920.
-//
-// If a rotation comes out mirrored or with the panels the wrong way round, the
-// fix is here: swap the transform numbers or the two positions for that entry.
-type layout struct {
-	transform int
-	edp1Pos   string
-	edp2Pos   string
-}
-
-var layouts = map[orientation]layout{
-	orientNormal:   {0, "0x0", "0x1200"}, // eDP-1 on top
-	orientBottomUp: {2, "0x1200", "0x0"}, // upside down: eDP-1 below
-	// Sides as observed on the machine, not as reasoned about: with the left
-	// edge up, eDP-1 (the panel that was on top) lands on the RIGHT.
-	orientLeftUp:  {1, "1200x0", "0x0"}, // portrait, eDP-1 on the right
-	orientRightUp: {3, "0x0", "1200x0"}, // portrait, eDP-1 on the left
-}
+// Rotating the machine turns the stack of panels, not just each panel: stacked
+// in landscape, side by side in portrait. The position table lives in
+// ~/.config/hypr/monitors.lua; duo only records which way is up.
 
 func rotateCmd(arg string) error {
 	var o orientation
@@ -49,20 +29,19 @@ func rotateCmd(arg string) error {
 }
 
 func applyOrientation(o orientation) error {
-	l, ok := layouts[o]
-	if !ok {
+	switch o {
+	case orientNormal, orientLeftUp, orientRightUp, orientBottomUp:
+	default:
 		return fmt.Errorf("rotate: no layout for %q", o)
 	}
-	// Both panels in one eval: applied one at a time, there is an instant where
-	// one is rotated and the other is not, and their boxes overlap — which
-	// Hyprland notices and complains about on screen.
-	//
-	// Portrait swaps each panel's logical size (1920x1200 -> 1200x1920), so the
-	// mode string stays the same and only transform and positions move.
-	return hyprEval(fmt.Sprintf(
-		`hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = %q, scale = 1.5, transform = %d, mirror = "none", disabled = false }) `+
-			`hl.monitor({ output = "eDP-2", mode = "2880x1800@120", position = %q, scale = 1.5, transform = %d, mirror = "none", disabled = false })`,
-		l.edp1Pos, l.transform, l.edp2Pos, l.transform))
+	// a mirror preset has no rotated form; turning the machine means stacked
+	if err := runtimeWrite("mode", "stacked"); err != nil {
+		return err
+	}
+	if err := runtimeWrite("rotation", string(o)); err != nil {
+		return err
+	}
+	return applyMonitors()
 }
 
 // Auto-rotate is opt-in and remembered across runs: a machine that reorients

@@ -228,7 +228,13 @@ return {{
     run = lambda *a: subprocess.run(a, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.utime(HOME / ".config/alacritty/alacritty.toml")   # live-reloads on mtime
     os.utime(HOME / ".config/wezterm/wezterm.lua")
-    run("hyprctl", "reload")
+    # Re-apply only the generated colors, NOT a full `hyprctl reload`. A reload
+    # re-runs the whole config, which reconfigures every output — and any
+    # external monitor (no rule in hosts/<host>.lua, its layout lives in
+    # monitor-layout.sh's saved profile) snaps back to preferred/scale-1/no-
+    # rotation on each theme or wallpaper switch. dofile re-runs colors.lua's
+    # hl.config in place, touching borders/group colors and nothing else.
+    run("hyprctl", "eval", 'dofile(os.getenv("HOME").."/.config/hypr/colors.lua") return ""')
     for s in glob.glob(f"/run/user/{os.getuid()}/nvim.*"):
         run("timeout", "3", "nvim", "--server", s, "--remote-expr", f"execute('ThemeSync {mode}')")
 

@@ -46,14 +46,16 @@ func brightnessCmd(action, val, target string) error {
 			if err := stateWrite("brightness-sync", val); err != nil {
 				return err
 			}
-			// re-locking with the panels apart: snap to eDP-1 rather than
-			// leave a lock that claims they match when they don't
+			// re-locking: bring the saved offsets back around the first lit
+			// panel's current value (unlocked tweaks are temporary, never
+			// saved). Derived, not the stored level: unlocked moves left it stale.
 			if val == "on" {
-				pct, err := brightnessPct()
-				if err != nil {
-					return err
+				ms := participants()
+				L, ok := deriveLevel(ms)
+				if !ok {
+					return fmt.Errorf("brightness: no lit monitor to read a level from")
 				}
-				return apply(pct, "both")
+				return applyGroup(ms, clampL(offsOf(ms), L))
 			}
 			return nil
 		case "", "status":
@@ -61,17 +63,61 @@ func brightnessCmd(action, val, target string) error {
 			return nil
 		}
 		return fmt.Errorf("brightness sync: want on|off|status, got %q", val)
+
+	case "refresh":
+		// the daemon owns the i2c bus: queue it there, never run ddcutil here
+		return extSend("refresh")
+
+	case "ext":
+		// externals only, one "<connector> <pct>" line each — the shell reads
+		// this on popout open to build the per-monitor sliders
+		for _, m := range extListLive() {
+			fmt.Printf("%s %d\n", m.conn, m.pct)
+		}
+		return nil
 	}
 
-	// up/down/set all resolve to "write this percent to these panels"
-	if target == "" {
-		if brightnessSync() {
-			target = "both"
-		} else {
-			target = "top"
+	// Locked, the monitors are one group with fixed offsets (group.go): keys
+	// and `set N all` move it, an explicit target edits that monitor's offset.
+	if brightnessSync() {
+		switch action {
+		case "up", "down", "set":
+		default:
+			return fmt.Errorf("brightness: want up|down|get|set|sync|ext, got %q", action)
 		}
-	} else if brightnessSync() {
-		target = "both" // the lock outranks an explicit target
+		if err := groupCmd(action, val, target); err != nil {
+			return err
+		}
+		if action != "set" {
+			exec.Command("qs", "ipc", "call", "osd", "brightness").Run()
+		}
+		return nil
+	}
+
+	// Unlocked with no explicit target, the keys follow the focused monitor.
+	if target == "" {
+		target = focusedTarget()
+	}
+
+	// A bare connector target (DP-1, HDMI-A-1) is an external monitor: its
+	// current value and its coalescing both live in the daemon, so hand the
+	// intent over rather than read-modify-write here.
+	if isExternalTarget(target) {
+		switch action {
+		case "up":
+			extStep(target, true)
+		case "down":
+			extStep(target, false)
+		case "set":
+			n, err := strconv.Atoi(val)
+			if err != nil {
+				return fmt.Errorf("set: want a percent, got %q", val)
+			}
+			extSetPct(target, n)
+		default:
+			return fmt.Errorf("brightness: want up|down|get|set|sync|ext, got %q", action)
+		}
+		return nil // no OSD: it reads the internal panel and would misreport
 	}
 
 	pct, err := pctOfTarget(target)
@@ -80,30 +126,25 @@ func brightnessCmd(action, val, target string) error {
 	}
 
 	switch action {
-	// 5% steps, 1% steps near the bottom, never fully off — same feel as the
-	// old brightnessctl bind.
 	case "up":
-		if pct < 5 {
-			pct++
-		} else {
-			pct += 5
-		}
+		pct = bstep(pct, true)
 	case "down":
-		if pct <= 5 {
-			pct--
-		} else {
-			pct -= 5
-		}
+		pct = bstep(pct, false)
 	case "set":
 		pct, err = strconv.Atoi(val)
 		if err != nil {
 			return fmt.Errorf("set: want a percent, got %q", val)
 		}
 	default:
-		return fmt.Errorf("brightness: want up|down|get|set|sync, got %q", action)
+		return fmt.Errorf("brightness: want up|down|get|set|sync|ext, got %q", action)
 	}
 
-	if err := apply(min(max(pct, 1), 100), target); err != nil {
+	pct = min(max(pct, 1), 100)
+	if target == "all" {
+		if err := applyAll(pct); err != nil {
+			return err
+		}
+	} else if err := apply(pct, target); err != nil {
 		return err
 	}
 	// Only the keys get the OSD. `set` is the slider path: pinging per drag
@@ -112,6 +153,65 @@ func brightnessCmd(action, val, target string) error {
 		exec.Command("qs", "ipc", "call", "osd", "brightness").Run()
 	}
 	return nil
+}
+
+// bstep is the shared key-step feel: 5% steps, 1% steps near the bottom, never
+// fully off. Internal panels and externals both step through it so the two feel
+// identical under the brightness keys.
+func bstep(pct int, up bool) int {
+	if up {
+		if pct < 5 {
+			return pct + 1
+		}
+		return pct + 5
+	}
+	if pct <= 5 {
+		return pct - 1
+	}
+	return pct - 5
+}
+
+// applyAll is the locked write: both internal panels via sysfs (instant) and
+// every external via the daemon. Internal failure is fatal (it is the primary
+// screen); externals are fire-and-forget.
+func applyAll(pct int) error {
+	if err := apply(pct, "both"); err != nil {
+		return err
+	}
+	for _, conn := range extConnectors() {
+		extSetPct(conn, pct)
+	}
+	return nil
+}
+
+// isExternalTarget reports whether target names a DDC external rather than an
+// internal panel or the top/bottom/both/all keywords.
+func isExternalTarget(target string) bool {
+	switch target {
+	case "top", "bottom", "both", "all", "":
+		return false
+	}
+	for _, c := range extConnectors() {
+		if c == target {
+			return true
+		}
+	}
+	return false
+}
+
+// focusedTarget maps the Hyprland-focused monitor to a brightness target, so
+// the keys move the screen the user is actually on when the panels are
+// unlocked. eDP-1/eDP-2 are the internal panels; anything else is an external
+// connector handed to the daemon.
+func focusedTarget() string {
+	switch m := focusedMonitor(); m {
+	case "eDP-1", "":
+		return "top"
+	case "eDP-2":
+		return "bottom"
+	default:
+		return m
+	}
 }
 
 // apply writes pct to the requested panels. The bottom is best-effort even

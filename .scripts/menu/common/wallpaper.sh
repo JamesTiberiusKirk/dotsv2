@@ -58,6 +58,12 @@ BIN=$(command -v awww || command -v swww) || {
 }
 # the daemon must be up before `img`; it has no autospawn
 if ! "$BIN" query >/dev/null 2>&1; then
+    # Alive but not answering ("Broken pipe" on every query — seen 2026-10-01
+    # after a monitor got stuck at 0x0): a second daemon would collide with
+    # its socket, so the hung one goes first.
+    if pkill -x "$(basename "$BIN")-daemon"; then
+        for _ in $(seq 20); do pgrep -x "$(basename "$BIN")-daemon" >/dev/null || break; sleep 0.1; done
+    fi
     "${BIN}-daemon" >/dev/null 2>&1 & disown
     for _ in $(seq 20); do "$BIN" query >/dev/null 2>&1 && break; sleep 0.1; done
 fi
@@ -80,8 +86,10 @@ ln -sfn "${WALLS[$IDX]}" "$STATE_DIR/wallpaper-current"
 
 # "wallpaper" is a theme like any other (themes/wallpaper.json), regenerated
 # from every applied picture so the picker card previews it; re-applied only
-# when it is the theme in use
-if command -v matugen >/dev/null && "$HOME/.scripts/theme-from-wallpaper" "${WALLS[$IDX]}"; then
+# when it is the theme in use. --current repaints the same picture (startup,
+# monitor hotplug), so the theme it would regenerate is already in place.
+if [ "$1" != "--current" ] && command -v matugen >/dev/null \
+    && "$HOME/.scripts/theme-from-wallpaper" "${WALLS[$IDX]}"; then
     [ "$(python3 -c 'import json;print(json.load(open("'"$HOME"'/.theme.json"))["name"])' 2>/dev/null)" = wallpaper ] \
         && "$HOME/.scripts/theme-apply" wallpaper >/dev/null
 fi

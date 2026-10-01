@@ -126,18 +126,82 @@ Singleton {
     // other reads stale until the next poll. Show one.
     // off: the panel exists and its backlight is still writable, but the output
     // is disabled — turning it up would light nothing, so the row greys out.
-    readonly property var brightnessRows: (brightnessSync && backlights.length > 1)
-        ? [{ name: backlights[0].name, label: "brightness", pct: backlights[0].pct, off: false }]
+    // External DDC monitors as [{ name: connector, pct }], kept OUT of
+    // `backlights` on purpose: `backlight` (the bar % and OSD) reads
+    // backlights[0], and the lock-collapse below counts internal panels — an
+    // external in that array would hijack both. Enumerated by `duo brightness
+    // ext`, which is a ddcutil detect (seconds), so only on panel open, never
+    // on a heartbeat and never after a write (that would rebuild the slider
+    // Repeater mid-drag — the trap monitors/backlights both warn about).
+    // On the Duo the daemon reads them instead (duoState below); this probe is
+    // the fallback for a host without `duo watch`.
+    property var externals: []
+    property string extRaw: ""
+    Process {
+        id: extProbe
+        running: false
+        command: ["sh", "-c", "~/go/bin/duo brightness ext 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text === root.extRaw) return; // identical: don't rebuild
+                root.extRaw = text;
+                const ext = [];
+                for (const line of text.split("\n")) {
+                    const f = line.trim().split(/\s+/);
+                    if (f.length < 2) continue;
+                    const pct = Number(f[1]);
+                    if (!(pct >= 0)) continue; // -1 = read failed, skip it
+                    ext.push({ name: f[0], pct: Math.round(pct) });
+                }
+                root.externals = ext;
+            }
+        }
+    }
+    function isExternal(name) {
+        for (let i = 0; i < externals.length; i++)
+            if (externals[i].name === name) return true;
+        return false;
+    }
+
+    // Locked, every monitor tracks one value, so one "brightness" row writes
+    // them all (target "all" → duo pushes both panels + every external).
+    // Unlocked, one row per internal panel then one per external.
+    readonly property var brightnessRows: (brightnessSync && (backlights.length + externals.length) > 1)
+        ? [{ name: root.isDuo ? "all" : backlights[0].name, label: "brightness", pct: backlights[0].pct, off: false }]
         : backlights.map(d => ({
             name: d.name, label: d.label, pct: d.pct,
             off: root.isDuo && !root.subScreen && d.name === "card1-eDP-2-backlight"
-        }))
+        })).concat(externals.map(e => ({
+            name: e.name, label: e.name, pct: e.pct, off: false
+        })))
+    // Locked: one slider per lit monitor for the accordion under the main row.
+    // Same rebuild rule as brightnessRows (it follows backlights/externals), so
+    // a drag never loses its delegate.
+    readonly property var memberRows: backlights.map(d => ({
+            name: d.name, label: d.label, pct: d.pct,
+            off: root.isDuo && !root.subScreen && d.name === "card1-eDP-2-backlight"
+        })).filter(r => !r.off).concat(externals.map(e => ({
+            name: e.name, label: e.name, pct: e.pct, off: false
+        })))
+    // name -> live pct for every monitor, reassigned on EVERY state update
+    // (the Repeaters above are not: sliders read this so values follow the
+    // hardware without a rebuild). groupMain/groupMin: the locked group's
+    // brightest and dimmest value, the main slider's value and floor.
+    property var brightnessPct: ({})
+    property int groupMain: 0
+    property int groupMin: 0
     function refreshDisplays() { blProbe.running = true; }
 
     // Writes go through duo on the Duo so the sync flag and the OSD stay
     // coherent with the hardware keys; elsewhere brightnessctl (common.txt)
     // is already installed and does the one thing needed.
     function setBrightness(dev, pct) {
+        // "all" (locked) and a connector name (an external) both go straight to
+        // duo, which owns the panels' sysfs and the externals' coalescing.
+        if (dev === "all" || isExternal(dev)) {
+            Quickshell.execDetached(["sh", "-c", "~/go/bin/duo brightness set " + pct + " " + dev]);
+            return;
+        }
         if (isDuo)
             Quickshell.execDetached(["sh", "-c", "~/go/bin/duo brightness set " + pct
                 + " " + (dev === "card1-eDP-2-backlight" ? "bottom" : "top")]);
@@ -154,22 +218,6 @@ Singleton {
     // even though it is enabled, which reported the sub screen as off.
     property bool subScreen: true
     property bool autoRotate: false
-    Process {
-        id: duoStateProbe
-        running: false
-        command: ["sh", "-c",
-            "hyprctl -j monitors all 2>/dev/null | jq -e '.[]|select(.name==\"eDP-2\" and .disabled==false)' >/dev/null && echo 'screen on' || echo 'screen off';" +
-            "echo \"rotate $(~/go/bin/duo autorotate status 2>/dev/null || echo off)\""]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                for (const line of text.split("\n")) {
-                    const f = line.trim().split(/\s+/);
-                    if (f[0] === "screen") root.subScreen = f[1] === "on";
-                    else if (f[0] === "rotate") root.autoRotate = f[1] === "on";
-                }
-            }
-        }
-    }
     function setSubScreen(on) {
         subScreen = on;
         Quickshell.execDetached(["sh", "-c", "~/go/bin/duo screen " + (on ? "on" : "off")]);
@@ -239,35 +287,24 @@ Singleton {
     // elogind announces resume on the system bus (PrepareForSleep false);
     // there is no D-Bus API in QML, so a filtered dbus-monitor sits on that
     // one signal. Idle on a socket read between events.
+    // Waking up, for the bar clock (SystemClock does not resync across sleep).
+    // Only listens: screens around sleep are hypridle's (scripts/idle: off
+    // before, on + layout after) — this used to blank them as well, a second
+    // owner of the same job. No D-Bus API in QML, so a filtered dbus-monitor
+    // sits on the one signal.
     signal resumed()
-    signal sleeping()
     Process {
         id: sleepWatch
         running: true
         command: ["dbus-monitor", "--system",
                   "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
         stdout: SplitParser {
-            // the signal header line is followed by its one argument:
-            //    boolean true   (going down)   /   boolean false   (back up)
-            onRead: line => {
-                if (line.indexOf("boolean false") !== -1) root.resumed();
-                else if (line.indexOf("boolean true") !== -1) root.sleeping();
-            }
+            onRead: line => { if (line.indexOf("boolean false") !== -1) root.resumed(); }
         }
-        // the bus daemon restarting would take the monitor with it; without
-        // this the hook would silently go dead for the rest of the session
+        // the bus daemon restarting would take the monitor with it
         onExited: restartWatch.restart()
     }
     Timer { id: restartWatch; interval: 5000; onTriggered: sleepWatch.running = true }
-
-    // Outputs off before the machine goes down, on again after. Purely
-    // cosmetic on hibernate: the kernel snapshots memory, then thaws every
-    // device to write the image through the disk driver — the GPU comes
-    // back with them and lights the panel with the frozen desktop for the
-    // ~30 s of the write. DRM restores the state it froze with, so a panel
-    // that was already off stays off through it.
-    onSleeping: Hyprland.dispatch('hl.dsp.dpms("off")')
-    onResumed: Hyprland.dispatch('hl.dsp.dpms("on")')
     // Close every popout and the drawer, on every screen. Bound to Esc via the
     // `popout` submap below; the bar panels listen.
     signal closeAll()
@@ -311,21 +348,77 @@ Singleton {
         if (!anythingOpen) kbdNav = false;
     }
     function poll() {
-        blProbe.running = true;
         monProbe.running = true;
-        if (root.isDuo) duoStateProbe.running = true;
+        if (root.isDuo) {
+            // the daemon owns the i2c bus: it re-detects and re-reads the
+            // externals (seconds), then rewrites the state file once more
+            Quickshell.execDetached(["sh", "-c", "~/go/bin/duo brightness refresh"]);
+            root.applyDuoState(true);
+        } else {
+            blProbe.running = true;
+        }
     }
     Timer {
-        interval: 2000; running: !root.panelOpen; repeat: true; triggeredOnStart: true
+        interval: 2000; running: !root.panelOpen && !root.isDuo; repeat: true; triggeredOnStart: true
         onTriggered: blProbe.running = true
     }
-    // The duo state is the other way round: it only feeds the panel's toggles,
-    // so it is pure waste (a hyprctl + jq fork every 2s) while closed, and has
-    // to stay live while open or the sub-screen switch keeps showing whatever it
-    // read when the panel was opened.
-    Timer {
-        interval: 2000; running: root.isDuo && root.panelOpen; repeat: true
-        onTriggered: duoStateProbe.running = true
+
+    // ---- Duo: the daemon's state file ----
+    // `duo watch` looks at the hardware (dock, keyboard level, bottom panel,
+    // autorotate, every backlight and external) and rewrites
+    // $XDG_RUNTIME_DIR/duo/state only when something differs; see duo/publish.go.
+    // This replaces four timers that each forked a shell every 2-5s.
+    //
+    // Slider rows are only rebuilt while the panel is closed (or when the set
+    // of monitors changes): reassigning backlights/externals destroys the
+    // Repeater's delegates, so doing it on every write would delete the slider
+    // out from under a drag. The one exception is the re-read poll() asks for
+    // on open: duo bumps "refreshed N" when it lands (seconds later), and only
+    // that number moving — never our own slider writes — rebuilds open rows.
+    property int duoRefreshed: -1
+    FileView {
+        id: duoState
+        path: root.isDuo ? Quickshell.env("XDG_RUNTIME_DIR") + "/duo/state" : ""
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.applyDuoState(false)
+        // qs and duo both start at login; until duo's first write there is no
+        // file to watch, so keep knocking
+        onLoadFailed: duoStateRetry.restart()
+    }
+    Timer { id: duoStateRetry; interval: 2000; onTriggered: duoState.reload() }
+    function applyDuoState(force) {
+        const text = duoState.text();
+        if (!text) return; // mid-write: the next change event brings the rest
+        const devs = [], ext = [];
+        let refreshed = root.duoRefreshed;
+        for (const line of text.split("\n")) {
+            const f = line.trim().split(/\s+/);
+            switch (f[0]) {
+            case "docked": root.duoKbd = f[1] === "on"; break;
+            case "kbdlevel": root.kbdBacklight = Number(f[1]) || 0; break;
+            case "bottom": root.subScreen = f[1] === "on"; break;
+            case "autorotate": root.autoRotate = f[1] === "on"; break;
+            case "sync": root.brightnessSync = f[1] !== "off"; break;
+            case "bl": devs.push({ name: f[1], pct: Number(f[2]) }); break;
+            case "ext": ext.push({ name: f[1], pct: Number(f[2]) }); break;
+            case "group": root.groupMain = Number(f[1]); root.groupMin = Number(f[2]); break;
+            case "refreshed": refreshed = Number(f[1]); break;
+            }
+        }
+        devs.sort((a, b) => root.blRank(a.name) - root.blRank(b.name));
+        for (let i = 0; i < devs.length; i++)
+            devs[i].label = root.blLabel(devs[i].name, i);
+        const live = {};
+        for (const d of devs.concat(ext)) live[d.name] = d.pct;
+        root.brightnessPct = live;
+        const names = a => a.map(d => d.name).join(",");
+        if (force || !root.panelOpen || names(devs) !== names(root.backlights))
+            root.backlights = devs;
+        const fresh = refreshed !== root.duoRefreshed;
+        root.duoRefreshed = refreshed;
+        if (force || !root.panelOpen || fresh || names(ext) !== names(root.externals))
+            root.externals = ext;
     }
 
     // Zenbook Duo keyboard backlight. The firmware exposes no readable node, so
@@ -335,9 +428,8 @@ Singleton {
     property bool duoKbd: false
     // "<docked> <level> <bottom-screen>" — level comes from duo's runtime file so
     // a quickshell restart picks the real value back up instead of guessing 0.
-    // The screen state rides along here rather than in duoStateProbe: the bar
-    // shows it all the time, and this fork already happens every 5s, so it is
-    // free. duoStateProbe stays lazy for the things only the panel reads.
+    // Only on a host without `duo watch`; on the Duo the state file
+    // (applyDuoState) carries all three.
     Process {
         id: duoKbdProbe
         command: ["sh", "-c",
@@ -356,7 +448,7 @@ Singleton {
         }
     }
     Timer {
-        interval: 5000; running: true; repeat: true; triggeredOnStart: true
+        interval: 5000; running: !root.isDuo; repeat: true; triggeredOnStart: true
         onTriggered: duoKbdProbe.running = true
     }
 
@@ -668,6 +760,28 @@ Singleton {
                 });
             }
         }
+    }
+    // Stop one container from the docker popout. The name goes in as an argv
+    // entry, never into a shell string. `docker stop` waits out the container's
+    // grace period (up to 10s), so the row spins until it returns, then the
+    // list refreshes. One Process per stop: two rows can be stopping at once.
+    property var dockerStopping: []
+    Component {
+        id: dockerStopComp
+        Process {
+            property string name
+            running: true
+            onExited: {
+                root.dockerStopping = root.dockerStopping.filter(n => n !== name);
+                dockerListProc.running = true;
+                destroy();
+            }
+        }
+    }
+    function dockerStop(name) {
+        if (root.dockerStopping.indexOf(name) >= 0) return;
+        root.dockerStopping = root.dockerStopping.concat([name]);
+        dockerStopComp.createObject(root, { name: name, command: ["docker", "stop", "--", name] });
     }
     Process {
         id: vmListProc
