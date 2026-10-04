@@ -433,7 +433,9 @@ func extWriteDirect(conn string, pct int) {
 }
 
 // extConnectors returns the external connector names, from the daemon's cache
-// file (instant) or a live detect if the daemon has not written one.
+// file (instant) or a live detect if the daemon has not written one. An empty
+// file is an answer (no externals), not a missing one: falling through on it
+// ran a seconds-long detect on every keypress and every 1s publish.
 func extConnectors() []string {
 	if path, err := extCachePath(); err == nil {
 		if b, err := os.ReadFile(path); err == nil {
@@ -443,9 +445,7 @@ func extConnectors() []string {
 					out = append(out, l)
 				}
 			}
-			if len(out) > 0 {
-				return out
-			}
+			return out
 		}
 	}
 	var out []string
