@@ -10,6 +10,7 @@ end
 
 local function apply(mode)
   local gen = generated()
+  if gen and (gen.mode or mode) == "dark" then mode = "dark"; gen = nil end -- dark is always tokyonight
   if gen then
     vim.api.nvim_set_option_value("background", gen.mode or mode, {})
     require("mini.base16").setup({ palette = gen.palette })

@@ -76,6 +76,7 @@ Popout {
 
     DayOfWeekRow {
         width: calPopout.contentWidth
+        locale: Qt.locale("en_GB")
         delegate: Text {
             required property var model
             text: model.shortName
@@ -87,6 +88,7 @@ Popout {
     MonthGrid {
         id: monthGrid
         width: calPopout.contentWidth
+        locale: Qt.locale("en_GB")
         month: calPopout.shown.getMonth()
         year: calPopout.shown.getFullYear()
         spacing: 2

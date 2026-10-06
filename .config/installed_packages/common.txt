@@ -49,6 +49,7 @@ gtk-engine-murrine
 helm
 hey-git
 hicolor-icon-theme
+howdy-next
 htop
 httpie
 hypridle

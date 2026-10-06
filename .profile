@@ -54,7 +54,6 @@ fi
 alias tx="tmux -u"
 alias txa="tmux -u a"
 
-
 if [[ $(uname) = "Darwin" ]]; then
 	alias copy='pbcopy'
 
