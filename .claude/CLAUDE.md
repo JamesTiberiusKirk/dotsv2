@@ -34,7 +34,8 @@
   - often i might not even know about a specific bug, feature, point ur trying to make
 - never reply with a lengthy message when a short one will suffice
 
-# Communication
+# Communication and outputs
+- Never use any ai markers such as em dashes in coms or any outputs such as commit messages, emails, comments (in code or tickets), content, etc
 - Be direct. No filler, no praise, no preamble.
 - When referencing code make sure to reference the wider scope/picture not just functions and lines.
   - Give me files, and overall bigger context 
