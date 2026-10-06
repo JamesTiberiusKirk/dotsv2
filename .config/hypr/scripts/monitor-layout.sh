@@ -113,8 +113,20 @@ if grep -qs 'monitors.lua' "$HOME/.config/hypr/hosts/$HOST.lua"; then
             jq -r '.[] | select((.disabled | not) and .width == 0) | "\(.name): \(.description)"')
         if [ -n "$stuck" ]; then
             echo "stuck: $stuck" >&2
+            # The fix is a Hyprland restart, which deletes Hyprland's log, so
+            # keep the evidence before anyone gets the chance.
+            snap="$STORE/../stuck/$(date +%F_%H%M%S)"
+            mkdir -p "$snap"
+            { echo "$stuck"; echo "caller: $(ps -o args= -p $PPID)"; } >"$snap/stuck"
+            tail -n 3000 "$RUN/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/hyprland.log" >"$snap/hyprland.log" 2>&1
+            hyprctl monitors all >"$snap/monitors" 2>&1
+            for d in /sys/class/drm/card*-*/; do
+                echo "$(basename "$d") $(cat "$d/status") $(cat "$d/enabled") $(head -1 "$d/modes")"
+            done >"$snap/drm" 2>&1
+            tail -n 300 "${XDG_STATE_HOME:-$HOME/.local/state}/duo/log" >"$snap/duo.log" 2>&1
             notify-send -u critical "monitor stuck" "$stuck
-replug its cable, or restart Hyprland"
+replug its cable, or restart Hyprland
+logs: $snap"
         fi
         ;;
     esac
