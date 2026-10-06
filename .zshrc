@@ -147,3 +147,7 @@ source <(fzf --zsh)
 
 # Local overrides (not tracked in dots repo)
 if [[ -f ~/.profile.local ]]; then source ~/.profile.local; fi
+
+# >>> railway initialize >>>
+[[ -f "$HOME/.railway/env" ]] && source "$HOME/.railway/env"
+# <<< railway initialize <<<
