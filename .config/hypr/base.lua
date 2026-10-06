@@ -246,6 +246,20 @@ hl.window_rule({ name = "bitwarden-float", match = { class = "^brave-nngceckbape
 -- Bitwarden's passkey prompt ("Confirm access") is a plain brave-browser popup
 -- that maps as "New Tab - Brave" and renames afterwards, so no open-time rule
 -- can catch it. Float it on the title change instead.
+-- Telegram's fullscreen image viewer is a second toplevel of the same process
+-- (class org.telegram.desktop, title "Media viewer"). Qt picks its screen
+-- client-side and lands on the primary monitor, so on a two-screen setup it
+-- opens away from the chat window. No static rule can follow that around;
+-- pull it onto the main window's workspace as it maps.
+hl.on("window.open", function(w)
+    if w.class ~= "org.telegram.desktop" or w.title ~= "Media viewer" then return end
+    for _, o in ipairs(hl.get_windows()) do
+        if o.class == "org.telegram.desktop" and o.title ~= "Media viewer" then
+            hl.dispatch(hl.dsp.window.move({ workspace = o.workspace.id, window = w }))
+            return
+        end
+    end
+end)
 hl.on("window.title", function(w)
     if w.floating or w.class ~= "brave-browser" or w.title ~= "Confirm access - Brave" then return end
     hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
