@@ -125,47 +125,14 @@ Popout {
 
         Repeater {
             model: Sys.brightnessRows
-            Column {
-                id: brow
-                // locked: the one "all" row, with an accordion of per-monitor
-                // offsets under it
-                readonly property bool grp: modelData.name === "all"
-                width: displayPopout.contentWidth
-                spacing: 10
-
-                Connections {
-                    target: displayPopout
-                    function onOpenChanged() { if (!displayPopout.open) main.expanded = false }
-                }
-
-                ValueSlider {
-                    id: main
-                    label: modelData.label
-                    value: brow.grp ? Sys.groupMain : modelData.pct
-                    // never 0: a panel driven fully dark is
-                    // indistinguishable from one that died. Locked, the
-                    // knob also stops where the dimmest monitor would hit 1
-                    // (floor, not minValue: the track must not re-scale).
-                    minValue: 1
-                    floor: brow.grp ? 1 + Sys.groupMain - Sys.groupMin : 1
-                    expandable: brow.grp
-                    off: modelData.off
-                    onCommit: v => Sys.setBrightness(modelData.name, v)
-                }
-                Column {
-                    visible: brow.grp && main.expanded
-                    width: parent.width
-                    spacing: 10
-                    Repeater {
-                        model: Sys.memberRows
-                        ValueSlider {
-                            label: modelData.label
-                            value: Sys.brightnessPct[modelData.name] ?? modelData.pct
-                            minValue: 1
-                            onCommit: v => Sys.setBrightness(modelData.name, v)
-                        }
-                    }
-                }
+            ValueSlider {
+                label: modelData.label
+                value: Sys.brightnessPct[modelData.name] ?? modelData.pct
+                // never 0: a panel driven fully dark is
+                // indistinguishable from one that died
+                minValue: 1
+                off: modelData.off
+                onCommit: v => Sys.setBrightness(modelData.name, v)
             }
         }
 

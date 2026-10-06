@@ -46,16 +46,14 @@ func brightnessCmd(action, val, target string) error {
 			if err := stateWrite("brightness-sync", val); err != nil {
 				return err
 			}
-			// re-locking: bring the saved offsets back around the first lit
-			// panel's current value (unlocked tweaks are temporary, never
-			// saved). Derived, not the stored level: unlocked moves left it stale.
+			// re-locking: snap every monitor to the top panel's value, since
+			// unlocked tweaks left them apart
 			if val == "on" {
-				ms := participants()
-				L, ok := deriveLevel(ms)
-				if !ok {
-					return fmt.Errorf("brightness: no lit monitor to read a level from")
+				pct, err := brightnessPct()
+				if err != nil {
+					return err
 				}
-				return applyGroup(ms, clampL(offsOf(ms), L))
+				return applyAll(pct)
 			}
 			return nil
 		case "", "status":
@@ -77,15 +75,28 @@ func brightnessCmd(action, val, target string) error {
 		return nil
 	}
 
-	// Locked, the monitors are one group with fixed offsets (group.go): keys
-	// and `set N all` move it, an explicit target edits that monitor's offset.
+	// Locked, every monitor holds the same value: keys step off eDP-1 and any
+	// `set` (whatever the target) writes all of them — there are no per-monitor
+	// values to edit while locked.
 	if brightnessSync() {
+		pct, err := brightnessPct()
 		switch action {
-		case "up", "down", "set":
+		case "up":
+			pct = bstep(pct, true)
+		case "down":
+			pct = bstep(pct, false)
+		case "set":
+			pct, err = strconv.Atoi(val)
+			if err != nil {
+				return fmt.Errorf("set: want a percent, got %q", val)
+			}
 		default:
 			return fmt.Errorf("brightness: want up|down|get|set|sync|ext, got %q", action)
 		}
-		if err := groupCmd(action, val, target); err != nil {
+		if err != nil {
+			return err
+		}
+		if err := applyAll(min(max(pct, 1), 100)); err != nil {
 			return err
 		}
 		if action != "set" {

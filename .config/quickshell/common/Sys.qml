@@ -174,22 +174,10 @@ Singleton {
         })).concat(externals.map(e => ({
             name: e.name, label: e.name, pct: e.pct, off: false
         })))
-    // Locked: one slider per lit monitor for the accordion under the main row.
-    // Same rebuild rule as brightnessRows (it follows backlights/externals), so
-    // a drag never loses its delegate.
-    readonly property var memberRows: backlights.map(d => ({
-            name: d.name, label: d.label, pct: d.pct,
-            off: root.isDuo && !root.subScreen && d.name === "card1-eDP-2-backlight"
-        })).filter(r => !r.off).concat(externals.map(e => ({
-            name: e.name, label: e.name, pct: e.pct, off: false
-        })))
     // name -> live pct for every monitor, reassigned on EVERY state update
-    // (the Repeaters above are not: sliders read this so values follow the
-    // hardware without a rebuild). groupMain/groupMin: the locked group's
-    // brightest and dimmest value, the main slider's value and floor.
+    // (the Repeater rows are not: sliders read this so values follow the
+    // hardware without a rebuild). "all" is the locked row: the top panel.
     property var brightnessPct: ({})
-    property int groupMain: 0
-    property int groupMin: 0
     function refreshDisplays() { blProbe.running = true; }
 
     // Writes go through duo on the Duo so the sync flag and the OSD stay
@@ -402,7 +390,6 @@ Singleton {
             case "sync": root.brightnessSync = f[1] !== "off"; break;
             case "bl": devs.push({ name: f[1], pct: Number(f[2]) }); break;
             case "ext": ext.push({ name: f[1], pct: Number(f[2]) }); break;
-            case "group": root.groupMain = Number(f[1]); root.groupMin = Number(f[2]); break;
             case "refreshed": refreshed = Number(f[1]); break;
             }
         }
@@ -411,6 +398,7 @@ Singleton {
             devs[i].label = root.blLabel(devs[i].name, i);
         const live = {};
         for (const d of devs.concat(ext)) live[d.name] = d.pct;
+        if (devs.length) live.all = devs[0].pct;
         root.brightnessPct = live;
         const names = a => a.map(d => d.name).join(",");
         if (force || !root.panelOpen || names(devs) !== names(root.backlights))

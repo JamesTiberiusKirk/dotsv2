@@ -22,7 +22,6 @@ import (
 //	bottom on|off          eDP-2 lit (mirroring counts), from the kernel
 //	autorotate on|off
 //	sync on|off            brightness lock-together
-//	group <main> <min>     locked only: brightest and dimmest lit monitor
 //	bl <device> <pct>      internal backlight, primary panel first
 //	ext <connector> <pct>  external DDC monitor, as last applied/read
 //	refreshed N            bumped by each re-detect + re-read of the externals
@@ -46,11 +45,6 @@ func publish() {
 	fmt.Fprintf(&b, "bottom %s\n", onOff(read("/sys/class/drm/card1-eDP-2/enabled") == "enabled"))
 	fmt.Fprintf(&b, "autorotate %s\n", onOff(autoRotate()))
 	fmt.Fprintf(&b, "sync %s\n", onOff(brightnessSync()))
-	if brightnessSync() {
-		if main, mn, ok := groupMain(); ok {
-			fmt.Fprintf(&b, "group %d %d\n", main, mn)
-		}
-	}
 	for _, dev := range []string{topBL, botBL} {
 		if pct, err := pctOf(dev); err == nil {
 			fmt.Fprintf(&b, "bl %s %d\n", filepath.Base(dev), pct)
