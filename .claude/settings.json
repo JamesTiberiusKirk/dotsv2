@@ -11,7 +11,6 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
-  "model": "opus[1m]",
   "enabledMcpjsonServers": [
     "hamr-dev",
     "playwright"
@@ -64,11 +63,6 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
-  "modelSettings": {
-    "claude-fable-5": {
-      "effortLevel": "medium"
-    }
-  },
   "advisorModel": "opus",
   "tui": "fullscreen",
   "voice": {
@@ -117,6 +111,5 @@
       "**Org-specific CLIs**: hamr, stackr, templ (project-specific CLIs seen in this project's usage)",
       "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
-  },
-  "voiceEnabled": false
+  }
 }
