@@ -2,7 +2,6 @@ vim.cmd([[
   command ToggleRelative lua ToggleRelative()
   command ToggleTabWidth lua ToggleTabWidth()
   " command GGL lua GenerateGithubLink()
-  command GGLC lua GenerateGithubLinkCommit()
   command GoHeapYourself lua GoHeapYourself()
 ]])
 
@@ -156,6 +155,22 @@ vim.api.nvim_create_user_command('GGL', function(opts)
     vim.cmd('normal! gv')  -- Reselect the last visual selection
   end
   GenerateGithubLink()
+end, {range = true})
+
+-- Copy "path:line" or "path:start-end" for pasting to an LLM. Path is relative to git root, absolute outside a repo.
+vim.api.nvim_create_user_command('CPL', function(opts)
+  local path = vim.fn.expand("%:p")
+  local root = vim.fn.systemlist("git -C " .. vim.fn.shellescape(vim.fn.expand("%:p:h")) .. " rev-parse --show-toplevel")[1]
+  if vim.v.shell_error == 0 and root then
+    path = path:gsub("^" .. vim.pesc(root) .. "/", "")
+  end
+  local ref = path .. ":" .. opts.line1
+  if opts.line2 ~= opts.line1 then
+    ref = ref .. "-" .. opts.line2
+  end
+  vim.fn.setreg("+", ref)
+  vim.fn.setreg("*", ref)
+  vim.notify("Copied: " .. ref)
 end, {range = true})
 
 function GoHeapYourself()
