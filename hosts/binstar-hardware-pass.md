@@ -36,7 +36,7 @@ Commands:
   - udev monitor (usb): `0b05:1bf2` add → eDP-2 disable; remove → re-enable @1.5
   - initial dock state at startup from `/sys/bus/usb/devices/*/idProduct`
 - `duo screen on|off|toggle` — manual eDP-2 control
-- `duo brightness up|down|set <pct>` — writes BOTH backlights + `qs ipc call osd brightness`
+- `duo brightness up|down|set <pct>` — writes BOTH backlights + `qs ipc call osd brightness <pct>`
 - `duo layout stacked|mirror|top-only` — monitor rule presets via hyprctl
 - `duo status` — dock state, layout, brightness
 

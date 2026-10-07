@@ -100,7 +100,7 @@ func brightnessCmd(action, val, target string) error {
 			return err
 		}
 		if action != "set" {
-			exec.Command("qs", "ipc", "call", "osd", "brightness").Run()
+			osdBrightness(min(max(pct, 1), 100))
 		}
 		return nil
 	}
@@ -128,7 +128,7 @@ func brightnessCmd(action, val, target string) error {
 		default:
 			return fmt.Errorf("brightness: want up|down|get|set|sync|ext, got %q", action)
 		}
-		return nil // no OSD: it reads the internal panel and would misreport
+		return nil // external OSD: the daemon pings it after applying a step
 	}
 
 	pct, err := pctOfTarget(target)
@@ -161,9 +161,19 @@ func brightnessCmd(action, val, target string) error {
 	// Only the keys get the OSD. `set` is the slider path: pinging per drag
 	// frame would strobe the OSD over the panel being dragged.
 	if action != "set" {
-		exec.Command("qs", "ipc", "call", "osd", "brightness").Run()
+		osdBrightness(pct)
 	}
 	return nil
+}
+
+// osdBrightness pops the OSD at pct. The OSD shows exactly what it is told:
+// it cannot read an external's value itself. Start+reap, so the daemon's
+// worker never waits on qs.
+func osdBrightness(pct int) {
+	cmd := exec.Command("qs", "ipc", "call", "osd", "brightness", strconv.Itoa(pct))
+	if cmd.Start() == nil {
+		go cmd.Wait()
+	}
 }
 
 // bstep is the shared key-step feel: 5% steps, 1% steps near the bottom, never

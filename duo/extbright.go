@@ -161,6 +161,7 @@ type extReq struct {
 	abs     int
 	step    int
 	refresh bool
+	osd     bool // a key press: ping the OSD with the applied value
 }
 
 // extSrv is the daemon's server, nil outside `duo watch` (and until extServe
@@ -246,10 +247,14 @@ func (s *extServer) busFor(conn string) (int, bool) {
 func (s *extServer) worker() {
 	desired := map[string]int{}
 	refresh := false
+	osd := map[string]bool{}
 	absorb := func(r extReq) {
 		if r.refresh {
 			refresh = true
 			return
+		}
+		if r.osd {
+			osd[r.conn] = true
 		}
 		if r.abs >= 0 {
 			desired[r.conn] = clampPct(r.abs)
@@ -283,6 +288,9 @@ func (s *extServer) worker() {
 			same := s.set[conn] == pct
 			s.mu.Unlock()
 			if same {
+				if osd[conn] {
+					osdBrightness(pct) // key pressed at a limit: still show it
+				}
 				continue
 			}
 			bus, ok := s.busFor(conn)
@@ -298,8 +306,12 @@ func (s *extServer) worker() {
 			s.mu.Lock()
 			s.set[conn] = pct
 			s.mu.Unlock()
+			if osd[conn] {
+				osdBrightness(pct)
+			}
 		}
 		clear(desired)
+		clear(osd)
 		publish()
 	}
 }
@@ -371,7 +383,7 @@ func (s *extServer) handle(c net.Conn) {
 				dir = -1
 			}
 			if dir != 0 {
-				s.reqs <- extReq{conn: f[1], abs: -1, step: dir}
+				s.reqs <- extReq{conn: f[1], abs: -1, step: dir, osd: true}
 			}
 		}
 	}
@@ -416,7 +428,9 @@ func extStep(conn string, up bool) {
 	// no daemon: read-modify-write directly
 	for _, m := range extListLive() {
 		if m.conn == conn {
-			extWriteDirect(conn, clampPct(bstep(readVCP(m.bus), up)))
+			pct := clampPct(bstep(readVCP(m.bus), up))
+			extWriteDirect(conn, pct)
+			osdBrightness(pct)
 			return
 		}
 	}

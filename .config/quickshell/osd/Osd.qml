@@ -23,6 +23,10 @@ Scope {
     // the hardware exposes no readable sysfs node for it)
     property int kbdLevel: 0
 
+    // brightness of whichever monitor the keys just moved (duo passes it),
+    // 0-1 — not the top panel's, which would misreport an external
+    property real brightLevel: 0
+
     readonly property PwNode sink: Pipewire.defaultAudioSink
     readonly property PwNode source: Pipewire.defaultAudioSource
     PwObjectTracker { objects: [osd.sink, osd.source] }
@@ -56,7 +60,8 @@ Scope {
 
     IpcHandler {
         target: "osd"
-        function brightness(): void {
+        function brightness(pct: int): void {
+            osd.brightLevel = Math.min(100, Math.max(0, pct)) / 100;
             Sys.refreshBacklight();
             osd.show("bright");
         }
@@ -80,7 +85,7 @@ Scope {
     readonly property real level: mode === "vol" ? (sink?.audio?.volume ?? 0)
                                 : mode === "mic" ? (source?.audio?.volume ?? 0)
                                 : mode === "kbd" ? kbdLevel / 3
-                                : Math.max(0, Sys.backlight)
+                                : brightLevel
 
     readonly property var p: Media.player
 
