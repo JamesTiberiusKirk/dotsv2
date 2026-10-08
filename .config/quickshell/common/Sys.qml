@@ -216,24 +216,28 @@ Singleton {
     }
 
     // ---- monitor scale ----
-    // [{ name, scale }] per enabled output, for the display panel's scale
-    // pills. Read on panel open and after a write, never on a heartbeat:
-    // reassigning the array resets the Repeater and destroys every delegate,
-    // which mid-click deletes the pill's own hit area (same trap as
-    // backlights, below).
+    // Output names for the display panel's scale rows, plus { name: scale }
+    // beside it. Split like brightnessRows/brightnessPct: reassigning
+    // `monitors` resets the Repeater and destroys every delegate, which
+    // mid-click deletes the pill's own hit area and drops the keyboard
+    // focus off the row. So it changes only on hotplug; a new scale lands in
+    // `monScales` alone. Read on panel open and after a write, never on a
+    // heartbeat.
     property var monitors: []
-    property string monRaw: ""
+    property var monScales: ({})
     Process {
         id: monProbe
         running: false
         command: ["sh", "-c", "hyprctl -j monitors 2>/dev/null | jq -c '[.[]|{name, scale}]'"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const t = text.trim();
-                // identical read: leave the array alone rather than rebuild it
-                if (t === "" || t === root.monRaw) return;
-                root.monRaw = t;
-                try { root.monitors = JSON.parse(t); } catch (e) {}
+                let list;
+                try { list = JSON.parse(text.trim()); } catch (e) { return; }
+                const s = {};
+                for (const m of list) s[m.name] = m.scale;
+                root.monScales = s;
+                const names = list.map(m => m.name);
+                if (names.join() !== root.monitors.join()) root.monitors = names;
             }
         }
     }

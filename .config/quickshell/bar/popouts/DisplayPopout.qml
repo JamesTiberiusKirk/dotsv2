@@ -46,32 +46,39 @@ Popout {
         property real scale: 1
         readonly property var presets: [1, 1.25, 1.5, 1.6, 2, 3]
         // Local echo of the click, the same trick
-        // ValueSlider plays with `shown`: Sys.monitors is
-        // left alone so the Repeater does not rebuild this
-        // delegate out from under the gesture. The probe
-        // pushes the compositor's real answer back through
-        // `scale`, which is how a coerced value corrects.
+        // ValueSlider plays with `shown`. The probe pushes
+        // the compositor's real answer back through `scale`
+        // (Sys.monScales, not Sys.monitors, so this delegate
+        // survives it), which is how a coerced value corrects.
         property real shown: 0
-        onScaleChanged: shown = scale
-        Component.onCompleted: shown = scale
+        // Keyboard cursor. Every applied scale is a modeset,
+        // so stepping only moves this; Return applies it.
+        property real pick: 0
+        onScaleChanged: { shown = scale; pick = scale; }
+        Component.onCompleted: { shown = scale; pick = scale; }
+        onActiveFocusChanged: if (!activeFocus) pick = shown
 
         width: displayPopout.contentWidth
         height: 20
-        // arrows / h / l step presets, matching the sliders
+        // arrows / h / l move the cursor, matching the sliders
         // and the idle steppers. Nearest-first, since the
         // live scale need not be one of ours.
         activeFocusOnTab: true
         Keys.onLeftPressed: sr.hstep(-1)
         Keys.onRightPressed: sr.hstep(1)
+        Keys.onReturnPressed: event => { if (!event.isAutoRepeat) sr.apply(sr.pick); }
+        Keys.onEnterPressed: event => { if (!event.isAutoRepeat) sr.apply(sr.pick); }
         function hstep(d) {
             let i = 0;
             for (let k = 1; k < sr.presets.length; k++)
-                if (Math.abs(sr.presets[k] - sr.shown) < Math.abs(sr.presets[i] - sr.shown)) i = k;
-            const n = Math.max(0, Math.min(sr.presets.length - 1, i + d));
-            if (sr.presets[n] !== sr.shown) {
-                sr.shown = sr.presets[n];
-                Sys.setScale(sr.name, sr.presets[n]);
-            }
+                if (Math.abs(sr.presets[k] - sr.pick) < Math.abs(sr.presets[i] - sr.pick)) i = k;
+            sr.pick = sr.presets[Math.max(0, Math.min(sr.presets.length - 1, i + d))];
+        }
+        function apply(s) {
+            sr.pick = s;
+            if (Math.abs(s - sr.shown) < 0.01) return;
+            sr.shown = s;
+            Sys.setScale(sr.name, s);
         }
 
         Rectangle {
@@ -97,6 +104,9 @@ Popout {
                     width: pill.width + 10; height: 16; radius: 4
                     color: on ? Theme.accent
                          : (pillArea.containsMouse ? Theme.track : "transparent")
+                    // keyboard cursor ring, only while the row has focus
+                    border.width: sr.activeFocus && Math.abs(modelData - sr.pick) < 0.01 ? 1 : 0
+                    border.color: Theme.bright
                     Text {
                         id: pill
                         anchors.centerIn: parent
@@ -108,10 +118,7 @@ Popout {
                         id: pillArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onClicked: {
-                            sr.shown = modelData;
-                            Sys.setScale(sr.name, modelData);
-                        }
+                        onClicked: sr.apply(modelData)
                     }
                 }
             }
@@ -311,8 +318,8 @@ Popout {
         Repeater {
             model: Sys.monitors
             ScaleRow {
-                name: modelData.name
-                scale: modelData.scale
+                name: modelData
+                scale: Sys.monScales[modelData] ?? 1
             }
         }
 
