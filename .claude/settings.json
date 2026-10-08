@@ -11,6 +11,7 @@
       "/Users/dumitruvulpe/uw/telcom-mobile"
     ]
   },
+  "model": "opus",
   "enabledMcpjsonServers": [
     "hamr-dev",
     "playwright"
@@ -111,6 +112,5 @@
       "**Org-specific CLIs**: hamr, stackr, templ (project-specific CLIs seen in this project's usage)",
       "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
-  },
-  "model": "fable"
+  }
 }
