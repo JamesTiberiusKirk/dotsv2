@@ -18,6 +18,7 @@ set -u
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/idle"
 SETTINGS="$STATE/settings"
 CONF="$STATE/hypridle.conf"
+LOG="$STATE/hypridle.log"  # appended across restarts so a missed screen-off can be traced after the fact
 AWAKE="${XDG_RUNTIME_DIR:-/tmp}/idle-awake"
 
 # defaults; overridden by the settings file
@@ -65,12 +66,12 @@ start() {
     running && return 0
     command -v hypridle >/dev/null 2>&1 || { notify-send "hypridle not installed" 2>/dev/null || true; exit 1; }
     gen
-    nohup hypridle -c "$CONF" >/dev/null 2>&1 &
+    nohup hypridle -c "$CONF" >>"$LOG" 2>&1 &
 }
 
 stop() { running && pkill -x hypridle; return 0; }
 
-apply() { gen; if running; then stop; sleep 0.1; nohup hypridle -c "$CONF" >/dev/null 2>&1 & fi; }
+apply() { gen; if running; then stop; sleep 0.1; nohup hypridle -c "$CONF" >>"$LOG" 2>&1 & fi; }
 
 clampmin() { # minutes: 1..180, garbage -> default given in $2
     local v=$1
