@@ -233,10 +233,13 @@ hl.define_submap("resize", function()
     hl.bind("SHIFT + l",    dsp.window.resize({ x = 100,  y = 0,   relative = true }), { repeating = true })
     hl.bind("SHIFT + k",    dsp.window.resize({ x = 0,    y = -100, relative = true }), { repeating = true })
     hl.bind("SHIFT + j",    dsp.window.resize({ x = 0,    y = 100,  relative = true }), { repeating = true })
+    -- scrolling only: step the column through explicit_column_widths (1/3, 1/2, 2/3, full)
+    hl.bind("bracketleft",  dsp.layout("colresize -conf"), { repeating = true })
+    hl.bind("bracketright", dsp.layout("colresize +conf"), { repeating = true })
     hl.bind("escape",       dsp.submap("reset"))
     hl.bind("return",       dsp.submap("reset"))
 end)
-doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active window (accordion: peek width); Esc/Enter to exit" }
+doc[#doc + 1] = { keys = "[resize] h/j/k/l (+SHIFT)", desc = "Resize active window (accordion: peek width); [/] column width (scrolling); Esc/Enter to exit" }
 
 -- Swap-visible-workspaces mode (i3-style). Enter with SUPER Tab.
 local swap_script = "~/.config/hypr/scripts/swap-workspaces.sh "
