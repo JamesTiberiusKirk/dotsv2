@@ -21,7 +21,8 @@ Popout {
     // Only the tray rows open this, so it lives with them
     QsMenuAnchor {
         id: trayMenu
-        anchor.window: trayPanel
+        // the popout is an item inside the host card window now, not a window
+        anchor.window: trayPanel.QsWindow.window
     }
 
     panelName: "tray"

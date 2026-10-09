@@ -124,21 +124,13 @@ Variants {
                 function onResumed() { clock.enabled = false; clock.enabled = true; }
             }
 
-            // A popout takes the keyboard only when the menu opened it. One that
-            // always wants keys is the network popout bug (see its own file):
-            // Hyprland focuses a
-            // layer the moment it maps, and with the pointer still on the cell
-            // that focus never comes back for the second, closing click.
-            function navOn(p) { return p.open && Sys.kbdNav; }
-            function navFocus(p) { return navOn(p) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None; }
-
             // Every popout on this bar. Declared, not registered: the set is
             // the same on every screen and every boot, so a list that builds
             // itself at runtime only bought races — popouts unregistering as a
             // bar died left the menu's rows gone until the shell restarted.
             readonly property var popouts: [trayPopout, calendarPopout, displayPopout, powerPopout,
                 tailscalePopout, bluetoothPopout, audioPopout, networkPopout, resourcePopout,
-                clankerPopout, servicesPopout]
+                clankerPopout, servicesPopout, ccGrid, ccSys]
 
             // Is that popout showing? For a cell that lights up while its own
             // popout is open. By name, because the popouts live in their own
@@ -148,21 +140,71 @@ Variants {
                 return p ? p.open : false;
             }
 
-            // The path a cell click takes: close the rest, then flip this one.
+            // Show a page in the one host card: opens it, or swaps the page
+            // already showing (the card morphs). `via`: reached through the
+            // control center, so it hangs off the CC cell and draws back.
+            function showPage(name, via) {
+                const p = popoutsByName[name];
+                if (!p) return;
+                Notifs.centerOpen = false;
+                popoutHost.show(p, via);
+            }
+
+            // The path a cell click takes. Open under its own cell: a second
+            // click closes it. Open through the control center: the click moves
+            // it under the cell instead of closing.
             function toggle(name) {
                 const p = popoutsByName[name];
                 if (!p) return;
-                const next = !p.open;
-                closeIslandPopouts();
-                p.open = next;
+                if (p.open && !popoutHost.viaCC) closeIslandPopouts();
+                else showPage(name, false);
             }
 
+            // docker and the vms share the services popout, one tab each. Hang it off the cell of
+            // the tab being opened; the same tab open under its own cell closes, the other one switches.
+            function toggleServices(tab) {
+                const p = servicesPopout;
+                if (p.open && !popoutHost.viaCC && p.currentTab === tab) return closeIslandPopouts();
+                p.cell = tab === "vms" ? vmsCell : dockerCell;
+                p.currentTab = tab;
+                showPage("services", !ShellState.inBar(tab));
+            }
 
             function closeIslandPopouts() {
                 // Not a popout and not in the registry, but it has always
                 // closed alongside them; folding it into the loop would drop it.
                 Notifs.centerOpen = false;
-                for (const p of popouts) p.open = false;
+                popoutHost.close();
+            }
+
+            // Is a control center page of this group ("sys" | "status") showing? Lights its cell.
+            function ccShowing(group) {
+                const pg = popoutHost.page;
+                return popoutHost.open && popoutHost.viaCC && pg !== null && ShellState.groupOf(pg.panelName) === group;
+            }
+            function toggleCC(group) {
+                if (ccShowing(group)) closeIslandPopouts();
+                else showPage(ShellState.ccName(group), true);
+            }
+
+            // One bar cell per AI agent, hanging the one clanker popout off the one clicked. The ids as a
+            // joined string: Clanker re-publishes its agent list every refresh, and a new array would
+            // make the Repeater rebuild every cell, nulling clankerPopout.cell under an open popout.
+            // A string only notifies when the agents really changed.
+            readonly property string agentKey: Clanker.agents.map(a => a.id).join(",")
+            readonly property var agentIds: agentKey === "" ? [] : agentKey.split(",")
+            // Point the clanker popout at an agent's cell: the selected agent's if it is on the bar,
+            // else the first pinned one (the menu opens it with no cell in mind). None visible:
+            // the host falls back to the sys control center cell.
+            function anchorClanker() {
+                let pick = null;
+                for (let i = 0; i < agentCells.count; i++) {
+                    const c = agentCells.itemAt(i);
+                    if (!c || !ShellState.inBar("clanker:" + c.agentId)) continue;
+                    if (c.agentId === Clanker.selectedId) { pick = c; break; }
+                    if (!pick) pick = c;
+                }
+                clankerPopout.cell = pick;
             }
 
             // Popouts by the name the menu uses, derived from the registry.
@@ -171,12 +213,12 @@ Variants {
                 for (const p of popouts) m[p.panelName] = p;
                 return m;
             }
-            readonly property bool anyPopoutOpen: popouts.some(p => p.open)
+            readonly property bool anyPopoutOpen: popoutHost.open
             // Is a popout itself holding the keyboard? Then the dismiss layer
             // must not ask for it: taking focus away from a popout that holds
             // a focus grab clears the grab, and the popout closes on the spot.
             // That is exactly what broke every menu-opened popout.
-            readonly property bool anyPopoutGrabbing: popouts.some(p => p.grabbing)
+            readonly property bool anyPopoutGrabbing: popoutHost.grabbing
             onAnyPopoutOpenChanged: Sys.barPopoutsOpen += anyPopoutOpen ? 1 : -1
             onAnyPopoutGrabbingChanged: Sys.barPopoutsGrabbing += anyPopoutGrabbing ? 1 : -1
             // A screen going away takes this bar with it, popout still open:
@@ -199,9 +241,16 @@ Variants {
                     const p = panel.popoutsByName[pname];
                     if (!p) return;
                     const next = !(p.open && (!tab || p.currentTab === tab));
-                    panel.closeIslandPopouts();
                     if (tab) p.currentTab = tab;
-                    p.open = next;
+                    // a folded indicator opens as a control center page, hung
+                    // off its group's control center cell. "clanker" counts as on
+                    // the bar when any agent is pinned; its selection stays as it is.
+                    if (pname === "clanker") panel.anchorClanker();
+                    // services: on the bar is a question about the tab's own cell (docker or vms)
+                    const svcTab = pname === "services" ? p.currentTab : "";
+                    if (svcTab) p.cell = svcTab === "vms" ? vmsCell : dockerCell;
+                    if (next) panel.showPage(pname, svcTab ? !ShellState.inBar(svcTab) : !ShellState.inBarPanel(pname));
+                    else panel.closeIslandPopouts();
                 }
             }
 
@@ -258,6 +307,17 @@ Variants {
             // Text-as-root with the pill drawn behind it: sizing an outer
             // Rectangle from an inner Text's implicitWidth does not resolve
             // inside an inline component, so the label is the root instead.
+
+            // Right-click on a bar cell folds its indicator into its control center (off the bar).
+            // Its own MouseArea that takes only the right button, so each cell's left-click area
+            // (and the volume wheel) stays as it was. Not on the bell (right-click is do-not-disturb),
+            // the mic dot or the control center cells.
+            component FoldArea: MouseArea {
+                required property string name
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                onClicked: ShellState.fold(name)
+            }
 
             // Icon plus label. Was a bare Text with the icon baked into the
             // string as a nerd-font glyph; icons are SVG now, so the two are
@@ -433,6 +493,11 @@ Variants {
                 // services + system stats (the old inline waybar modules)
                 MouseArea {
                     id: svcWrap
+                    // Hidden when none of its cells is on the bar (docker/vms, system, any agent) and
+                    // nothing of the sys group is folded (its control center cell lives here).
+                    // Asks the state, not the cells: a child's visible follows its parent's.
+                    visible: ShellState.inBar("docker") || ShellState.inBar("vms") || ShellState.inBar("system")
+                        || ShellState.inBarPanel("clanker") || ShellState.anyInCC("sys")
 
                     // implicit, not width/height: GridLayout sizes children by these
                     implicitWidth: svcIsland.implicitWidth
@@ -448,23 +513,33 @@ Variants {
                         width: panel.vertical ? panel.barBodyHeight : svcWrap.width
                         height: panel.vertical ? svcWrap.height : panel.barBodyHeight
 
-                        // docker and the VMs share one cell and one popout. The cell
-                        // shows whichever tab the popout last had up — its icon and
-                        // its count. Greyed docker means the daemon is down; normal
-                        // colour with a 0 means it is up and idle.
+                        // docker and the VMs: a cell each, one shared popout opened
+                        // on that cell's tab. Greyed docker means the daemon is down;
+                        // normal colour with a 0 means it is up and idle.
                         Cell {
-                            id: servicesCell
-                            readonly property bool vms: servicesPopout.currentTab === "vms"
-                            icon: vms ? "server" : "docker"
-                            text: vms ? Sys.vm : Sys.docker
+                            id: dockerCell
+                            visible: ShellState.inBar("docker")
+                            icon: "docker"
+                            text: Sys.docker
                             vform: "stack"
-                            color: vms || Sys.dockerUp ? Theme.text : Theme.dim
-                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("services") }
+                            color: Sys.dockerUp ? Theme.text : Theme.dim
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggleServices("docker") }
+                            FoldArea { name: "docker" }
+                        }
+                        Cell {
+                            id: vmsCell
+                            visible: ShellState.inBar("vms")
+                            icon: "server"
+                            text: Sys.vm
+                            vform: "stack"
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggleServices("vms") }
+                            FoldArea { name: "vms" }
                         }
                         // cpu / mem / disk are one target: they are the same
                         // machine, and the popout shows the lot
                         Item {
                             id: sysCells
+                            visible: ShellState.inBar("system")
                             implicitWidth: sysRow.width
                             implicitHeight: sysRow.height
                             Layout.alignment: Qt.AlignCenter
@@ -479,16 +554,47 @@ Variants {
                                 Cell { visible: Sys.diskFree !== ""; icon: "harddisk"; text: Sys.diskFree; vform: "stack" }
                             }
                             MouseArea { anchors.fill: parent; onClicked: panel.toggle("system") }
+                            FoldArea { name: "system" }
                         }
-                        // AI agents: worst limit across every subscription.
-                        // Hidden until some collector has found usage.
+                        // AI agents: one cell per agent, its icon and its fullest window.
+                        // Each shows only while that agent is pinned (ShellState.inBar; an
+                        // agent no collector lists is not present).
+                        Repeater {
+                            id: agentCells
+                            model: panel.agentIds
+                            Cell {
+                                id: agentCell
+                                required property string modelData
+                                readonly property string agentId: modelData
+                                readonly property var agent: Clanker.agents.find(x => x.id === modelData) ?? null
+                                readonly property real used: Clanker.headline(agent)
+                                visible: ShellState.inBar("clanker:" + modelData)
+                                icon: "agent-" + modelData; vform: "stack"
+                                text: used >= 0 ? Math.round(used * 100) + "%" : ""
+                                color: used >= 0.9 ? Theme.urgent : Theme.text
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        // second click on the same agent's cell closes; another agent's
+                                        // cell switches the popout over and re-anchors it
+                                        const same = clankerPopout.open && !popoutHost.viaCC
+                                            && clankerPopout.cell === agentCell && Clanker.selectedId === agentCell.agentId;
+                                        if (same) { panel.closeIslandPopouts(); return; }
+                                        clankerPopout.cell = agentCell;
+                                        Clanker.select(agentCell.agentId);
+                                        panel.showPage("clanker", false);
+                                    }
+                                }
+                                FoldArea { name: "clanker:" + agentCell.agentId }
+                            }
+                        }
+                        // control center of the sys group: docker, system and agents folded off the bar
                         Cell {
-                            id: clankerCell
-                            visible: Clanker.agents.length > 0
-                            icon: Clanker.agent ? "agent-" + Clanker.agent.id : "robot"; vform: "stack"
-                            text: Clanker.shown >= 0 ? Math.round(Clanker.shown * 100) + "%" : ""
-                            color: Clanker.alarming ? Theme.urgent : Theme.text
-                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("clanker") }
+                            id: sysCcCell
+                            visible: ShellState.anyInCC("sys")
+                            icon: "view-dashboard"
+                            color: panel.ccShowing("sys") ? Theme.bright : Theme.text
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggleCC("sys") }
                         }
                     }
                 }
@@ -681,6 +787,7 @@ Variants {
                     // network — click opens the wifi panel
                     Cell {
                         id: netCell
+                        visible: ShellState.inBar("network")
                         icon: Sys.netIcon
                         // icon only — the SSID is in the popout, and the
                         // signal ladder already says what the bar needs to
@@ -692,11 +799,12 @@ Variants {
                                 panel.toggle("network");
                             }
                         }
+                        FoldArea { name: "network" }
                     }
                     // tailscale — beside the net cell, its own panel
                     Cell {
                         id: tsCell
-                        visible: Sys.tsPresent
+                        visible: ShellState.inBar("tailscale")
                         icon: "lock-outline"
                         // icon only; node name lives in the popout
                         color: Sys.tsUp ? (Sys.tsHealth.length ? Theme.warn : Theme.text)
@@ -708,13 +816,14 @@ Variants {
                                 panel.toggle("tailscale");
                             }
                         }
+                        FoldArea { name: "tailscale" }
                     }
                     // battery — click opens the power-profile panel
                     Cell {
                         id: batteryCell
                         vform: "stack"
                         readonly property var dev: UPower.displayDevice
-                        visible: (dev?.isLaptopBattery ?? false)
+                        visible: ShellState.inBar("power")
                         readonly property real pct: dev ? (dev.percentage > 1 ? dev.percentage : dev.percentage * 100) : 0
                         readonly property bool charging: dev ? dev.state === UPowerDeviceState.Charging : false
                         // five-step battery icon, bolt while charging.
@@ -738,12 +847,13 @@ Variants {
                                 panel.toggle("power");
                             }
                         }
+                        FoldArea { name: "power" }
                     }
                     // backlight — click opens the display panel
                     Cell {
                         id: backlightCell
                         vform: "stack"
-                        visible: Sys.backlight >= 0
+                        visible: ShellState.inBar("display")
                         // On the Duo the sun becomes two stacked halves, one per
                         // panel, so the bar says at a glance whether the bottom
                         // screen is still lit under the keyboard. Drawn, not a
@@ -785,10 +895,11 @@ Variants {
                                 panel.toggle("display");
                             }
                         }
+                        FoldArea { name: "display" }
                     }
                     // zenbook duo keyboard backlight: click cycles 0-3
                     Cell {
-                        visible: Sys.duoKbd
+                        visible: ShellState.inBar("kbd")
                         icon: "keyboard"
                         text: Sys.kbdBacklight === 0 ? "off" : Sys.kbdBacklight + "/3"
                         vform: "stack"
@@ -801,12 +912,14 @@ Variants {
                                     ["sh", "-c", "~/go/bin/duo kbd backlight " + ((Sys.kbdBacklight + 1) % 4)]);
                             }
                         }
+                        FoldArea { name: "kbd" }
                     }
                     // volume: click opens the audio panel, scroll adjusts.
                     // Mute moved into the panel — click had to give up one of
                     // the two, and the panel is where the devices live.
                     Cell {
                         id: volCell
+                        visible: ShellState.inBar("audio")
                         vform: "stack"
                         readonly property var av: Audio.sink?.audio ?? null
                         icon: av ? Audio.volIcon(av.volume, av.muted) : ""
@@ -824,13 +937,14 @@ Variants {
                                 parent.av.volume = Math.max(0, Math.min(1, parent.av.volume + d));
                             }
                         }
+                        FoldArea { name: "audio" }
                     }
                     // bluetooth — next to the volume cell: the thing most often
                     // reached for here is switching audio to a headset
                     Cell {
                         id: btCell
                         vform: "stack"
-                        visible: Bt.present
+                        visible: ShellState.inBar("bluetooth")
                         icon: Bt.icon
                         text: Bt.connectedDevices.length > 1 ? "" + Bt.connectedDevices.length : ""
                         color: Bt.enabled ? Theme.text : Theme.dim
@@ -841,6 +955,7 @@ Variants {
                                 panel.toggle("bluetooth");
                             }
                         }
+                        FoldArea { name: "bluetooth" }
                     }
                     // macOS puts a dot in the menu bar whenever something holds
                     // the mic. A mic glyph says the same thing and says which.
@@ -856,6 +971,14 @@ Variants {
                             }
                         }
                     }
+                    // control center: every indicator folded out of the bar lives behind this one cell
+                    Cell {
+                        id: ccCell
+                        visible: ShellState.anyInCC("status")
+                        icon: "tune-variant"
+                        color: panel.ccShowing("status") ? Theme.bright : Theme.text
+                        MouseArea { anchors.fill: parent; onClicked: panel.toggleCC("status") }
+                    }
                 }
 
                 Island {
@@ -867,7 +990,7 @@ Variants {
                         id: trayCell
                         vform: "stack"
                         readonly property int count: SystemTray.items.values.length
-                        visible: count > 0
+                        visible: ShellState.inBar("tray")
                         icon: "dots-horizontal"
                         text: "" + count
                         color: panel.isOpen("tray") ? Theme.bright : Theme.text
@@ -877,6 +1000,7 @@ Variants {
                                 panel.toggle("tray");
                             }
                         }
+                        FoldArea { name: "tray" }
                     }
                     // notification bell → history panel
                     Cell {
@@ -913,6 +1037,7 @@ Variants {
                     }
                     Cell {
                         id: clockCell
+                        visible: ShellState.inBar("calendar")
                         vform: "stack"
                         text: Qt.formatDateTime(clock.date, panel.vertical ? "HH:mm\nd" : "ddd d · HH:mm")
                         color: Theme.bright
@@ -922,6 +1047,7 @@ Variants {
                                 panel.toggle("calendar");
                             }
                         }
+                        FoldArea { name: "calendar" }
                     }
                 }
             }
@@ -978,72 +1104,27 @@ Variants {
                 }
             }
 
-            TrayPopout {
-                id: trayPopout
+            // The one card window every popout page lives in; see PopoutHost.qml.
+            PopoutHost {
+                id: popoutHost
                 bar: panel
-                cell: trayCell
-            }
+                homes: ({ status: ccGrid, sys: ccSys })
 
-            CalendarPopout {
-                id: calendarPopout
-                bar: panel
-                cell: clockCell
-            }
-
-            DisplayPopout {
-                id: displayPopout
-                bar: panel
-                cell: backlightCell
-            }
-
-            PowerPopout {
-                id: powerPopout
-                bar: panel
-                cell: batteryCell
-            }
-
-            TailscalePopout {
-                id: tailscalePopout
-                bar: panel
-                cell: tsCell
-            }
-
-            BluetoothPopout {
-                id: bluetoothPopout
-                bar: panel
-                cell: btCell
-            }
-
-            AudioPopout {
-                id: audioPopout
-                bar: panel
-                cell: volCell
-            }
-
-            NetworkPopout {
-                id: networkPopout
-                bar: panel
-                cell: netCell
-            }
-
-            ResourcePopout {
-                id: resourcePopout
-                bar: panel
-                cell: sysCells
-            }
-
-            ClankerPopout {
-                id: clankerPopout
-                bar: panel
-                cell: clankerCell
-            }
-
-
-            ServicesPopout {
-                id: servicesPopout
-                bar: panel
-                cell: servicesCell
-                panelName: "services"
+                TrayPopout { id: trayPopout; bar: panel; cell: trayCell }
+                CalendarPopout { id: calendarPopout; bar: panel; cell: clockCell }
+                DisplayPopout { id: displayPopout; bar: panel; cell: backlightCell }
+                PowerPopout { id: powerPopout; bar: panel; cell: batteryCell }
+                TailscalePopout { id: tailscalePopout; bar: panel; cell: tsCell }
+                BluetoothPopout { id: bluetoothPopout; bar: panel; cell: btCell }
+                AudioPopout { id: audioPopout; bar: panel; cell: volCell }
+                NetworkPopout { id: networkPopout; bar: panel; cell: netCell }
+                ResourcePopout { id: resourcePopout; bar: panel; cell: sysCells }
+                // cell is set when an agent's cell is clicked or the menu opens it (anchorClanker)
+                ClankerPopout { id: clankerPopout; bar: panel }
+                // no cell binding: toggleServices points it at the docker or the vms cell
+                ServicesPopout { id: servicesPopout; bar: panel; panelName: "services" }
+                ControlCenter { id: ccGrid; bar: panel; cell: ccCell; group: "status"; panelName: "cc" }
+                ControlCenter { id: ccSys; bar: panel; cell: sysCcCell; group: "sys"; panelName: "cc-sys" }
             }
 
         }

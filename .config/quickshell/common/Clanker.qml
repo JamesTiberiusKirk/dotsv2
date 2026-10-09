@@ -57,6 +57,10 @@ Singleton {
     // caches transcript scans by mtime so this is cheap after the first run
     Timer { interval: 15 * 60 * 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
 
+    // false until the first agent list lands; the control center shows a
+    // spinner tile meanwhile, since it cannot know which agent tiles to draw
+    property bool loaded: false
+
     Process {
         id: collect
         command: ["sh", "-c", "$HOME/.scripts/agent-usage/update >/dev/null 2>&1; $HOME/.scripts/agent-usage/merge 2>/dev/null || echo []"]
@@ -65,6 +69,24 @@ Singleton {
                 try {
                     root.agents = JSON.parse(text);
                     root.nowMs = Date.now();
+                } catch (e) {}
+                root.loaded = true;
+            }
+        }
+    }
+    // The collectors take a while, and every shell reload started with no
+    // agents at all until they finished. merge alone just reads what the last
+    // run saved (well under a second), so that goes first. Only while nothing
+    // fresher has landed: a late seed must not overwrite a finished collect.
+    Process {
+        running: true
+        command: ["sh", "-c", "$HOME/.scripts/agent-usage/merge 2>/dev/null || echo []"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (root.loaded) return;
+                try {
+                    const a = JSON.parse(text);
+                    if (a.length > 0) { root.agents = a; root.loaded = true; }
                 } catch (e) {}
             }
         }

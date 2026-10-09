@@ -24,9 +24,14 @@ Popout {
     implicitWidth: 380
     rowSpacing: 6
 
+    // cpu/mem per row are only polled while something shows them (Sys.statsWanted)
+    onOpenChanged: Sys.statsWanted += open ? 1 : -1
+    Component.onDestruction: if (open) Sys.statsWanted -= 1
+
     ListBody {
         visible: sp.currentTab === "docker"
         rows: Sys.dockerList
+        stats: Sys.dockerStats
         empty: Sys.dockerUp ? "no containers running" : "daemon is down"
         stoppable: true
         busy: Sys.dockerStopping
@@ -35,12 +40,14 @@ Popout {
     ListBody {
         visible: sp.currentTab === "vms"
         rows: Sys.vmList
+        stats: Sys.vmStats
         empty: "no vms running"
     }
 
     component ListBody: Column {
         id: lp
         property var rows: []      // [{ name, status }]
+        property var stats: ({})   // name -> { cpu, mem }, appended to the status line
         property string empty: "nothing running"
         // A stop button per row (docker). The caller does the stopping; this
         // only says which row was asked. `busy` names the rows mid-stop: they
@@ -106,7 +113,9 @@ Popout {
                     }
                     Text {
                         width: parent.width
-                        text: row.stopping ? "stopping…" : (lp.statusOf[row.modelData] ?? "")
+                        text: row.stopping ? "stopping…"
+                            : [lp.statusOf[row.modelData] ?? "", Sys.usageText(lp.stats[row.modelData])]
+                                .filter(s => s).join("  ·  ")
                         font.family: Theme.font; font.pixelSize: 12
                         color: Theme.dim
                         elide: Text.ElideRight

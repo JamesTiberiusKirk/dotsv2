@@ -135,6 +135,8 @@ Singleton {
                                  ["system", "cpu-64-bit"], ["tailscale", "server"],
                                  ["tray", "dots-horizontal"]])
             rows.push({ path: "bar/" + p, icon: icon, run: () => Sys.openPanel(p) });
+        rows.push({ path: "bar/control center", icon: "tune-variant", run: () => Sys.openPanel("cc") });
+        rows.push({ path: "bar/system center", icon: "view-dashboard", run: () => Sys.openPanel("cc-sys") });
         // docker and the VMs are one tabbed popout; each keeps its own row so
         // searching "docker" or "vms" still lands on it, on the right tab
         for (const [tab, icon] of [["docker", "docker"], ["vms", "server"]])

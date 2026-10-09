@@ -12,8 +12,10 @@ Singleton {
 
     property real cpu: 0            // 0..1
     property string memText: ""
+    property real memUsed: 0        // 0..1, for the control center's meter
     property string swapText: ""
     property string diskFree: ""
+    property real diskUsed: 0       // 0..1 of /, same
 
     // cpu: /proc/stat delta over the poll interval
     property var prevStat: null
@@ -43,6 +45,7 @@ Singleton {
             }
             const gb = kb => (kb / 1048576).toFixed(kb / 1048576 >= 10 ? 0 : 1) + "G";
             root.memText = gb(m.MemTotal - m.MemAvailable) + "/" + gb(m.MemTotal);
+            root.memUsed = m.MemTotal > 0 ? (m.MemTotal - m.MemAvailable) / m.MemTotal : 0;
             root.swapText = m.SwapTotal > 0
                 ? gb(m.SwapTotal - m.SwapFree) + "/" + gb(m.SwapTotal) : "";
         }
@@ -775,6 +778,88 @@ Singleton {
         root.dockerStopping = root.dockerStopping.concat([name]);
         dockerStopComp.createObject(root, { name: name, command: ["docker", "stop", "--", name] });
     }
+    // ---- docker / vm resource use ----
+    // Polled only while something shows it (the sys control center or the
+    // docker/vms popout): `docker stats` takes ~2s and real CPU per run.
+    // Pages count themselves in and out, so two screens cannot undo each other.
+    property int statsWanted: 0
+    // name -> { cpu: percent of one core, mem: bytes }
+    property var dockerStats: ({})
+    property var vmStats: ({})
+    // first numbers in yet? Until then the tiles spin instead of showing nothing.
+    // Kept after that: reopening shows the last numbers while the next poll runs.
+    property bool dockerStatsReady: false
+    property bool vmStatsReady: false
+    readonly property var dockerTotal: sumStats(dockerStats)
+    readonly property var vmTotal: sumStats(vmStats)
+    function sumStats(m) {
+        const t = { cpu: 0, mem: 0, n: 0 };
+        for (const k in m) { t.cpu += m[k].cpu; t.mem += m[k].mem; t.n++; }
+        return t;
+    }
+    // "8% · 350M"; "" before the first poll
+    function usageText(s) {
+        if (!s || s.n === 0) return "";
+        const b = s.mem, g = b / 1073741824;
+        const mem = g >= 1 ? g.toFixed(1) + "G" : Math.round(b / 1048576) + "M";
+        return Math.round(s.cpu) + "%  ·  " + mem;
+    }
+    Process {
+        id: dockerStatsProc
+        command: ["sh", "-c", "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}' 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // MemUsage is "21.4MiB / 30.71GiB": the used half, units to bytes
+                const unit = { B: 1, KiB: 1024, MiB: 1048576, GiB: 1073741824, kB: 1e3, MB: 1e6, GB: 1e9 };
+                const m = {};
+                for (const l of text.split("\n").filter(l => l)) {
+                    const [name, cpu, mem] = l.split("|");
+                    const u = (mem || "").split("/")[0].trim().match(/^([\d.]+)\s*(\w+)$/);
+                    m[name] = { cpu: parseFloat(cpu) || 0, mem: u ? parseFloat(u[1]) * (unit[u[2]] || 1) : 0, n: 1 };
+                }
+                root.dockerStats = m;
+                root.dockerStatsReady = true;
+            }
+        }
+    }
+    // qemu has no stats command of its own: cpu ticks and RSS straight from /proc,
+    // cpu as the tick delta between two polls (ps %cpu is a lifetime average)
+    property var vmTicks: ({})
+    Process {
+        id: vmStatsProc
+        command: ["sh", "-c",
+            "for p in $(pgrep 'qemu-system-'); do " +
+            "n=$(tr '\\0' '\\n' < /proc/$p/cmdline 2>/dev/null | " +
+            "awk '$0==\"-name\"{getline;sub(/^guest=/,\"\");sub(/,.*/,\"\");print;f=1;exit} END{if(!f)print \"qemu\"}'); " +
+            "t=$(awk '{print $14+$15}' /proc/$p/stat); r=$(awk '/^VmRSS/{print $2}' /proc/$p/status); " +
+            "echo \"$n|$t|$r\"; done"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const now = Date.now(), m = {}, ticks = {}, prevTicks = root.vmTicks;
+                for (const l of text.split("\n").filter(l => l)) {
+                    const [name, t, rss] = l.split("|");
+                    ticks[name] = { t: Number(t), at: now };
+                    const prev = root.vmTicks[name];
+                    // 100 ticks a second (USER_HZ); the first poll has no delta yet
+                    const cpu = prev ? (Number(t) - prev.t) / ((now - prev.at) / 1000) : 0;
+                    m[name] = { cpu: Math.max(0, cpu), mem: Number(rss) * 1024, n: 1 };
+                }
+                root.vmTicks = ticks;
+                root.vmStats = m;
+                // the first poll has no cpu delta yet, so it does not count as numbers in
+                if (Object.keys(prevTicks).length > 0 || text.trim() === "") root.vmStatsReady = true;
+            }
+        }
+    }
+    Timer {
+        interval: 5000; repeat: true; triggeredOnStart: true
+        running: root.statsWanted > 0
+        onTriggered: {
+            if (root.dockerRunning) dockerStatsProc.running = true;
+            vmStatsProc.running = true;
+        }
+    }
+
     Process {
         id: vmListProc
         // qemu VM names from -name (libvirt sets guest=X); nameless qemu shows "qemu"
@@ -926,8 +1011,15 @@ Singleton {
     // disk free on /
     Process {
         id: diskProc
-        command: ["sh", "-c", "df -h --output=avail / | tail -1 | tr -d ' '"]
-        stdout: SplitParser { onRead: data => root.diskFree = data.trim() }
+        // one df for both: "214G  81%"
+        command: ["sh", "-c", "df -h --output=avail,pcent / | tail -1"]
+        stdout: SplitParser {
+            onRead: data => {
+                const [avail, pcent] = data.trim().split(/\s+/);
+                root.diskFree = avail || "";
+                root.diskUsed = (parseInt(pcent) || 0) / 100;
+            }
+        }
     }
     Timer {
         interval: 5000; running: true; repeat: true; triggeredOnStart: true

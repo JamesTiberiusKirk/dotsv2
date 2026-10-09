@@ -15,6 +15,13 @@ Item {
     property real neckWidth: 48
     property int radius: 12
     property int padding: 14
+    // bar side: on a left/right bar the card grows out of the cell on the bar's
+    // edge, so the scale origin is a point on the edge, not on the top
+    property bool vertical: false
+    property bool far: false
+    // Esc in keyboard mode. The host decides back vs close; closing everything
+    // here would make Esc on a control center page skip the page you came from.
+    signal escaped()
 
     function clamp(v, lo, hi) {
         return Math.max(lo, Math.min(hi, v));
@@ -27,7 +34,12 @@ Item {
     // Tab/Shift+Tab work for free, j/k are the same walk under vim keys.
     property bool keyNav: false
     focus: keyNav
-    onKeyNavChanged: if (keyNav) Qt.callLater(() => root.step(true));
+    // The host swaps pages inside one card, so keyNav does not flip between
+    // pages and cannot trigger the first step on its own; the host calls this
+    // after each swap to start j/k from the top of the new page.
+    function refocus() {
+        Qt.callLater(() => { if (!root.keyNav) return; root.forceActiveFocus(); root.step(true); });
+    }
     function step(fwd) {
         // Window.activeFocusItem, not the PanelWindow's: PanelWindow is a
         // Quickshell wrapper, not a QQuickWindow, so that property is
@@ -49,7 +61,7 @@ Item {
             const it = root.Window.activeFocusItem;
             if (it && typeof it.hstep === "function") it.hstep(e.key === Qt.Key_L ? 1 : -1);
         }
-        else if (e.key === Qt.Key_Escape) Sys.closeAll();
+        else if (e.key === Qt.Key_Escape) root.escaped();
         else return;
         e.accepted = true;
     }
@@ -61,8 +73,8 @@ Item {
     // overshoot. Clamped, since a trigger near the screen edge gets a panel
     // shifted away from it and the raw x would land outside the card.
     transform: Scale {
-        origin.x: root.clamp(root.neckX + root.neckWidth / 2, 0, root.width)
-        origin.y: 0
+        origin.x: root.vertical ? (root.far ? root.width : 0) : root.clamp(root.neckX + root.neckWidth / 2, 0, root.width)
+        origin.y: root.vertical ? root.clamp(root.neckX + root.neckWidth / 2, 0, root.height) : (root.far ? root.height : 0)
         xScale: root.shown ? 1 : 0.75
         yScale: root.shown ? 1 : 0.75
         Behavior on xScale { NumberAnimation { duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
@@ -79,6 +91,8 @@ Item {
 
     Item {
         id: content
+        // mid-morph the outgoing page can be bigger than the card
+        clip: true
 
         anchors {
             fill: parent
