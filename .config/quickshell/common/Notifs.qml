@@ -197,6 +197,10 @@ Singleton {
                 }
             }
 
+            // WezTerm marks every terminal toast (OSC 9, agent replies) critical,
+            // which would paint it red and pin it until dismissed
+            const urgency = n.appName === "wezterm" && n.urgency === NotificationUrgency.Critical
+                ? NotificationUrgency.Normal : n.urgency;
             const rec = {
                 // the daemon reuses ids once a notification closes, so the id
                 // alone is not stable enough to key a list row on
@@ -211,7 +215,7 @@ Singleton {
                 // paint time: they change on every reload, and a stored one
                 // is a dead reference the moment that happens.
                 image: String(n.image || "").startsWith("image://qsimage/") ? "" : String(n.image || ""),
-                urgency: n.urgency,
+                urgency: urgency,
                 time: Date.now(),
                 n: n
             };
@@ -226,7 +230,7 @@ Singleton {
             root.history = next;
 
             if (!root.dnd && !root.isMuted(n.appName)) {
-                const critical = n.urgency === NotificationUrgency.Critical;
+                const critical = urgency === NotificationUrgency.Critical;
                 // honor the sender's timeout when it sets one (ms), like dunst did
                 const ttl = n.expireTimeout > 0 ? n.expireTimeout : 6000;
                 root.popups = root.popups.concat([{
@@ -236,6 +240,7 @@ Singleton {
                     // transitions fire on toasts that were already there
                     key: rec.key,
                     n: n,
+                    urgency: urgency,
                     until: critical ? Number.MAX_VALUE : Date.now() + ttl
                 }]);
             }

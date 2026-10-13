@@ -568,9 +568,12 @@ Variants {
                                 readonly property string agentId: modelData
                                 readonly property var agent: Clanker.agents.find(x => x.id === modelData) ?? null
                                 readonly property real used: Clanker.headline(agent)
+                                // the limit pinned in the popout; unpinned or limitless falls back to the worst
+                                readonly property var pinned: (agent && agent.limits || [])[Clanker.limitSel[modelData] ?? -1] ?? null
+                                readonly property real shown: pinned ? Number(pinned.percent) : used
                                 visible: ShellState.inBar("clanker:" + modelData)
                                 icon: "agent-" + modelData; vform: "stack"
-                                text: used >= 0 ? Math.round(used * 100) + "%" : ""
+                                text: shown >= 0 ? Math.round(shown * 100) + "%" : ""
                                 color: used >= 0.9 ? Theme.urgent : Theme.text
                                 MouseArea {
                                     anchors.fill: parent

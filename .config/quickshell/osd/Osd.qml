@@ -57,6 +57,15 @@ Scope {
         target: Media
         function onTrackChanged(p) { if (osd.armed) osd.show("track"); }
     }
+    // hasFullscreen can go stale across monitors (sliver peeked over a
+    // fullscreen video on an unfocused screen); re-read it from hyprctl
+    Connections {
+        target: Hyprland
+        function onRawEvent(e) {
+            if (["fullscreen", "focusedmon", "activewindowv2"].includes(e.name))
+                Hyprland.refreshWorkspaces();
+        }
+    }
 
     IpcHandler {
         target: "osd"

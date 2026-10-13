@@ -187,6 +187,7 @@ xdg-desktop-portal
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xfce4-settings
+xournalpp
 yay-bin
 zathura
 zathura-pdf-poppler

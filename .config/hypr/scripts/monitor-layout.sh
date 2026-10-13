@@ -27,6 +27,24 @@ STORE="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/layouts"
 
 mkdir -p "$STORE"
 
+# Settle before applying. Externals in standby drop HPD exactly like an unplug
+# and come back one at a time, seconds apart, after a wake. A layout applied in
+# the gap is keyed on the wrong set of screens (2026-10-10: MSI-only profile ran
+# mid-reconnect and its 4K@240 took the pipes the Acer needed). Wait until the
+# kernel's connected set holds still for 3s, max 15s. scale/save skip it: they
+# are user clicks and the set is not moving.
+case "${1:-}" in scale | save) ;; *)
+    connected() { cat /sys/class/drm/card*-*/status 2>/dev/null | tr -d '\n'; }
+    prev=$(connected) still=0
+    for _ in $(seq 15); do
+        sleep 1
+        cur=$(connected)
+        if [ "$cur" = "$prev" ]; then still=$((still + 1)); else still=0 prev=$cur; fi
+        [ "$still" -ge 3 ] && break
+    done
+    ;;
+esac
+
 # Serialise every writer: the hotplug watcher, idle's on-resume call, base.lua
 # at startup, Sys.qml's scale pills and Menu.qml's save can all land at once,
 # and two interleaved applies leave the outputs half-moved.
@@ -61,14 +79,54 @@ if grep -qs 'monitors.lua' "$HOME/.config/hypr/hosts/$HOST.lua"; then
     scale)
         # Changes one number. Not a snapshot: whatever else is on screen
         # (powersave Hz, duo rotation, a dark panel) stays out of the file.
-        id=$(id_of "${2:-}")
-        [ -n "$id" ] || { echo "no such output: ${2:-}" >&2; exit 1; }
-        if grep -q "^$id," "$file" 2>/dev/null; then
-            awk -F, -v OFS=, -v id="$id" -v s="${3:-}" '$1==id{$4=s}1' "$file" >"$file.tmp" && mv "$file.tmp" "$file"
-        else
-            live | awk -F, -v OFS=, -v c="$2" -v id="$id" -v s="${3:-}" \
-                '$1==c{print id, $2"@"$3, $4, s, ($1 ~ /^eDP/ ? 0 : $6)}' >>"$file"
-        fi
+        # The two built-in panels are one stacked pair: scaling either scales
+        # both, or their widths differ and the external beside them can only
+        # touch one (gap or overlap on the other).
+        targets=${2:-}
+        case $targets in eDP-1 | eDP-2) targets="eDP-1 eDP-2" ;; esac
+        for c in $targets; do
+            id=$(id_of "$c")
+            if [ -z "$id" ]; then
+                [ "$c" = "${2:-}" ] && { echo "no such output: $c" >&2; exit 1; }
+                continue
+            fi
+            if ! grep -q "^$id," "$file" 2>/dev/null; then
+                live | awk -F, -v OFS=, -v c="$c" -v id="$id" \
+                    '$1==c{print id, $2"@"$3, $4, $5, ($1 ~ /^eDP/ ? 0 : $6)}' >>"$file"
+            fi
+            grep -q "^$id," "$file" 2>/dev/null || continue # dark and never saved
+            # Rescaling changes the output's logical size. Left alone, a gap or an
+            # overlap opens and Hyprland's directional moves (workspace to monitor
+            # l/r) find nothing. So whatever is attached to its right edge (touching,
+            # rows overlapping), and whatever is attached to that, shifts by the
+            # width change; same for the bottom edge and the height change. Outputs
+            # not chained to it stay put, even if they sit further right.
+            awk -F, -v OFS=, -v id="$id" -v s="${3:-}" '
+                {
+                    line[NR] = $0
+                    split($2, m, "[x@]"); split($3, p, "x")
+                    w = m[1]; h = m[2]
+                    if ($5 % 2) { t = w; w = h; h = t } # 90/270: logical size swaps
+                    X[NR] = p[1]; Y[NR] = p[2]; W[NR] = int(w / $4 + 0.5); H[NR] = int(h / $4 + 0.5)
+                    if ($1 == id) { k = NR; dx = int(w / s + 0.5) - W[NR]; dy = int(h / s + 0.5) - H[NR] }
+                }
+                END {
+                    mx[k] = my[k] = 1
+                    do {
+                        grew = 0
+                        for (i = 1; i <= NR; i++) for (j = 1; j <= NR; j++) {
+                            if (!mx[i] && mx[j] && X[i] == X[j] + W[j] && Y[i] < Y[j] + H[j] && Y[j] < Y[i] + H[i]) mx[i] = grew = 1
+                            if (!my[i] && my[j] && Y[i] == Y[j] + H[j] && X[i] < X[j] + W[j] && X[j] < X[i] + W[i]) my[i] = grew = 1
+                        }
+                    } while (grew)
+                    for (i = 1; i <= NR; i++) {
+                        $0 = line[i]
+                        if (i == k) $4 = s
+                        else $3 = (X[i] + (mx[i] ? dx : 0)) "x" (Y[i] + (my[i] ? dy : 0))
+                        print
+                    }
+                }' "$file" >"$file.tmp" && mv "$file.tmp" "$file"
+        done
         rerun
         ;;
     save)

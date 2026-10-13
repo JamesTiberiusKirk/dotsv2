@@ -101,7 +101,7 @@ PanelWindow {
             implicitHeight: Math.max(inner.implicitHeight, nicon.visible ? 32 : 0) + 24
             radius: 12
             color: Theme.surface
-            border.color: n?.urgency === 2 ? Theme.urgent : Theme.islandBorder
+            border.color: modelData.urgency === 2 ? Theme.urgent : Theme.islandBorder
             border.width: 1
 
             MouseArea {

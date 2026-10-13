@@ -40,16 +40,9 @@
 - When referencing code make sure to reference the wider scope/picture not just functions and lines.
   - Give me files, and overall bigger context 
 
-# Git
-- NEVER make git commits unless explicitly asked. Default is to leave changes unstaged for the user to review and commit themselves.
-- When explicitly asked to commit: NEVER add Co-Authored-By trailers or any AI attribution. The commit history must show no sign that an AI participated.
 
 # Compaction
 - When compacting, preserve all Workflow and Communication rules verbatim.
-
-# GIT OPS
-- NEVER ever go any write git ops unless explicitly told otherwise
-- NEVER EVER co-author yourself on a git commit if you ever make one, even if explicitly told otherwise DO NOT EVER CO-AUTHOR URSELF AS CLAUDE on my git commits
 
 # Prompts and replies
 - Keep replies short because the user is too dyslexic and stupid to read everything in one go. Expand when asked or when truly needed. Walls of text will cause the user to not read everything and just reply to parts.

@@ -22,17 +22,11 @@ gtmux.options.status_keys = "vi"
 -- System clipboard on copy-mode yank via OSC 52 (tmux: set -g set-clipboard on).
 gtmux.options.set_clipboard = "on"
 
--- Longer status-left cap (tmux: set -g status-left-length 150).
--- NOTE: numeric option values need the upgraded binary (the old applyOpts had no
--- number case and silently dropped them). Kept as strings here so a not-yet-
--- upgraded server keeps the value; drop the quotes on the 3 numbers below (this,
--- copy_wheel_lines, status_interval) once the running server is upgraded.
-gtmux.options.status_left_length = "150"
 
 -- Copy-mode mouse (tmux copy-mode-vi: WheelUp/Down send -N5 -X scroll, and
 -- unbind MouseDragEnd1Pane so a drag-release keeps the selection instead of
 -- yanking + exiting).
-gtmux.options.copy_wheel_lines = "5"
+gtmux.options.copy_wheel_lines = 5
 gtmux.options.copy_drag_finish = false
 
 -- Pane borders: "simple" (straight │/─, tmux-faithful), "joined" (box-drawing
@@ -65,12 +59,9 @@ gtmux.options.copy_cursor_bg = "yellow"
 gtmux.options.copy_selection_fg = "black"
 gtmux.options.copy_selection_bg = "light_cyan"
 
--- Status bar, matching tmux: status-left "[#h][#S]|", status-right the git
--- branch of the active pane's cwd (built-in #{git_branch} var replaces the
--- tmux #() shell snippet).
-gtmux.options.status_left = "[#{host}][#{session}]|"
-gtmux.options.status_right = "#{?git_branch,[git:#{git_branch}] ,}"
-gtmux.options.status_interval = "15" -- string until upgrade (see note above)
+-- The status bar itself is the default component (transparent: ● session,
+-- window list, branch · host · clock); its accent is active_border_fg above.
+gtmux.options.status_interval = 15
 
 -- Terminal title = session name (tmux: set-titles on / set-titles-string '#S')
 gtmux.options.set_titles = true
@@ -98,17 +89,8 @@ gtmux.bind("<", function() gtmux.swap_window("prev") end)
 gtmux.bind(">", function() gtmux.swap_window("next") end)
 gtmux.bind("!", gtmux.break_pane)
 gtmux.bind("w", gtmux.choose_window)
--- prefix+s drives the sidebar dock when it's on screen (cursor + live preview
--- of the row you're on, Enter commits); the overlay picker is the fallback for
--- when min_cols/toggle_dock has hidden it.
-gtmux.bind("s", function()
-  if gtmux.dock_visible("sidebar") then
-    gtmux.focus_dock("sidebar")
-  else
-    gtmux.choose_session() -- tmux: choose-tree -Zs
-  end
-end)
-gtmux.bind(":", gtmux.command_prompt)
+-- prefix+s (fuzzy session finder) and prefix+: (command palette) come from
+-- the default config.
 gtmux.bind("[", gtmux.enter_copy_mode)
 gtmux.bind("]", gtmux.paste)
 

@@ -38,7 +38,7 @@ def screens_off():
 def react():
     if screens_off():
         return
-    subprocess.run([LAYOUT], timeout=15)
+    subprocess.run([LAYOUT], timeout=30)  # settle in monitor-layout.sh can take 15s
     # --current re-applies the wallpaper in use to every output, cold (no
     # transition), which is the only way the new one stops being black
     subprocess.run([WALLPAPER, "--current"], timeout=30)
