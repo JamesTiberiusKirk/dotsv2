@@ -103,14 +103,6 @@ gtmux.bind("P", function()
 	gtmux.command_prompt("Workspacer args:", "", "new-window 'workspacer -W=current %1 %2 %3 ; read'")
 end)
 
--- Workspacer session tree (tmux's bind S). gtmux evaluates the -f filter per
--- session via its format engine, but gtmux config is global and doesn't know
--- the active workspace — the prefix has to come from a user option the
--- workspacer gtmux-backend sets (e.g. @workspace_prefix). Until that's wired,
--- S shows the full tree; swap in the filtered line once the backend exports it.
-gtmux.bind("S", gtmux.choose_tree)
--- gtmux.bind("S", function() gtmux.choose_tree("-f", "#{m:#{@workspace_prefix}-*,#{session_name}}") end)
-
 -- Splits with | and - (new panes already open in the active pane's cwd,
 -- tmux's -c "#{pane_current_path}"). % and " are unbound, like the tmux conf.
 -- split_right/split_down are the clearer names; `or` falls back to the old
