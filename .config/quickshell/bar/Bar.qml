@@ -90,21 +90,23 @@ Variants {
             implicitWidth: barHeight
             color: "transparent"
             exclusionMode: ExclusionMode.Normal
+            // mod+b hides the bar of the focused screen only (ShellState.hiddenOn)
+            readonly property bool barHidden: ShellState.isHidden(screen?.name)
             // hidden: islands slide up into the band and fade, windows reclaim
             // the bar body; the thin frame stays (Chrome.qml)
-            exclusiveZone: ShellState.hidden ? Theme.frameT : barHeight
+            exclusiveZone: panel.barHidden ? Theme.frameT : barHeight
             // hidden: windows reclaim the bar body, so drop the input region
             // too — otherwise the invisible surface eats clicks in that strip
             mask: Region {
-                width: ShellState.hidden ? 0 : (panel.vertical ? panel.barHeight : panel.width)
-                height: ShellState.hidden ? 0 : (panel.vertical ? panel.height : panel.barHeight)
+                width: panel.barHidden ? 0 : (panel.vertical ? panel.barHeight : panel.width)
+                height: panel.barHidden ? 0 : (panel.vertical ? panel.height : panel.barHeight)
             }
 
             // shared island entrance/exit: transform + opacity only (GPU),
             // no Canvas repaints during the animation
-            property real islandFade: ShellState.hidden ? 0 : 1
+            property real islandFade: panel.barHidden ? 0 : 1
             Behavior on islandFade { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-            property real islandLift: ShellState.hidden ? -(barBodyHeight * 0.7) * (far ? -1 : 1) : 0
+            property real islandLift: panel.barHidden ? -(barBodyHeight * 0.7) * (far ? -1 : 1) : 0
             readonly property real liftX: vertical ? islandLift : 0
             readonly property real liftY: vertical ? 0 : islandLift
             Behavior on islandLift { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
@@ -1055,13 +1057,7 @@ Variants {
                 }
             }
 
-            Connections {
-                target: ShellState
-                function onHiddenChanged() {
-                    if (ShellState.hidden)
-                        panel.closeIslandPopouts();
-                }
-            }
+            onBarHiddenChanged: if (barHidden) closeIslandPopouts()
 
             // ---- dismiss layer for the bar popouts ----
             // Click-away and Escape for every popout, in one place rather than

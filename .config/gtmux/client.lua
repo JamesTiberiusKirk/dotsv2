@@ -77,9 +77,10 @@ gtmux.options.prefix = "C-b"
 gtmux.bind("c", gtmux.new_window) -- opens in active pane's cwd
 gtmux.bind("n", gtmux.next_window)
 gtmux.bind("p", gtmux.prev_window)
-gtmux.bind("x", gtmux.kill_pane)
+gtmux.bind("x", function() gtmux.confirm_before("kill-pane", "kill this pane?") end)
+gtmux.bind("&", function() gtmux.confirm_before("kill-window", "kill this window?") end)
 gtmux.bind("d", gtmux.detach)
-gtmux.bind("q", gtmux.show_pane_numbers)
+gtmux.bind("q", function() gtmux.confirm_before("set-option detach-on-destroy off ; kill-session", "kill this session?") end)
 gtmux.bind("$", gtmux.rename_session_prompt)
 gtmux.bind(",", gtmux.rename_window_prompt)
 gtmux.bind("z", gtmux.zoom)

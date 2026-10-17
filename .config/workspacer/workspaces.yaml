@@ -3,11 +3,15 @@ session_presets:
     default:
         screens:
             - name: nvim
-              layout: main-vertical
+              layout: main-vertical 
               panes:
                 - command: nvim
                 - {}
+            - name: clanker 
+              layout: main-horisontal
+              panes:
                 - {}
+
     dots:
         path: ~/.dots
         screens:
