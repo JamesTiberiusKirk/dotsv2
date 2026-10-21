@@ -6,6 +6,7 @@
 local M = {}
 
 local HL = 'Comment'
+local FILL = '·'
 local query = vim.treesitter.query.parse(
   'go',
   [[
@@ -111,13 +112,11 @@ local function fold(buf, root, ns, header_row, stmt, close_row)
     end
   end
   local last = close_row or srow
-  vim.api.nvim_buf_set_extmark(buf, ns, header_row, #header, {
-    virt_text = virt,
-    virt_text_pos = 'inline',
-  })
   for r = header_row + 1, last do
     vim.api.nvim_buf_set_extmark(buf, ns, r, 0, { conceal_lines = '' })
   end
+  -- virt_text is drawn later by draw(), once neighbouring folds are known
+  return { row = header_row, last = last, header = header, virt = virt }
 end
 
 -- Fold a `{ ... }` block holding exactly one statement that passes `ok`.
@@ -127,31 +126,64 @@ local function fold_block(buf, root, ns, block, ok)
     return
   end
   local br, _, ber = block:range()
-  fold(buf, root, ns, br, stmts[1], ber)
+  return fold(buf, root, ns, br, stmts[1], ber)
+end
+
+-- Draw fold texts; folds on directly consecutive visible lines with the same indent
+-- get their bodies aligned with the · fill.
+local function draw(buf, ns, folds)
+  table.sort(folds, function(a, b)
+    return a.row < b.row
+  end)
+  local i = 1
+  while i <= #folds do
+    local j, indent = i, folds[i].header:match('^%s*')
+    while folds[j + 1] and folds[j + 1].row == folds[j].last + 1 and folds[j + 1].header:match('^%s*') == indent do
+      j = j + 1
+    end
+    local width = 0
+    for k = i, j do
+      folds[k].width = vim.fn.strdisplaywidth(folds[k].header)
+      width = math.max(width, folds[k].width)
+    end
+    for k = i, j do
+      local f = folds[k]
+      if f.width < width then
+        table.insert(f.virt, 1, { string.rep(FILL, width - f.width), HL })
+      end
+      vim.api.nvim_buf_set_extmark(buf, ns, f.row, #f.header, { virt_text = f.virt, virt_text_pos = 'inline' })
+    end
+    i = j + 1
+  end
 end
 
 function M.render(buf, root, ns)
   local cursor = vim.api.nvim_get_current_buf() == buf and vim.api.nvim_win_get_cursor(0)[1] - 1 or -1
+  local folds = {}
+  local function add(f)
+    folds[#folds + 1] = f
+  end
   for id, node in query:iter_captures(root, buf) do
     local sr, _, er = node:range()
     if cursor < sr or cursor > er then
       local kind = query.captures[id]
       if kind == 'if' and not node:field('alternative')[1] then
-        fold_block(buf, root, ns, node:field('consequence')[1], function(s)
+        add(fold_block(buf, root, ns, node:field('consequence')[1], function(s)
           return is_return_or_panic(s, buf)
-        end)
+        end))
       elseif kind == 'func' then
-        fold_block(buf, root, ns, node:field('body')[1], function(s)
+        add(fold_block(buf, root, ns, node:field('body')[1], function(s)
           return s:type() == 'return_statement'
-        end)
+        end))
       elseif kind == 'case' and vim.trim(line(buf, sr)):sub(-1) == ':' then
         local stmts = statements(node, true)
         if #stmts == 1 then
-          fold(buf, root, ns, sr, stmts[1])
+          add(fold(buf, root, ns, sr, stmts[1]))
         end
       end
     end
   end
+  draw(buf, ns, folds)
 end
 
 return M
