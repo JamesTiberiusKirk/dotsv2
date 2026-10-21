@@ -6,12 +6,31 @@ import Quickshell.Services.UPower
 import Quickshell.Services.SystemTray
 import QtQuick
 
-// Shell-wide UI state (`qs ipc call shell toggle`). Hiding drops the bar's
+// Shell-wide UI state (`qs ipc call shell toggle`). Hiding drops a bar's
 // exclusive zone to the frame thickness so windows reclaim the bar body.
 Singleton {
     id: root
 
-    property bool hidden: false
+    // Screen names (Hyprland connector, e.g. "HDMI-A-1") whose bar is hidden.
+    // Per screen, persisted outside the repo. Reassigned whole so bindings see the change.
+    property var hiddenOn: []
+    function isHidden(screen) { return hiddenOn.includes(screen); }
+
+    FileView {
+        id: hiddenFile
+        path: Quickshell.env("HOME") + "/.local/state/qs-bar-hidden"
+        printErrors: false
+        property bool ready: false
+        onLoaded: {
+            try {
+                const t = JSON.parse(text());
+                if (Array.isArray(t)) root.hiddenOn = t.filter(n => typeof n === "string");
+            } catch (e) { console.warn("ShellState: bad qs-bar-hidden:", e); }
+            ready = true;
+        }
+        onLoadFailed: ready = true
+    }
+    onHiddenOnChanged: if (hiddenFile.ready) hiddenFile.setText(JSON.stringify(hiddenOn))
 
     // Which screen edge the bar sits on: top | bottom | left | right.
     // Persisted outside the repo, read back on start.
@@ -164,9 +183,13 @@ Singleton {
     IpcHandler {
         target: "shell"
         function side(s: string): void { root.side = s; }
+        // flips the bar on the focused monitor
         function toggle(): void {
-            root.hidden = !root.hidden;
-            if (root.hidden)
+            const n = Hyprland.focusedMonitor?.name;
+            if (!n) return;
+            const hide = !root.isHidden(n);
+            root.hiddenOn = hide ? root.hiddenOn.concat([n]) : root.hiddenOn.filter(x => x !== n);
+            if (hide)
                 Notifs.centerOpen = false;
         }
     }

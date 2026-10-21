@@ -27,6 +27,7 @@ docker-buildx
 docker-compose
 docker-runit
 dosfstools
+dotnet-sdk
 dtc
 edk2-ovmf
 elogind-runit
@@ -81,6 +82,7 @@ lxappearance
 man-db
 materia-gtk-theme
 matugen
+mingw-w64-gcc
 minikube
 mkdocs
 mkdocs-material
@@ -141,6 +143,9 @@ r-quick-share-bin
 rsync
 runit
 rust
+rust-analyzer
+rust-src
+rustup
 satty
 seahorse
 shellcheck
@@ -149,6 +154,7 @@ sof-firmware
 solaar
 spotify-player
 strace
+streamlink
 stripe-cli-bin
 swaybg
 tailscale
@@ -180,6 +186,7 @@ vim
 virt-install
 wayfreeze
 wezterm
+wine
 wireplumber
 wkhtmltopdf-bin
 wl-clipboard
@@ -189,6 +196,7 @@ xdg-desktop-portal-hyprland
 xfce4-settings
 xournalpp
 yay-bin
+ydotool
 zathura
 zathura-pdf-poppler
 zenity

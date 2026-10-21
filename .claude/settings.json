@@ -1,6 +1,12 @@
 {
   "permissions": {
     "ask": [],
+    "deny": [
+      "Artifact",
+      "ArtifactComments",
+      "ArtifactData",
+      "mcp__claude_ai_Claude_Docs"
+    ],
     "defaultMode": "auto",
     "additionalDirectories": [
       "/Users/dumitruvulpe/uw",
@@ -35,7 +41,8 @@
     "frontend-design@claude-plugins-official": true,
     "ponytail@ponytail": true,
     "voicemode@voicemode": false,
-    "stripe@claude-plugins-official": true
+    "stripe@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ponytail": {

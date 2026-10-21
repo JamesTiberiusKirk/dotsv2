@@ -648,7 +648,12 @@ local servers = {
   jdtls = {},
   dartls = {},
   -- pyright = {},
-  -- rust_analyzer = {},
+  -- system rust-analyzer from pacman, matches the system rustc
+  rust_analyzer = {
+    ['rust-analyzer'] = {
+      check = { command = 'clippy' },
+    },
+  },
   -- html = { filetypes = { 'html', 'twig', 'hbs', 'templ' }},
   -- htmx = { filetypes = {'html', 'templ' }},
   -- templ = { filetypes = { 'templ' }},
@@ -690,7 +695,7 @@ capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
 -- Ensure the servers above are installed
 require('mason-lspconfig').setup {
   ensure_installed = vim.tbl_filter(function(server_name)
-    return server_name ~= 'dartls'
+    return server_name ~= 'dartls' and server_name ~= 'rust_analyzer'
   end, vim.tbl_keys(servers)),
 }
 
