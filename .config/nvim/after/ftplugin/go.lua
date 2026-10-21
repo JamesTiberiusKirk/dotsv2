@@ -7,6 +7,9 @@ vim.opt_local.tabstop = 4
 vim.opt_local.shiftwidth = 4
 vim.opt_local.softtabstop = 4
 
+-- Needed for virtual_align folds (conceal_lines)
+vim.opt_local.conceallevel = 2
+
 -- Guard against other plugins changing options on save
 local grp = vim.api.nvim_create_augroup('GoIndentGuard', { clear = false })
 vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost' }, {

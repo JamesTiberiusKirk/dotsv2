@@ -524,7 +524,10 @@ local function goto_definition_or_templ()
 end
 
 --  This function gets run when an LSP connects to a particular buffer.
-local on_attach = function(_, bufnr)
+local on_attach = function(client, bufnr)
+  if client.name == 'gopls' then
+    vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+  end
 
   -- NOTE: Remember that lua is a real programming language, and as such it is possible
   -- to define small helper and utility functions so you don't have to repeat yourself
@@ -618,6 +621,10 @@ local servers = {
       buildFlags = { "-tags=integration" },
       env = { GOFLAGS = "-tags=integration" },
       usePlaceholders = true,
+      hints = {
+        compositeLiteralFields = true,
+        constantValues = true,
+      },
     },
   },
   vtsls = {
@@ -669,6 +676,7 @@ local servers = {
 }
 
 require('custom.symbol-index').setup()
+require('custom.virtual_align').setup()
 
 
 

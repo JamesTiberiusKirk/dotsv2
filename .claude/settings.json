@@ -1,7 +1,6 @@
 {
   "permissions": {
-    "ask": [
-    ],
+    "ask": [],
     "defaultMode": "auto",
     "additionalDirectories": [
       "/Users/dumitruvulpe/uw",
