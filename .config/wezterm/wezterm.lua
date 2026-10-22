@@ -41,8 +41,11 @@ config.window_background_opacity = 0.50 -- light mode bumps this in apply_theme
 -- behind a less transparent window or text gets murky.
 config.macos_window_background_blur = 0
 if is_macos then
-  config.window_background_opacity = 0.85
-  config.macos_window_background_blur = 50
+  -- config.window_background_opacity = 0.85
+  -- config.macos_window_background_blur = 50
+
+  config.window_background_opacity = 1
+  config.macos_window_background_blur = 0
 end
 
 config.default_cursor_style = 'BlinkingBlock'
@@ -86,10 +89,10 @@ local function apply_theme()
     -- get_appearance() is called here.
     local dark = wezterm.gui.get_appearance():find 'Dark' ~= nil
     -- light bg needs more body over the blurred wallpaper (see below)
-      config.color_scheme = dark and 'GruvboxDarkHard' or 'Gruvbox light, medium (base16)'
-      config.window_background_opacity = dark and 0.75 or 0.55
+      -- config.color_scheme = dark and 'GruvboxDarkHard' or 'Gruvbox light, medium (base16)'
+      -- config.window_background_opacity = dark and 0.75 or 0.55
       -- sync nvim + gtmux with the OS mode (no-op if unchanged)
-      io.popen(os.getenv 'HOME' .. '/.scripts/theme-sync-mac ' .. (dark and 'dark' or 'light') .. ' &')
+      -- io.popen(os.getenv 'HOME' .. '/.scripts/theme-sync-mac ' .. (dark and 'dark' or 'light') .. ' &')
       return dark and 'dark' or 'light'
   end
 
