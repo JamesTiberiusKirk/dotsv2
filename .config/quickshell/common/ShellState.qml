@@ -32,6 +32,16 @@ Singleton {
     }
     onHiddenOnChanged: if (hiddenFile.ready) hiddenFile.setText(JSON.stringify(hiddenOn))
 
+    // wl-screenrec running: "" | "mp4" | "gif", and when it started (ms).
+    // ~/.scripts/record.sh sets both via `qs ipc call region recStart/recStop`.
+    property string recording: ""
+    property real recStarted: 0
+    // pulse source names record/video records as audio (ticked in the menu, session only)
+    property var recSources: []
+    function toggleRecSource(src) {
+        recSources = recSources.includes(src) ? recSources.filter(s => s !== src) : recSources.concat([src]);
+    }
+
     // Which screen edge the bar sits on: top | bottom | left | right.
     // Persisted outside the repo, read back on start.
     property string side: "left"

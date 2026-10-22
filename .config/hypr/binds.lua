@@ -173,7 +173,7 @@ reg("SUPER + ", {
 
 -- ---- Utilities ----
 reg("SUPER + SHIFT + ", {
-    { "C", dsp.exec_cmd("hyprctl reload; qs kill; qs -d -n"),           "Reload config" },
+    { "C", dsp.exec_cmd("hyprctl reload; qs kill; timeout 3 sh -c 'while pgrep -x qs >/dev/null; do sleep 0.05; done'; qs -d -n"), "Reload config" },
     { "T", dsp.exec_cmd("~/.scripts/theme-toggle"),                     "Toggle theme" },
     { "D", dsp.exec_cmd("qs ipc call notifs dismissAll"),               "Dismiss all notifications" },
     { "S", dsp.exec_cmd("~/.scripts/screenshot.sh"),                    "Screenshot" },

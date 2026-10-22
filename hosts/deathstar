@@ -26,6 +26,7 @@
 .scripts/qsmenu
 .scripts/random-wallpaper.sh
 .scripts/screenshot.sh
+.scripts/record.sh
 .scripts/sql-align-format
 .scripts/theme-apply
 .scripts/theme-from-wallpaper

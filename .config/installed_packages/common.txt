@@ -137,6 +137,7 @@ qt6-doc
 quickshell
 raw-thumbnailer
 raylib
+rclone
 reflector
 ripgrep
 r-quick-share-bin
@@ -190,6 +191,7 @@ wine
 wireplumber
 wkhtmltopdf-bin
 wl-clipboard
+wl-screenrec
 xdg-desktop-portal
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland

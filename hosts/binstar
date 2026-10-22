@@ -28,6 +28,7 @@
 .scripts/random-wallpaper.sh
 .scripts/powersave
 .scripts/screenshot.sh
+.scripts/record.sh
 .scripts/menu-run
 .scripts/script-menu.sh
 .scripts/sql-align-format

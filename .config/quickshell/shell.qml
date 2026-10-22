@@ -5,6 +5,7 @@ import "notifs"
 import "launcher"
 import "osd"
 import "wallpaper"
+import "screenshot"
 
 // dshell — quickshell replacement for waybar + dunst + wofi.
 // Piloted via `hyprx --shell` (HYPR_SHELL=quickshell); see base.lua autostart.
@@ -17,6 +18,7 @@ ShellRoot {
     Osd {}
     Submap {}
     Picker {}
+    RegionPicker {}
     Info {}
     BatteryGuard {}
 }

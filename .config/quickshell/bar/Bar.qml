@@ -789,6 +789,28 @@ Variants {
                     id: powerIsland
                     // network + tailscale, icon only (names in their popouts)
 
+                    // recording (~/.scripts/record.sh): shows only while wl-screenrec
+                    // runs, elapsed time beside the icon; click stops it
+                    Cell {
+                        id: recCell
+                        visible: ShellState.recording !== ""
+                        property int secs: 0
+                        icon: ShellState.recording === "gif" ? "image-multiple" : "video"
+                        text: Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0")
+                        vform: "stack"
+                        color: Theme.urgent
+                        Timer {
+                            running: recCell.visible
+                            interval: 1000
+                            repeat: true
+                            triggeredOnStart: true
+                            onTriggered: recCell.secs = Math.floor((Date.now() - ShellState.recStarted) / 1000)
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: Quickshell.execDetached(["sh", "-c", "~/.scripts/record.sh"])
+                        }
+                    }
                     // network — click opens the wifi panel
                     Cell {
                         id: netCell

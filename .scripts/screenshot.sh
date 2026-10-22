@@ -1,5 +1,5 @@
 #!/bin/sh
-# Freeze screen (wayfreeze) → region (slurp) → grim → satty annotation window → save + clipboard on exit.
+# Freeze screen (wayfreeze) → region (quickshell RegionPicker, runs grim) → satty annotation window → save + clipboard on exit.
 
 path="$HOME/Pictures/screenshots"
 mkdir -p "$path"
@@ -9,7 +9,10 @@ active_window=$(hyprctl activewindow -j 2>/dev/null | grep -oP '"class"\s*:\s*"\
 out="${path}/${timestamp}-${active_window:-screenshot}.png"
 
 tmp=$(mktemp --suffix=.png)
-wayfreeze --hide-cursor --after-freeze-cmd "region=\$(slurp) && grim -g \"\$region\" '$tmp'; pkill wayfreeze"
+# wayfreeze unfreezes when its cmd exits; the IPC call returns at once, so sleep and let
+# the picker's callback pkill wayfreeze. 120s caps a stuck freeze if the shell is dead.
+export GRAB="[ -n \"\$1\" ] && grim -g \"\$1\" '$tmp'; pkill wayfreeze"
+wayfreeze --hide-cursor --after-freeze-cmd "qs ipc call region pick \"\$GRAB\" && sleep 120"
 [ -s "$tmp" ] || { rm -f "$tmp"; exit 0; }
 
 satty \

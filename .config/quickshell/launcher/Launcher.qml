@@ -332,7 +332,8 @@ PanelWindow {
                 m.app.execute();
             else
                 run(m);
-            finish(null);
+            // toggle rows (stay) keep the menu up so several can be flipped in a row
+            if (!m.stay) finish(null);
             return;
         }
         if (dmenu) {

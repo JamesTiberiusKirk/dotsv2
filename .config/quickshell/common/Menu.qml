@@ -60,6 +60,8 @@ Singleton {
         "display/layout": "view-grid",
         "display/night light temp": "white-balance-sunny",
         "power": "power",
+        "record": "video",
+        "record/sound": "speaker",
         "power/profile": "flash",
         "notifications": "bell",
         "notifications/mute": "bell-off",
@@ -95,6 +97,20 @@ Singleton {
         rows.push({ path: "display/night light " + mark(Sys.nightLight), icon: "weather-night", run: () => Sys.setNightLight(!Sys.nightLight) });
         for (const k of [2700, 3500, 4500, 5500])
             rows.push({ path: "display/night light temp/" + k + "K " + mark(Sys.nightTemp === k), icon: "white-balance-sunny", run: () => Sys.setNightTemp(k) });
+
+        // record.sh toggles: run the same row again to stop. video records the
+        // sound sources ticked under record/sound (several get mixed); gif has none.
+        rows.push(
+            { path: "record/video", icon: "video", cmd: root.home + "/.scripts/record.sh mp4 " + ShellState.recSources.join(" ") },
+            { path: "record/gif", icon: "image-multiple", cmd: root.home + "/.scripts/record.sh gif" });
+        // pulse names: a sink's monitor is what plays through it
+        for (const [kind, nodes, suffix, icon] of [["desktop", Audio.sinks, ".monitor", "speaker"],
+                                                   ["mic", Audio.sources, "", "microphone"]])
+            for (const n of nodes) {
+                const src = n.name + suffix;
+                rows.push({ path: "record/sound/" + kind + ": " + Audio.devName(n).replace(/\//g, "-") + " " + mark(ShellState.recSources.includes(src)),
+                            icon: icon, stay: true, run: () => ShellState.toggleRecSource(src) });
+            }
 
         // Suspend stays unguarded: instant and harmless by accident. The rest ask.
         rows.push(
