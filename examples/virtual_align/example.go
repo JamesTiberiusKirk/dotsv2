@@ -33,6 +33,19 @@ var origin = Point{1, 2}
 
 var wait = Timeout
 
+// --- go_assign: consecutive assignments line up their = ---
+
+func Copy(dst, src *Handset) {
+	dst.ID = src.ID
+	dst.PrimaryImage = src.PrimaryImage
+	n := len(src.Versions)
+	dst.Versions = make([]int, n)
+
+	// blank line or comment above starts a new group
+	dst.Active = src.Active
+	dst.StockBase += src.StockBase
+}
+
 // --- go_fold: if with a single return ---
 
 func Load(id string) (*Handset, error) {

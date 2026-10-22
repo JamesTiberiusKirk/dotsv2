@@ -7,7 +7,7 @@ local enabled = true
 
 -- filetype -> { rule module names under custom.virtual_align.rules }
 local rules_by_ft = {
-  go = { 'go_tags', 'go_fold' },
+  go = { 'go_tags', 'go_fold', 'go_assign' },
 }
 
 function M.render(buf)
