@@ -147,7 +147,7 @@ PanelWindow {
             // the chrome itself: screen rect minus the hole
             ShapePath {
                 strokeColor: "transparent"
-                fillColor: Theme.island
+                fillColor: Sys.opaque ? Theme.island : Theme.islandBase   // frame keeps the theme alpha, not glassAlpha
                 fillRule: ShapePath.OddEvenFill
                 PathSvg { path: "M 0 0 H " + c.width + " V " + c.height + " H 0 Z " + c.holeNow }
             }

@@ -228,6 +228,11 @@ hl.device({
 -- hyprglass decoration shows through; a compositor opacity rule would fade the
 -- glass along with the window.
 hl.window_rule({
+    name  = "wezterm-glass",
+    match = { class = "^(org\\.wezfurlong\\.wezterm)$" },
+    tag   = "+hyprglass_preset_qs-glass",
+})
+hl.window_rule({
     name  = "picture-in-picture",
     match = { title = "^([Pp]icture.in.[Pp]icture)$" },
     float = true,
@@ -285,16 +290,10 @@ end)
 -------------------
 ---- LAYERRULES ---
 -------------------
--- quickshell popups: compositor blur + popin entrance. All GPU-side, so the
--- animation stays smooth no matter what the QML inside is doing.
--- ignore_alpha keeps the fully-transparent margins around the panel unblurred.
-hl.layer_rule({
-    name  = "qs-popups",
-    match = { namespace = "^quickshell-(launcher|osd)$" },
-    blur         = true,
-    ignore_alpha = 0.05,
-    animation    = "popin 80%",
-})
+-- Glass for every quickshell popup comes from hyprglass (plugins.lua), not
+-- stock blur. Launcher/OSD used popin 80%, but hyprglass draws its pane at the
+-- full layer size while popin scales the content, so a glass box showed
+-- behind the shrunken panel during the entrance. They get the default fade.
 -- Notification toasts slide themselves in from the right (notifs/NotifPopups.qml),
 -- so no compositor animation at all — every one of them fought the slide.
 -- popin scaled the whole surface, which is the toast stack, so cards shrank
@@ -306,24 +305,14 @@ hl.layer_rule({
 hl.layer_rule({
     name  = "qs-notifs",
     match = { namespace = "^quickshell-notifs$" },
-    blur         = true,
-    ignore_alpha = 0.05,
     no_anim      = true,
 })
 -- bar popouts (calendar/resources/notif center) animate themselves in QML
--- (grow-from-island), so no compositor popin — just blur + the layer fade.
-hl.layer_rule({
-    name  = "qs-popouts",
-    match = { namespace = "^quickshell-popout$" },
-    blur         = true,
-    ignore_alpha = 0.05,
-})
+-- (grow-from-island), so no compositor popin, just the default layer fade.
 -- Notification drawer slides itself in (notifs/NotifCenter.qml); see qs-notifs.
 hl.layer_rule({
     name  = "qs-drawer",
     match = { namespace = "^quickshell-drawer$" },
-    blur         = true,
-    ignore_alpha = 0.05,
     no_anim      = true,
 })
 hl.layer_rule({

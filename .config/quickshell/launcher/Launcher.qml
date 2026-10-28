@@ -417,7 +417,8 @@ PanelWindow {
                     : root.menu ? (root.menuLevel.length > 0 ? root.menuLevel.join(" / ") : "menu")
                     : root.dmenu ? root.dmenuPrompt : "search apps…"
                 font: query.font
-                color: Theme.dim
+                // Theme.dim vanished on the glass
+                color: Qt.alpha(Theme.text, 0.55)
             }
         }
         Rectangle {

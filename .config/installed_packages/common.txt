@@ -6,6 +6,7 @@ awww
 bat
 bc
 bind
+bitwarden-cli-bin
 blueman
 bluez-runit
 bluez-utils
@@ -34,6 +35,7 @@ elogind-runit
 evtest
 ex-vi-compat
 fblog
+freecad
 fuse2
 fzf
 git
@@ -57,6 +59,7 @@ hypridle
 hyprland
 hyprland-autoname-workspaces-git
 hyprlock
+hyprpm
 hyprshade
 hyprsunset
 imagemagick
@@ -104,6 +107,7 @@ npm
 nwg-displays
 openresolv
 openssh
+orca-slicer-bin
 otf-font-awesome
 pandoc-bin
 pasystray-wayland
@@ -142,6 +146,7 @@ reflector
 ripgrep
 r-quick-share-bin
 rsync
+ruby
 runit
 rust
 rust-analyzer

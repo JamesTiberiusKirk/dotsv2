@@ -108,6 +108,8 @@ PanelWindow {
         else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab
                  || event.key === Qt.Key_H || event.key === Qt.Key_L) root.strip = 1 - root.strip;
         else if (event.key === Qt.Key_T && Theme.name === "wallpaper") root.cycleMode();
+        else if (event.key === Qt.Key_G) Sys.setLook("glass", !Sys.glassOn);
+        else if (event.key === Qt.Key_O) Sys.setLook("transparency", !Sys.transparencyOn);
         else return;
         event.accepted = true;
     }
@@ -166,7 +168,7 @@ PanelWindow {
             }
             height: col.implicitHeight + 36
             radius: 22
-            color: Qt.alpha(Theme.surface, 0.65)
+            color: Qt.alpha(Theme.surface, Sys.opaque ? 1 : 0.65)
             border.width: 1
             border.color: Theme.islandBorder
 
@@ -321,6 +323,8 @@ PanelWindow {
                     Text {
                         text: "theme   \u2190 \u2192   enter to apply"
                               + (Theme.name === "wallpaper" ? "   t: " + root.forcedMode : "")
+                              + "   g: glass " + Menu.mark(Sys.glassOn)
+                              + "   o: transparency " + Menu.mark(Sys.transparencyOn)
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSize
                         color: Theme.dim

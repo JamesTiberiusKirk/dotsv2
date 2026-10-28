@@ -468,6 +468,32 @@ Singleton {
         onLoaded: root.ultraSave = text().trim() === "1"
         onLoadFailed: root.ultraSave = false
     }
+    // Look flags (~/.scripts/glass): persisted 1/0 files, missing = on. The
+    // script writes both files on every toggle so the watches have a file.
+    readonly property string lookDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/glass"
+    property bool glassOn: true
+    property bool transparencyOn: true
+    // Theme reads this to drop every translucent surface to opaque.
+    readonly property bool opaque: ultraSave || !transparencyOn
+    FileView {
+        path: root.lookDir + "/glass"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.glassOn = text().trim() !== "0"
+        onLoadFailed: root.glassOn = true
+    }
+    FileView {
+        path: root.lookDir + "/transparency"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.transparencyOn = text().trim() !== "0"
+        onLoadFailed: root.transparencyOn = true
+    }
+    function setLook(flag, on) {
+        if (flag === "glass") glassOn = on; else transparencyOn = on;
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.scripts/glass", flag, on ? "on" : "off"]);
+    }
+
     // off takes the daemon profile to land on, so the script's own
     // `powerprofilesctl set` cannot race a segment click that follows it.
     function setUltraSave(on, profile) {
