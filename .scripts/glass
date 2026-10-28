@@ -2,16 +2,17 @@
 # Look toggles, persisted across reboots:
 #   glass         hyprglass on the shell and terminal (off: stock blur instead)
 #   transparency  every blur and see-through surface (off: all opaque, wins over glass)
+#   bar           the bar + screen frame (off: solid, no glass or blur; on: follows the two above)
 # Each flag is a 1/0 file under $XDG_STATE_HOME/glass; missing means 1.
 # Readers: hypr/plugins.lua (on config load), quickshell common/Sys.qml and
 # wezterm.lua (both watch the files), .scripts/powersave (on leaving ultra).
 set -euo pipefail
 
 DIR="${XDG_STATE_HOME:-$HOME/.local/state}/glass"
-usage() { echo "usage: glass {glass|transparency} [on|off|toggle|status]" >&2; exit 2; }
+usage() { echo "usage: glass {glass|transparency|bar} [on|off|toggle|status]" >&2; exit 2; }
 get() { [ "$(cat "$DIR/$1" 2>/dev/null)" = 0 ] && echo 0 || echo 1; }
 
-case "${1:-}" in glass|transparency) ;; *) usage ;; esac
+case "${1:-}" in glass|transparency|bar) ;; *) usage ;; esac
 cur=$(get "$1")
 case "${2:-toggle}" in
   on) new=1 ;;
@@ -21,11 +22,10 @@ case "${2:-toggle}" in
   *) usage ;;
 esac
 
-# Both files always exist after a write: quickshell's FileView and wezterm's
+# Every flag file exists after a write: quickshell's FileView and wezterm's
 # reload watch only track files that are there.
 mkdir -p "$DIR"
-g=$(get glass) t=$(get transparency)
-echo "$g" > "$DIR/glass"; echo "$t" > "$DIR/transparency"
+for f in glass transparency bar; do v=$(get $f); echo "$v" > "$DIR/$f"; done
 echo "$new" > "$DIR/$1"
 
 # Ultra power-save already has all of it off; leaving it re-applies these flags.

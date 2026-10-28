@@ -147,7 +147,7 @@ PanelWindow {
             // the chrome itself: screen rect minus the hole
             ShapePath {
                 strokeColor: "transparent"
-                fillColor: Sys.opaque ? Theme.island : Theme.islandBase   // frame keeps the theme alpha, not glassAlpha
+                fillColor: Sys.barOn && !Sys.opaque ? Theme.islandBase : Qt.alpha(Theme.islandBase, 1)   // theme alpha; solid when bar flag off
                 fillRule: ShapePath.OddEvenFill
                 PathSvg { path: "M 0 0 H " + c.width + " V " + c.height + " H 0 Z " + c.holeNow }
             }

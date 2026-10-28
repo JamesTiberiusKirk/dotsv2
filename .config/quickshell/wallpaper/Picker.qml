@@ -110,6 +110,7 @@ PanelWindow {
         else if (event.key === Qt.Key_T && Theme.name === "wallpaper") root.cycleMode();
         else if (event.key === Qt.Key_G) Sys.setLook("glass", !Sys.glassOn);
         else if (event.key === Qt.Key_O) Sys.setLook("transparency", !Sys.transparencyOn);
+        else if (event.key === Qt.Key_B) Sys.setLook("bar", !Sys.barOn);
         else return;
         event.accepted = true;
     }
@@ -325,6 +326,7 @@ PanelWindow {
                               + (Theme.name === "wallpaper" ? "   t: " + root.forcedMode : "")
                               + "   g: glass " + Menu.mark(Sys.glassOn)
                               + "   o: transparency " + Menu.mark(Sys.transparencyOn)
+                              + "   b: bar " + Menu.mark(Sys.barOn)
                         font.family: Theme.font
                         font.pixelSize: Theme.fontSize
                         color: Theme.dim

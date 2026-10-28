@@ -18,6 +18,8 @@ local function flag(name)
 end
 local transparency = flag("transparency")
 local glass = transparency and flag("glass") and hl.plugin.hyprglass ~= nil
+-- bar + screen frame (one shape, bar/Chrome.qml): off = solid, nothing behind it
+local bar = flag("bar")
 
 if not transparency then
     hl.config({ decoration = { blur = { enabled = false } } })
@@ -25,7 +27,8 @@ elseif not glass then
     -- no glass: quickshell surfaces fall back to stock blur
     hl.layer_rule({
         name  = "qs-stock-blur",
-        match = { namespace = "^quickshell(-(frame|popout|drawer|notifs|osd|launcher|wallpaper|wallinfo))?$" },
+        match = { namespace = bar and "^quickshell-(frame|popout|drawer|notifs|osd|launcher|wallpaper|wallinfo)$"
+                                    or "^quickshell-(popout|drawer|notifs|osd|launcher|wallpaper|wallinfo)$" },
         blur         = true,
         ignore_alpha = 0.05,
     })
@@ -56,10 +59,12 @@ if hl.plugin.hyprglass then
         bevel_shadow = 0.5,
     })
 
-    -- Bar: mask_threshold sits above the bar's shadow alpha so shadows
-    -- don't get boxed in glass.
-    hg.layer("quickshell", { preset = "subtle", mask_threshold = 0.05 })
-    hg.layer("quickshell-frame", { preset = "subtle", mask_threshold = 0.05 })
+    -- Bar + screen frame: plain subtle glass. qs-glass + contour on the
+    -- chrome was tried 2026-10-28 and looked bad. Bar flag off = no glass.
+    if bar then
+        hg.layer("quickshell", { preset = "subtle", mask_threshold = 0.05 })
+        hg.layer("quickshell-frame", { preset = "subtle", mask_threshold = 0.05 })
+    end
     -- Popups on glass too. Was off before: layer-surface glass is expensive and
     -- showed colored edge artifacts while panels animated. Stock blur only
     -- comes back for these when glass is off (qs-stock-blur above).

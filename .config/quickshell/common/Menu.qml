@@ -96,7 +96,8 @@ Singleton {
 
         rows.push(
             { path: "display/glass " + mark(Sys.glassOn), icon: "palette", run: () => Sys.setLook("glass", !Sys.glassOn) },
-            { path: "display/transparency " + mark(Sys.transparencyOn), icon: "eye", run: () => Sys.setLook("transparency", !Sys.transparencyOn) });
+            { path: "display/transparency " + mark(Sys.transparencyOn), icon: "eye", run: () => Sys.setLook("transparency", !Sys.transparencyOn) },
+            { path: "display/bar glass " + mark(Sys.barOn), icon: "view-dashboard", run: () => Sys.setLook("bar", !Sys.barOn) });
         rows.push({ path: "display/night light " + mark(Sys.nightLight), icon: "weather-night", run: () => Sys.setNightLight(!Sys.nightLight) });
         for (const k of [2700, 3500, 4500, 5500])
             rows.push({ path: "display/night light temp/" + k + "K " + mark(Sys.nightTemp === k), icon: "white-balance-sunny", run: () => Sys.setNightTemp(k) });
