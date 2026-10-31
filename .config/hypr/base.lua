@@ -95,6 +95,10 @@ hl.config({
         -- rewrites colors.lua (required by hyprland.lua) and applies it with eval,
         -- so a file write must not reload. Reload only via SUPER+SHIFT+C.
         disable_autoreload      = true,
+        -- wake screens on input ourselves: hypridle's on-resume never fires if an
+        -- inhibitor toggled while idled (it recreates its notification objects)
+        mouse_move_enables_dpms = true,
+        key_press_enables_dpms  = true,
     },
 
     ecosystem = {
