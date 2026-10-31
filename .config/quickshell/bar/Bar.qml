@@ -690,7 +690,10 @@ Variants {
 
                         Repeater {
                             id: pills
-                            model: carousel.wins
+                            // ScriptModel: wins is a fresh array on every rev++,
+                            // and a plain array rebuilt every pill (hover marquee
+                            // reset, clicks landing on dead delegates)
+                            model: ScriptModel { values: carousel.wins }
 
                             delegate: Rectangle {
                                 id: pill

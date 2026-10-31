@@ -401,7 +401,8 @@ Popout {
     // the bluetooth panel. Audio.wantBt makes it the default
     // once the sink turns up a moment later.
     Repeater {
-        model: Bt.enabled ? Bt.audioDevices : []
+        // ScriptModel: a plain array rebuilds every row on any bt state change
+        model: ScriptModel { values: Bt.enabled ? Bt.audioDevices : [] }
 
         Item {
             id: btAud

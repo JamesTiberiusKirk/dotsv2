@@ -46,6 +46,10 @@ PanelWindow {
     // dialog window: the confirm is just two rows in the list already on screen,
     // so it works identically whether the row was reached by walking or search.
     property var pending: null
+    // the row a toggle (stay) left selected: flipping it relabels the row, which
+    // rebuilds matches and drops the ListView back to 0. Only honoured while the
+    // query and submenu are still the ones it was taken in.
+    property var keep: null
 
     // ---- find files (menu level "find files") ----
     // Rows come from `rg --files` over $HOME (pruned by launcher/ignore), re-listed
@@ -314,6 +318,7 @@ PanelWindow {
         menu = false;
         menuLevel = [];
         pending = null;
+        keep = null;
         visible = false;
     }
 
@@ -380,7 +385,8 @@ PanelWindow {
             else
                 run(m);
             // toggle rows (stay) keep the menu up so several can be flipped in a row
-            if (!m.stay) finish(null);
+            if (m.stay) keep = { i: list.currentIndex, q: query.text, lvl: menuLevel.join("/") };
+            else finish(null);
             return;
         }
         if (dmenu) {
@@ -496,6 +502,11 @@ PanelWindow {
                 spacing: root.menu ? 2 : 0
                 clip: true
                 model: root.matches
+                onModelChanged: {
+                    const k = root.keep;
+                    if (k && k.q === query.text && k.lvl === root.menuLevel.join("/"))
+                        currentIndex = Math.min(k.i, root.matches.length - 1);
+                }
                 highlightMoveDuration: 60
                 SmoothScroll { flick: list }
 

@@ -40,7 +40,13 @@ Scope {
         visible: Notifs.centerOpen
         screen: Notifs.centerScreen || Quickshell.screens[0]
         anchors { top: true; right: true; bottom: true; left: true }
-        margins { top: Theme.barBody }
+        // leave the bar's own strip uncovered, whichever side it is on
+        margins {
+            top: ShellState.side === "top" ? ShellState.barBody : 0
+            bottom: ShellState.side === "bottom" ? ShellState.barBody : 0
+            left: ShellState.side === "left" ? ShellState.barBody : 0
+            right: ShellState.side === "right" ? ShellState.barBody : 0
+        }
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Top

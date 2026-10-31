@@ -42,11 +42,17 @@ Singleton {
     // Empty means "have not been told", and everything shows: a missing pactl
     // must not make the whole device list vanish.
     property var availableNames: []
+    property string availRaw: ""
     Process {
         id: availProbe
         command: ["sh", "-c", "{ pactl list sinks; pactl list sources; } | awk '/^(Sink|Source) #/ { if (name && ok) print name; name=\"\"; ok=1 } /^\\tName: / { name=$2 } /^\\t\\t\\[(Out|In)\\]/ { ok = ($0 ~ /not available/) ? 0 : 1 } END { if (name && ok) print name }'"]
         stdout: StdioCollector {
-            onStreamFinished: root.availableNames = text.split("\n").filter(x => x)
+            onStreamFinished: {
+                // identical: don't hand every device row a new list (it rebuilds them all)
+                if (text === root.availRaw) return;
+                root.availRaw = text;
+                root.availableNames = text.split("\n").filter(x => x);
+            }
         }
     }
     Timer {

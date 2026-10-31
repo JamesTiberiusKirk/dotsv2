@@ -713,6 +713,7 @@ Singleton {
     property string tsExit: ""          // exit node in use, by tailnet IP
     property var tsHealth: []
     property var tsPeerList: []         // [{n, d, ip, on, ex}]
+    property string tsRaw: ""
 
     readonly property int tsPeerCount: tsPeerList.length
     readonly property int tsPeersOnline: tsPeerList.filter(p => p.on).length
@@ -737,8 +738,11 @@ Singleton {
                 if (!t) {
                     root.tsPresent = false; root.tsUp = false;
                     root.tsHealth = []; root.tsPeerList = [];
+                    root.tsRaw = "";
                     return;
                 }
+                if (t === root.tsRaw) return; // identical: don't rebuild the peer rows
+                root.tsRaw = t;
                 try {
                     const j = JSON.parse(t);
                     root.tsPresent = true;
