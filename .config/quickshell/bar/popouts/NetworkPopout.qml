@@ -102,7 +102,11 @@ Popout {
             spacing: 4
 
             Repeater {
-                model: Sys.wifiList
+                // ScriptModel, not the raw array: wifiList is a fresh array on
+                // every signal/known/connected tick, and an array model rebuilds
+                // every row, wiping a half-typed password. ScriptModel diffs by
+                // object identity so rows (and their input) survive a re-sort.
+                model: ScriptModel { values: Sys.wifiList }
 
                 Column {
                     id: netRow
