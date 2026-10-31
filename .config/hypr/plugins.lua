@@ -74,10 +74,10 @@ if hl.plugin.hyprglass then
     hg.layer("quickshell-drawer", { preset = "qs-glass", mask_mode = "contour", mask_threshold = 0.15 })
     hg.layer("quickshell-notifs", { preset = "qs-glass", mask_mode = "contour", mask_threshold = 0.15 })
     hg.layer("quickshell-osd", { preset = "qs-glass", mask_mode = "contour", mask_threshold = 0.15 })
-    -- shape: the glass edge, bend and bevel follow a box with the panel's own
-    -- corner radius (Launcher.qml radius 14), not the square layer outline
-    -- cut round by the mask, which clipped the bevel at the corners.
-    hg.layer("quickshell-launcher", { preset = "qs-glass", mask_threshold = 0.2, shape = { radius = 14 } })
+    -- contour: the launcher draws two cards (input pill, results) on one
+    -- surface, and each needs its own edge. Was shape = { radius = 14 }, one box
+    -- around the whole surface, back when it was a single card.
+    hg.layer("quickshell-launcher", { preset = "qs-glass", mask_mode = "contour", mask_threshold = 0.2 })
 
     -- Wallpaper picker: the surface is fullscreen but everything painted on it
     -- is the carousel band, so the threshold only has to clear the fully

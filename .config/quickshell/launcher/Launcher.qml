@@ -17,7 +17,10 @@ PanelWindow {
     id: root
 
     visible: false
-    implicitWidth: 480
+    // Fixed at the cap: the results card grows inside it (resultsWidth), so the
+    // layer surface never resizes per keystroke. The input pill stays 480.
+    readonly property int maxWidth: 960
+    implicitWidth: maxWidth
     implicitHeight: 440
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -91,6 +94,35 @@ PanelWindow {
                 }
                 rows.sort((a, b) => a.label.length - b.label.length);
                 root.fileRows = rows;
+            }
+        }
+    }
+
+    // ---- kill process (menu level "kill process") ----
+    // Your processes, biggest memory first, re-listed on every entry. A row is
+    // a confirm row whose cmd is the kill, so the existing yes/no prompt guards
+    // it. Filtered like files: substring per word.
+    readonly property bool procs: menu && menuLevel.length === 1 && menuLevel[0] === "kill process"
+    property var procRows: []
+    onProcsChanged: if (procs) { procLister.running = false; procLister.running = true; }
+    Process {
+        id: procLister
+        // tab-separated pid, rss, cwd, args: cwd from /proc, so "claude" says which repo
+        command: ["sh", "-c", "ps -u \"$USER\" -o pid=,rss=,args= --sort=-rss | while read -r p r a; do"
+            + " printf '%s\\t%s\\t%s\\t%s\\n' \"$p\" \"$r\" \"$(readlink /proc/$p/cwd 2>/dev/null)\" \"$a\"; done"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const rows = [];
+                for (const l of text.split("\n")) {
+                    const m = l.split("\t");
+                    if (m.length < 4) continue;
+                    const cwd = m[2].startsWith(root.home) ? "~" + m[2].slice(root.home.length) : m[2];
+                    const label = m[0] + "  " + Math.round(m[1] / 1024) + "M  " + m[3].slice(0, 100)
+                        + (cwd ? "  " + cwd : "");
+                    rows.push({ label: label, lc: label.toLowerCase(), leaf: true, icon: "stop",
+                                confirm: true, cmd: "kill " + m[1] });
+                }
+                root.procRows = rows;
             }
         }
     }
@@ -182,7 +214,8 @@ PanelWindow {
         // icons and .execute(), both of which a "path<TAB>command" line loses.
         if (menuLevel.length === 0)
             rows.push({ label: "apps", path: "apps", cmd: "", leaf: false, icon: "view-grid" },
-                      { label: "find files", path: "find files", cmd: "", leaf: false, icon: "file-search" });
+                      { label: "find files", path: "find files", cmd: "", leaf: false, icon: "file-search" },
+                      { label: "kill process", path: "kill process", cmd: "", leaf: false, icon: "stop" });
         for (const it of menuItems) {
             if (!it.path.startsWith(prefix))
                 continue;
@@ -199,8 +232,21 @@ PanelWindow {
         return rows;
     }
 
+    // Results card width: the widest row as shown, plus icon gutter (44), the
+    // "›" side column and list margins; at least the pill, at most maxWidth
+    // (longer rows elide there).
+    FontMetrics { id: rowFm; font.family: Theme.font; font.pixelSize: root.menu ? 13 : Theme.fontSize }
+    readonly property int resultsWidth: {
+        let w = 0;
+        for (const m of matches) {
+            const raw = menu ? m.label : dmenu ? m : m.name;
+            w = Math.max(w, rowFm.advanceWidth(MenuModel.displayText(raw)));
+        }
+        return Math.min(maxWidth, Math.max(480, Math.ceil(w) + 44 + 40 + 16));
+    }
+
     // what the row highlighter marks: files match per word, so mark the first
-    readonly property string hl: files ? query.text.split(" ")[0].toLowerCase() : query.text.toLowerCase()
+    readonly property string hl: files || procs ?query.text.split(" ")[0].toLowerCase() : query.text.toLowerCase()
 
     readonly property var matches: {
         const q = query.text.toLowerCase();
@@ -215,9 +261,9 @@ PanelWindow {
             // Searching spans the whole tree, not the open level — typing
             // "hibernate" from the root should find it without walking there,
             // and an app name should find the app.
-            if (files) {
+            if (files || procs) {
                 const words = q.split(" ").filter(w => w !== ""), out = [];
-                for (const r of fileRows) {
+                for (const r of (files ? fileRows : procRows)) {
                     if (!words.every(w => r.lc.includes(w))) continue;
                     out.push(r);
                     if (out.length === 50) break;
@@ -226,7 +272,8 @@ PanelWindow {
             }
             if (q !== "") {
                 const hits = menuItems.map(it => Object.assign({ label: it.path, leaf: true }, it));
-                hits.push({ label: "find files", leaf: false, icon: "file-search" });
+                hits.push({ label: "find files", leaf: false, icon: "file-search" },
+                          { label: "kill process", leaf: false, icon: "stop" });
                 const appHits = apps.map(a =>
                     ({ label: "apps/" + a.name, app: a, leaf: true }));
                 const rows = ranked(hits.concat(appHits), q);
@@ -344,197 +391,212 @@ PanelWindow {
         }
     }
 
-    Rectangle {
+    // Two cards on one surface: the input pill, and the results under it.
+    // The glass rule (hypr/plugins.lua) uses contour so each gets its own edge.
+    Item {
         anchors.fill: parent
-        radius: 14
-        color: Theme.surface
-        border.color: Theme.islandBorder
-        border.width: 1
 
-        TextInput {
-            id: query
+        Rectangle {
+            id: inputBox
+            anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
+            width: 480
+            height: 52
+            radius: 14
+            color: Theme.surface
+            border.color: Theme.islandBorder
+            border.width: 1
 
-            anchors { top: parent.top; left: parent.left; right: parent.right; margins: 14 }
-            height: 24
-            font.family: Theme.font
-            font.pixelSize: 13
-            color: Theme.bright
-            clip: true
-            onTextChanged: list.currentIndex = 0
+            TextInput {
+                id: query
 
-            Keys.onEscapePressed: root.menu ? root.menuBack() : root.finish(null)
-            Keys.onReturnPressed: root.activate()
-            Keys.onDownPressed: list.incrementCurrentIndex()
-            Keys.onUpPressed: list.decrementCurrentIndex()
-            // Left goes up a level and Right descends, but only with an empty
-            // query — otherwise they are cursor keys. A Keys.onXPressed
-            // handler accepts the event whether or not it did anything, so
-            // the pass-through has to be explicit or the caret never moves.
-            Keys.onLeftPressed: event => {
-                if (root.menu && query.text === "") root.menuBack();
-                else event.accepted = false;
-            }
-            Keys.onRightPressed: event => {
-                const m = root.matches[list.currentIndex];
-                if (root.menu && query.text === "" && m !== undefined && !m.leaf) root.activate();
-                else event.accepted = false;
-            }
-            // ALT+hjkl as arrows. Hyprland's nav layer cannot deliver these
-            // here (see the `launcher` submap in binds.lua), so the launcher
-            // takes the raw chord.
-            Keys.onPressed: event => {
-                if (root.files && (event.modifiers & Qt.ControlModifier)) {
-                    const m = root.matches[list.currentIndex];
-                    if (event.key === Qt.Key_D) {
-                        root.showHidden = !root.showHidden;
-                        root.listFiles();
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_F && m !== undefined) {
-                        Quickshell.execDetached(["nautilus", "--select", m.file]);
-                        root.finish(null);
-                        event.accepted = true;
-                    }
-                    return;
+                anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }
+                height: 24
+                font.family: Theme.font
+                font.pixelSize: 13
+                color: Theme.bright
+                clip: true
+                onTextChanged: list.currentIndex = 0
+
+                Keys.onEscapePressed: root.menu ? root.menuBack() : root.finish(null)
+                Keys.onReturnPressed: root.activate()
+                Keys.onDownPressed: list.incrementCurrentIndex()
+                Keys.onUpPressed: list.decrementCurrentIndex()
+                // Left goes up a level and Right descends, but only with an empty
+                // query — otherwise they are cursor keys. A Keys.onXPressed
+                // handler accepts the event whether or not it did anything, so
+                // the pass-through has to be explicit or the caret never moves.
+                Keys.onLeftPressed: event => {
+                    if (root.menu && query.text === "") root.menuBack();
+                    else event.accepted = false;
                 }
-                if (!(event.modifiers & Qt.AltModifier)) return;
-                const k = event.key;
-                if (k === Qt.Key_J) list.incrementCurrentIndex();
-                else if (k === Qt.Key_K) list.decrementCurrentIndex();
-                else if (k === Qt.Key_H) { if (root.menu && query.text === "") root.menuBack(); else query.cursorPosition = Math.max(0, query.cursorPosition - 1); }
-                else if (k === Qt.Key_L) {
+                Keys.onRightPressed: event => {
                     const m = root.matches[list.currentIndex];
                     if (root.menu && query.text === "" && m !== undefined && !m.leaf) root.activate();
-                    else query.cursorPosition = Math.min(query.text.length, query.cursorPosition + 1);
+                    else event.accepted = false;
                 }
-                else return;
-                event.accepted = true;
-            }
-
-            Text {
-                visible: query.text === ""
-                text: root.pending !== null ? "confirm — esc to cancel"
-                    : root.files ? "find files — ⏎ open  ^F reveal  ^D hidden " + (root.showHidden ? "✓" : "✗")
-                    : root.menu ? (root.menuLevel.length > 0 ? root.menuLevel.join(" / ") : "menu")
-                    : root.dmenu ? root.dmenuPrompt : "search apps…"
-                font: query.font
-                // Theme.dim vanished on the glass
-                color: Qt.alpha(Theme.text, 0.55)
-            }
-        }
-        Rectangle {
-            id: divider
-            anchors { top: query.bottom; left: parent.left; right: parent.right; leftMargin: 14; rightMargin: 14; topMargin: 4 }
-            height: 1
-            color: Theme.track
-        }
-
-        ListView {
-            id: list
-
-            anchors { top: divider.bottom; left: parent.left; right: parent.right; bottom: parent.bottom; margins: 8 }
-            spacing: root.menu ? 2 : 0
-            clip: true
-            model: root.matches
-            highlightMoveDuration: 60
-            SmoothScroll { flick: list }
-
-            delegate: Rectangle {
-                required property var modelData
-                required property int index
-                width: list.width
-                height: root.menu ? 42 : 34
-                radius: 10
-                color: list.currentIndex === index ? Qt.alpha(Theme.accent, 0.13) : "transparent"
-
-                // Icon name from a "# menu-icon:" directive; app rows use the
-                // real desktop icon below instead. A name rather than a pasted
-                // glyph, so a menu script says "cog" instead of carrying a
-                // private-use character no editor will render.
-                Icon {
-                    id: glyph
-                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                    visible: name !== ""
-                    name: (root.menu && !modelData.app) ? (modelData.icon || "") : ""
-                    size: 18
-                    color: modelData.confirm ? Theme.urgent
-                        : list.currentIndex === index ? Theme.accent : Theme.text
-                }
-                IconImage {
-                    id: aicon
-                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                    implicitSize: root.menu ? 22 : 18
-                    visible: String(source) !== ""
-                    source: root.dmenu ? ""
-                        : root.menu ? (modelData.app ? Quickshell.iconPath(modelData.app.icon, true) : "")
-                        : Quickshell.iconPath(modelData.icon, true)
-                }
-                Text {
-                    id: rowText
-                    readonly property string raw: root.menu ? modelData.label : root.dmenu ? modelData : modelData.name
-                    anchors {
-                        left: parent.left
-                        leftMargin: root.dmenu ? 8
-                            : root.menu ? ((aicon.visible || glyph.visible) ? 44 : 14)
-                            : 34
-                        right: side.left
-                        verticalCenter: parent.verticalCenter
+                // ALT+hjkl as arrows. Hyprland's nav layer cannot deliver these
+                // here (see the `launcher` submap in binds.lua), so the launcher
+                // takes the raw chord.
+                Keys.onPressed: event => {
+                    if (root.files && (event.modifiers & Qt.ControlModifier)) {
+                        const m = root.matches[list.currentIndex];
+                        if (event.key === Qt.Key_D) {
+                            root.showHidden = !root.showHidden;
+                            root.listFiles();
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_F && m !== undefined) {
+                            Quickshell.execDetached(["nautilus", "--select", m.file]);
+                            root.finish(null);
+                            event.accepted = true;
+                        }
+                        return;
                     }
-                    // breadcrumb (MenuModel.highlight); the match marker is
-                    // drawn behind, below
-                    textFormat: Text.StyledText
-                    // parents a step lighter than Theme.dim: at 13px on the
-                    // island the plain dim dropped out
-                    text: modelData.calc ? raw
-                        : MenuModel.highlight(raw, root.hl, Qt.lighter(Theme.dim, 1.5), Theme.bright)
-                    // paths: the filename is on the right, so cut the left
-                    elide: root.files ? Text.ElideLeft : Text.ElideRight
-                    // a left-elided row is right-aligned so its visible tail
-                    // ends at the right edge: the swipes below measure from it
-                    horizontalAlignment: root.files && truncated ? Text.AlignRight : Text.AlignLeft
-                    font.family: Theme.font
-                    font.pixelSize: root.menu ? 13 : Theme.fontSize
-                    // the icon carries the "this one asks first" red; a whole
-                    // red row read as an error, not a warning
-                    color: list.currentIndex === index ? Theme.bright : Theme.text
+                    if (!(event.modifiers & Qt.AltModifier)) return;
+                    const k = event.key;
+                    if (k === Qt.Key_J) list.incrementCurrentIndex();
+                    else if (k === Qt.Key_K) list.decrementCurrentIndex();
+                    else if (k === Qt.Key_H) { if (root.menu && query.text === "") root.menuBack(); else query.cursorPosition = Math.max(0, query.cursorPosition - 1); }
+                    else if (k === Qt.Key_L) {
+                        const m = root.matches[list.currentIndex];
+                        if (root.menu && query.text === "" && m !== undefined && !m.leaf) root.activate();
+                        else query.cursorPosition = Math.min(query.text.length, query.cursorPosition + 1);
+                    }
+                    else return;
+                    event.accepted = true;
+                }
 
-                    // Highlighter swipes: one rounded rectangle per matched
-                    // run, sized from the font's advance width of the text
-                    // before and inside the run. Behind the glyphs (z below).
-                    FontMetrics { id: fm; font: rowText.font }
-                    Repeater {
-                        model: modelData.calc ? [] : MenuModel.markRuns(rowText.raw, root.hl)
-                        Rectangle {
-                            required property var modelData
-                            readonly property string shown: MenuModel.displayText(rowText.raw)
-                            readonly property bool fromRight: rowText.horizontalAlignment === Text.AlignRight
-                            z: -1
-                            x: (fromRight ? rowText.width - fm.advanceWidth(shown.slice(modelData[0]))
-                                          : fm.advanceWidth(shown.slice(0, modelData[0]))) - 2
-                            // a run under the "…" of a left-elided row is not on screen
-                            visible: !fromRight || x >= fm.advanceWidth("\u2026")
-                            width: fm.advanceWidth(shown.slice(modelData[0], modelData[0] + modelData[1])) + 4
-                            y: (rowText.height - fm.height) / 2
-                            height: fm.height
-                            radius: 4
-                            // warn, not accent: the accent is the selected
-                            // row's fill, and a mark in the same colour
-                            // vanished on exactly the row you were looking at
-                            color: Qt.alpha(Theme.warn, 0.4)
+                Text {
+                    visible: query.text === ""
+                    text: root.pending !== null ? "confirm — esc to cancel"
+                        : root.files ? "find files — ⏎ open  ^F reveal  ^D hidden " + (root.showHidden ? "✓" : "✗")
+                        : root.menu ? (root.menuLevel.length > 0 ? root.menuLevel.join(" / ") : "menu")
+                        : root.dmenu ? root.dmenuPrompt : "search apps…"
+                    font: query.font
+                    // Theme.dim vanished on the glass
+                    color: Qt.alpha(Theme.text, 0.55)
+                }
+            }
+        }
+
+        Rectangle {
+            id: resultsBox
+            anchors { top: inputBox.bottom; horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; topMargin: 8 }
+            width: root.resultsWidth
+            // nothing to show, no empty card
+            visible: list.count > 0
+            radius: 14
+            color: Theme.surface
+            border.color: Theme.islandBorder
+            border.width: 1
+
+            ListView {
+                id: list
+
+                anchors { fill: parent; margins: 8 }
+                spacing: root.menu ? 2 : 0
+                clip: true
+                model: root.matches
+                highlightMoveDuration: 60
+                SmoothScroll { flick: list }
+
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    width: list.width
+                    height: root.menu ? 42 : 34
+                    radius: 10
+                    color: list.currentIndex === index ? Qt.alpha(Theme.accent, 0.13) : "transparent"
+
+                    // Icon name from a "# menu-icon:" directive; app rows use the
+                    // real desktop icon below instead. A name rather than a pasted
+                    // glyph, so a menu script says "cog" instead of carrying a
+                    // private-use character no editor will render.
+                    Icon {
+                        id: glyph
+                        anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                        visible: name !== ""
+                        name: (root.menu && !modelData.app) ? (modelData.icon || "") : ""
+                        size: 18
+                        color: modelData.confirm ? Theme.urgent
+                            : list.currentIndex === index ? Theme.accent : Theme.text
+                    }
+                    IconImage {
+                        id: aicon
+                        anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                        implicitSize: root.menu ? 22 : 18
+                        visible: String(source) !== ""
+                        source: root.dmenu ? ""
+                            : root.menu ? (modelData.app ? Quickshell.iconPath(modelData.app.icon, true) : "")
+                            : Quickshell.iconPath(modelData.icon, true)
+                    }
+                    Text {
+                        id: rowText
+                        readonly property string raw: root.menu ? modelData.label : root.dmenu ? modelData : modelData.name
+                        anchors {
+                            left: parent.left
+                            leftMargin: root.dmenu ? 8
+                                : root.menu ? ((aicon.visible || glyph.visible) ? 44 : 14)
+                                : 34
+                            right: side.left
+                            verticalCenter: parent.verticalCenter
+                        }
+                        // breadcrumb (MenuModel.highlight); the match marker is
+                        // drawn behind, below
+                        textFormat: Text.StyledText
+                        // parents a step lighter than Theme.dim: at 13px on the
+                        // island the plain dim dropped out
+                        text: modelData.calc ? raw
+                            : MenuModel.highlight(raw, root.hl, Qt.lighter(Theme.dim, 1.5), Theme.bright)
+                        // paths: the filename is on the right, so cut the left
+                        elide: root.files ? Text.ElideLeft : Text.ElideRight
+                        // a left-elided row is right-aligned so its visible tail
+                        // ends at the right edge: the swipes below measure from it
+                        horizontalAlignment: root.files && truncated ? Text.AlignRight : Text.AlignLeft
+                        font.family: Theme.font
+                        font.pixelSize: root.menu ? 13 : Theme.fontSize
+                        // the icon carries the "this one asks first" red; a whole
+                        // red row read as an error, not a warning
+                        color: list.currentIndex === index ? Theme.bright : Theme.text
+
+                        // Highlighter swipes: one rounded rectangle per matched
+                        // run, sized from the font's advance width of the text
+                        // before and inside the run. Behind the glyphs (z below).
+                        FontMetrics { id: fm; font: rowText.font }
+                        Repeater {
+                            model: modelData.calc ? [] : MenuModel.markRuns(rowText.raw, root.hl)
+                            Rectangle {
+                                required property var modelData
+                                readonly property string shown: MenuModel.displayText(rowText.raw)
+                                readonly property bool fromRight: rowText.horizontalAlignment === Text.AlignRight
+                                z: -1
+                                x: (fromRight ? rowText.width - fm.advanceWidth(shown.slice(modelData[0]))
+                                              : fm.advanceWidth(shown.slice(0, modelData[0]))) - 2
+                                // a run under the "…" of a left-elided row is not on screen
+                                visible: !fromRight || x >= fm.advanceWidth("\u2026")
+                                width: fm.advanceWidth(shown.slice(modelData[0], modelData[0] + modelData[1])) + 4
+                                y: (rowText.height - fm.height) / 2
+                                height: fm.height
+                                radius: 4
+                                // warn, not accent: the accent is the selected
+                                // row's fill, and a mark in the same colour
+                                // vanished on exactly the row you were looking at
+                                color: Qt.alpha(Theme.warn, 0.4)
+                            }
                         }
                     }
-                }
-                Text {
-                    id: side
-                    anchors { right: parent.right; rightMargin: root.menu ? 14 : 8; verticalCenter: parent.verticalCenter }
-                    text: root.menu ? (modelData.leaf ? "" : "›")
-                        : root.dmenu ? "" : (modelData.genericName || "")
-                    font.family: Theme.font
-                    font.pixelSize: root.menu ? 15 : 10
-                    color: Theme.dim
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: { list.currentIndex = index; root.activate(); }
+                    Text {
+                        id: side
+                        anchors { right: parent.right; rightMargin: root.menu ? 14 : 8; verticalCenter: parent.verticalCenter }
+                        text: root.menu ? (modelData.leaf ? "" : "›")
+                            : root.dmenu ? "" : (modelData.genericName || "")
+                        font.family: Theme.font
+                        font.pixelSize: root.menu ? 15 : 10
+                        color: Theme.dim
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: { list.currentIndex = index; root.activate(); }
+                    }
                 }
             }
         }
