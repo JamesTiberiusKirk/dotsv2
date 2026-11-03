@@ -1,12 +1,12 @@
 {
   "permissions": {
-    "ask": [],
     "deny": [
       "Artifact",
       "ArtifactComments",
       "ArtifactData",
       "mcp__claude_ai_Claude_Docs"
     ],
+    "ask": [],
     "defaultMode": "auto",
     "additionalDirectories": [
       "/Users/dumitruvulpe/uw",
