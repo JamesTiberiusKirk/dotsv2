@@ -468,6 +468,41 @@ Singleton {
         onLoaded: root.ultraSave = text().trim() === "1"
         onLoadFailed: root.ultraSave = false
     }
+    // Look flags (~/.scripts/glass): persisted 1/0 files, missing = on. The
+    // script writes both files on every toggle so the watches have a file.
+    readonly property string lookDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/glass"
+    property bool glassOn: true
+    property bool transparencyOn: true
+    // bar + screen frame glass/blur; off = solid bar regardless of the others
+    property bool barOn: true
+    // Theme reads this to drop every translucent surface to opaque.
+    readonly property bool opaque: ultraSave || !transparencyOn
+    FileView {
+        path: root.lookDir + "/glass"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.glassOn = text().trim() !== "0"
+        onLoadFailed: root.glassOn = true
+    }
+    FileView {
+        path: root.lookDir + "/transparency"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.transparencyOn = text().trim() !== "0"
+        onLoadFailed: root.transparencyOn = true
+    }
+    FileView {
+        path: root.lookDir + "/bar"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root.barOn = text().trim() !== "0"
+        onLoadFailed: root.barOn = true
+    }
+    function setLook(flag, on) {
+        root[flag + "On"] = on;
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.scripts/glass", flag, on ? "on" : "off"]);
+    }
+
     // off takes the daemon profile to land on, so the script's own
     // `powerprofilesctl set` cannot race a segment click that follows it.
     function setUltraSave(on, profile) {
@@ -678,6 +713,7 @@ Singleton {
     property string tsExit: ""          // exit node in use, by tailnet IP
     property var tsHealth: []
     property var tsPeerList: []         // [{n, d, ip, on, ex}]
+    property string tsRaw: ""
 
     readonly property int tsPeerCount: tsPeerList.length
     readonly property int tsPeersOnline: tsPeerList.filter(p => p.on).length
@@ -702,8 +738,11 @@ Singleton {
                 if (!t) {
                     root.tsPresent = false; root.tsUp = false;
                     root.tsHealth = []; root.tsPeerList = [];
+                    root.tsRaw = "";
                     return;
                 }
+                if (t === root.tsRaw) return; // identical: don't rebuild the peer rows
+                root.tsRaw = t;
                 try {
                     const j = JSON.parse(t);
                     root.tsPresent = true;

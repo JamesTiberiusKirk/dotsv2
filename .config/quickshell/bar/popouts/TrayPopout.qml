@@ -71,7 +71,11 @@ Popout {
                         bar.closeIslandPopouts();
                     } else if (trayRow.modelData.hasMenu) {
                         // the item's own menu, hung off this row rather
-                        // than off the bar; the popout stays for it
+                        // than off the bar; the popout stays for it.
+                        // The menu is its own surface outside the host's
+                        // focus grab, so a menu-opened popout would read a
+                        // click in it as click-away and close: drop the grab.
+                        Sys.kbdNav = false;
                         trayMenu.menu = trayRow.modelData.menu;
                         trayMenu.anchor.rect.x = trayRow.mapToItem(null, 0, 0).x + trayRow.width;
                         trayMenu.anchor.rect.y = trayRow.mapToItem(null, 0, 0).y;

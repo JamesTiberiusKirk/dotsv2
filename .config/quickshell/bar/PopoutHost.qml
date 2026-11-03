@@ -80,8 +80,10 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-popout"
     WlrLayershell.keyboardFocus: grabbing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     color: "transparent"
-    // fallback if `item` is rejected at runtime: x: card.x; y: card.y; width: card.width; height: card.height
-    mask: Region { item: card }
+    // Plain geometry, not `item: card`: an item region maps through the card's
+    // entrance Scale and is snapshotted mid-grow (0.75x around the neck), so the
+    // far side of the card let clicks fall through to the dismiss layer.
+    mask: Region { x: card.x; y: card.y; width: card.width; height: card.height }
     HyprlandFocusGrab { windows: [host]; active: host.grabbing; onCleared: host.close() }
 
     // viaCC: the page's group CC cell is the anchor; the page itself if that group has none declared

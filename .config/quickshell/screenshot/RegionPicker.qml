@@ -9,6 +9,7 @@ import "../common"
 // `qs ipc call region pick '<sh cmd>'`. Drag a box on any screen, release → runs the cmd
 // detached with the box as $1 ("x,y wxh", what grim -g / wl-screenrec -g want).
 // Esc or right click cancels → cmd runs with $1 empty, so callers can clean up.
+// Hold shift to snap the box to the window under the cursor, click to take it.
 Scope {
     id: root
 
@@ -31,6 +32,43 @@ Scope {
     // last picked box, kept for the recording frame
     property rect shot: Qt.rect(0, 0, 0, 0)
 
+    // shift = window mode: visible hyprland clients, floating first then most recently focused
+    property var wins: []
+    property bool shift: false
+    property real px: 0
+    property real py: 0
+    readonly property bool winMode: shift && !dragging
+
+    Process {
+        id: clients
+        command: ["hyprctl", "-j", "clients"]
+        stdout: StdioCollector {
+            onStreamFinished: root.wins = JSON.parse(text)
+                .filter(c => c.mapped && !c.hidden && c.visible)
+                .sort((a, b) => (b.floating - a.floating) || (a.focusHistoryID - b.focusHistoryID))
+        }
+    }
+
+    // snap the box to the window under the cursor (clamped to scr in oneScreen mode)
+    function snap(scr) {
+        if (!winMode) return;
+        const c = wins.find(c => px >= c.at[0] && px < c.at[0] + c.size[0]
+            && py >= c.at[1] && py < c.at[1] + c.size[1]);
+        if (!c) { x0 = y0 = x1 = y1 = 0; return; }
+        x0 = c.at[0]; y0 = c.at[1]; x1 = x0 + c.size[0]; y1 = y0 + c.size[1];
+        if (oneScreen && scr) {
+            x0 = Math.max(x0, scr.x); y0 = Math.max(y0, scr.y);
+            x1 = Math.min(x1, scr.x + scr.width); y1 = Math.min(y1, scr.y + scr.height);
+        }
+    }
+
+    function setShift(on, scr) {
+        if (on === shift) return;
+        shift = on;
+        if (on) snap(scr);
+        else if (!dragging) x0 = y0 = x1 = y1 = 0;
+    }
+
     IpcHandler {
         target: "region"
         function pickOne(cmd: string): void { pick(cmd); root.oneScreen = true; }
@@ -39,6 +77,9 @@ Scope {
             root.cmd = cmd;
             root.x0 = root.y0 = root.x1 = root.y1 = 0;
             root.dragging = false;
+            root.shift = false;
+            root.wins = [];
+            clients.running = true;
             root.active = true;
         }
         function recStart(mode: string): void {
@@ -101,7 +142,7 @@ Scope {
             Rectangle { color: win.shade; x: Math.max(0, win.sx + root.rw); y: Math.max(0, win.sy); width: parent.width - x; height: Math.max(0, Math.min(parent.height, win.sy + root.rh) - y) }
 
             Rectangle {
-                visible: root.dragging
+                visible: root.dragging || (root.winMode && root.rw > 0)
                 // drawn just outside the box so it never lands in the grim capture
                 x: win.sx - 2; y: win.sy - 2; width: root.rw + 4; height: root.rh + 4
                 color: "transparent"
@@ -109,13 +150,31 @@ Scope {
                 border.width: 2
             }
 
+            Rectangle {
+                visible: root.winMode
+                anchors { top: parent.top; horizontalCenter: parent.horizontalCenter; topMargin: 40 }
+                width: modeLabel.implicitWidth + 24; height: modeLabel.implicitHeight + 12
+                radius: height / 2
+                color: Theme.island
+                border.color: Theme.accent
+                Text {
+                    id: modeLabel
+                    anchors.centerIn: parent
+                    text: "Window selection"
+                    color: Theme.bright
+                    font { family: Theme.font; pixelSize: Theme.fontSize + 2 }
+                }
+            }
+
             MouseArea {
                 anchors.fill: parent
                 focus: true
                 cursorShape: Qt.CrossCursor
+                hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onPressed: e => {
                     if (e.button === Qt.RightButton) return root.close();
+                    if (root.winMode) return root.rw > 0 ? root.finish() : undefined;
                     root.x0 = root.x1 = Math.round(e.x + win.ox);
                     root.y0 = root.y1 = Math.round(e.y + win.oy);
                     root.dragging = true;
@@ -123,6 +182,11 @@ Scope {
                 // pointer stays grabbed by this surface while held, so coords past
                 // its edge still map into neighbouring screens
                 onPositionChanged: e => {
+                    root.px = e.x + win.ox;
+                    root.py = e.y + win.oy;
+                    // modifiers too: keyboard focus may sit on another screen's picker
+                    root.setShift(!!(e.modifiers & Qt.ShiftModifier), win.modelData);
+                    root.snap(win.modelData);
                     if (!root.dragging) return;
                     const x = root.oneScreen ? Math.max(0, Math.min(win.width, e.x)) : e.x;
                     const y = root.oneScreen ? Math.max(0, Math.min(win.height, e.y)) : e.y;
@@ -131,6 +195,8 @@ Scope {
                 }
                 onReleased: e => { if (e.button === Qt.LeftButton && root.dragging) root.finish(); }
                 Keys.onEscapePressed: root.close()
+                Keys.onPressed: e => { if (e.key === Qt.Key_Shift) root.setShift(true, win.modelData); }
+                Keys.onReleased: e => { if (e.key === Qt.Key_Shift) root.setShift(false, win.modelData); }
             }
         }
     }

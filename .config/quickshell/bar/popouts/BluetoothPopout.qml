@@ -41,7 +41,8 @@ Popout {
     }
 
     Repeater {
-        model: Bt.enabled ? Bt.devices : []
+        // ScriptModel: devices re-sorts on every connect, and a plain array rebuilds every row
+        model: ScriptModel { values: Bt.enabled ? Bt.devices : [] }
 
         Item {
             id: btRow

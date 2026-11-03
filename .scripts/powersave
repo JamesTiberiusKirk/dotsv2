@@ -70,14 +70,19 @@ off() {
   [ -w $PSTATE/no_turbo ] && echo 0 > $PSTATE/no_turbo
   [ -w $PSTATE/max_perf_pct ] && echo 100 > $PSTATE/max_perf_pct
   if uses_monitors_lua; then
-    # base.lua has all three on; a reload would also re-run everything else
+    # base.lua has all three on; a reload would also re-run everything else.
+    # Blur and glass go back to what the look flags (.scripts/glass) say.
     echo 0 > "$STATE"   # before the rerun: monitors.lua reads it
     rm -f "$MODES"
     rerun_monitors
-    hyprctl eval 'hl.config({ decoration = { blur = { enabled = true }, shadow = { enabled = true } },
+    look="${XDG_STATE_HOME:-$HOME/.local/state}/glass"
+    blur=true glass=true
+    [ "$(cat "$look/glass" 2>/dev/null)" = 0 ] && glass=false
+    [ "$(cat "$look/transparency" 2>/dev/null)" = 0 ] && blur=false glass=false
+    hyprctl eval "hl.config({ decoration = { blur = { enabled = $blur }, shadow = { enabled = true } },
                               animations = { enabled = true } })
-      if hl.plugin.hyprglass then hl.plugin.hyprglass.config({ enabled = true }) end
-      return ""' >/dev/null
+      if hl.plugin.hyprglass then hl.plugin.hyprglass.config({ enabled = $glass }) end
+      return ''" >/dev/null
   else
     hyprctl reload >/dev/null          # one call reverts everything eval set above
   fi
