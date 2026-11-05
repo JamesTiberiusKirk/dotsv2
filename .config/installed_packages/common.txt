@@ -151,7 +151,6 @@ runit
 rust
 rust-analyzer
 rust-src
-rustup
 satty
 seahorse
 shellcheck
