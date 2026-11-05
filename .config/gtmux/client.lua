@@ -59,9 +59,75 @@ gtmux.options.copy_cursor_bg = "yellow"
 gtmux.options.copy_selection_fg = "black"
 gtmux.options.copy_selection_bg = "light_cyan"
 
--- The status bar itself is the default component (transparent: ● session,
--- window list, branch · host · clock); its accent is active_border_fg above.
+-- The status bar is the default component (transparent: ● session, window
+-- list, branch · host · clock) copied from gtmux's default_client.lua, plus a
+-- ping segment. Its accent is active_border_fg above. Re-sync with upstream
+-- by diffing against `gtmux init-config` output if gtmux's default changes.
 gtmux.options.status_interval = 15
+
+-- Ping: #client() runs synchronously and is cached for status_interval, so the
+-- timeout must stay short. Hard deadline so ping always exits within 1s, even
+-- if it never gets a reply: -t on macOS, -w on Linux (-W only caps the reply wait).
+local ping_deadline = "-w1"
+pcall(function()
+    local p = io.popen("uname")
+    if p then
+        if p:read("*l") == "Darwin" then ping_deadline = "-t1" end
+        p:close()
+    end
+end)
+-- No parens in the command: #client(...) matches the closing paren.
+local PING_CMD = "#client(ping -c1 " .. ping_deadline ..
+    " 1.1.1.1 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2)"
+
+gtmux.widget{ dock = "status", component = function(props, ui)
+  local accent = "fg=" .. (gtmux.options.active_border_fg or "green")
+  local DIM = "fg=dark_grey"
+  -- display width in cells: count UTF-8 lead bytes (# counts bytes, and ●/⤢/·
+  -- are 3 bytes each)
+  local function len(s) return (select(2, s:gsub("[^\128-\191]", ""))) end
+  local x = 1
+  local function put(s, style) ui:text(x, 0, s, style); x = x + len(s) end
+
+  put("●", accent)
+  x = x + 1
+  put(gtmux.expand("#{session}"), accent .. ",bold")
+  x = x + 3
+  for _, w in ipairs(gtmux.windows()) do
+    local mark = ""
+    if w.flags:find("Z", 1, true) then mark = " ⤢" end
+    local alert = w.flags:find("[!#~]") ~= nil
+    local label = w.index .. " " .. w.name .. mark
+    local width = len(label) + (alert and 2 or 0)
+    ui:child(x, 0, width, 1, function(p, cell)
+      cell:text(0, 0, p.idx .. "", p.active and (p.accent .. ",bold") or p.dim)
+      cell:text(len(p.idx .. "") + 1, 0, p.rest, p.active and "fg=default,bold" or p.dim)
+      if p.alert then cell:text(p.width - 1, 0, "•", "fg=red,bold") end
+      cell:on_click(function() gtmux.select_window(p.idx) end)
+    end, { idx = w.index, rest = w.name .. mark, active = w.active, alert = alert,
+           width = width, accent = accent, dim = DIM })
+    x = x + width + 3
+  end
+
+  local parts = {}
+  local branch = gtmux.expand("#{git_branch}")
+  if branch ~= "" then parts[#parts + 1] = "⎇ " .. branch end
+  parts[#parts + 1] = gtmux.expand("#{host}")
+  local right = table.concat(parts, " · ")
+  local clock = gtmux.expand("#{clock}")
+
+  -- ping, just left of the clock: green under 150ms, yellow above, red when unreachable
+  local ms = tonumber(gtmux.expand(PING_CMD))
+  local ptxt, pstyle = "✗", "fg=red"
+  if ms then
+    ptxt = string.format("%dms", ms + 0.5)
+    pstyle = ms < 150 and "fg=green" or "fg=yellow"
+  end
+  local rx = ui.w - len(right) - 3 - len(ptxt) - 3 - len(clock) - 1
+  ui:text(rx, 0, right .. " · ", DIM)
+  ui:text(rx + len(right) + 3, 0, ptxt, pstyle)
+  ui:text(rx + len(right) + 3 + len(ptxt), 0, " · " .. clock, DIM)
+end }
 
 -- Terminal title = session name (tmux: set-titles on / set-titles-string '#S')
 gtmux.options.set_titles = true

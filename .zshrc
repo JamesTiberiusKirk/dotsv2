@@ -24,6 +24,26 @@ _git_counts() {
     done < <("$@" status --porcelain -b 2>/dev/null)
 }
 
+# k8s context/namespace from kubeconfig, pure zsh (no kubectl call, ~1ms)
+_kube_info() {
+    _kube_ctx= _kube_ns=
+    local f=${KUBECONFIG%%:*} line ctx cur in=0
+    local -A nsmap
+    f=${f:-$HOME/.kube/config}
+    [[ -r $f ]] || return
+    while IFS= read -r line; do
+        case $line in
+            current-context:*) ctx=${line#current-context: } ;;
+            contexts:*) in=1 ;;
+            [a-z]*) in=0 ;;
+            '- context:'*) cur= ;;
+            *'namespace: '*) (( in )) && cur=${line##*namespace: } ;;
+            '  name: '*) (( in )) && nsmap[${line#  name: }]=$cur ;;
+        esac
+    done < $f
+    [[ -n $ctx ]] && _kube_ctx=$ctx _kube_ns=${nsmap[$ctx]:-default}
+}
+
 precmd() {
     local exit_code=$?
     vcs_info
@@ -31,6 +51,16 @@ precmd() {
     PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
 
     PROMPT+='%F{blue}%~%f '
+
+    # k8s: this host only. Context is red if it contains "prod"
+    if [[ $HOST == TPMBP-* ]]; then
+        _kube_info
+        if [[ -n $_kube_ctx ]]; then
+            local _kc=208
+            [[ $_kube_ctx == *prod* ]] && _kc=red
+            PROMPT+="%F{208}k8s:%f%F{${_kc}}${_kube_ctx}%f%F{208}/${_kube_ns}%f "
+        fi
+    fi
 
     # Regular git repo (vcs_info detects branch)
     if [[ -n "${vcs_info_msg_0_}" ]]; then
