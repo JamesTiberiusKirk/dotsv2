@@ -9,9 +9,10 @@
     "ask": [],
     "defaultMode": "auto",
     "additionalDirectories": [
-      "/Users/dumitruvulpe/uw",
-      "/Users/dumitruvulpe/uw/js-mono",
-      "/Users/dumitruvulpe/uw/telcom-mobile"
+      "/Users/dumitruvulpe/src/uww",
+      "/Users/dumitruvulpe/.dots",
+      "/Users/dumitruvulpe/src/uww/js-mono",
+      "/Users/dumitruvulpe/src/uww/telcom-mobile"
     ]
   },
   "model": "opus",
@@ -109,8 +110,8 @@
   "sandbox": {
     "filesystem": {
       "allowRead": [
-        "/Users/dumitruvulpe/uw",
-        "/Users/dumitruvulpe/uw/telecom-mobile-manifests"
+        "/Users/dumitruvulpe/src/uww",
+        "/Users/dumitruvulpe/src/uww/telecom-mobile-manifests"
       ]
     }
   },
