@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.scripts/lcars-hook.sh working"
+            "command": "~/.dots/.scripts/lcars-hook.sh working"
           }
         ]
       }
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.scripts/lcars-hook.sh working"
+            "command": "~/.dots/.scripts/lcars-hook.sh working"
           }
         ]
       }
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.scripts/lcars-hook.sh orders"
+            "command": "~/.dots/.scripts/lcars-hook.sh orders"
           }
         ]
       }
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.scripts/lcars-hook.sh idle"
+            "command": "~/.dots/.scripts/lcars-hook.sh idle"
           }
         ]
       }
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.scripts/lcars-hook.sh end"
+            "command": "~/.dots/.scripts/lcars-hook.sh end"
           }
         ]
       }
