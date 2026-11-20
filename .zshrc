@@ -174,7 +174,7 @@ if [[ -x "$HOME/.codex/codex-with-notify.sh" ]]; then
 fi
 
 # Keep cores 0-1 free for the desktop; agents and their builds inherit this.
-alias claude='taskset -c 2-15 nice -n 10 claude'
+[[ $OSTYPE != darwin* ]] && alias claude='taskset -c 2-15 nice -n 10 claude'
 
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
