@@ -5,7 +5,7 @@
 -- ============================================================================
 
 local terminal    = "wezterm"
-local fileManager = "thunar"
+local fileManager = "nautilus"
 -- The shell is quickshell (.config/quickshell): bar, notifications, menu.
 local dsp         = hl.dsp
 

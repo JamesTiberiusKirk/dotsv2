@@ -59,6 +59,7 @@
 
 .config/wezterm
 .config/workspacer
+.config/mimeapps.list
 .config/opencode/opencode.jsonc
 .config/opencode/package.json
 .config/opencode/package-lock.json

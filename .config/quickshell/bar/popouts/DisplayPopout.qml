@@ -26,7 +26,7 @@ Popout {
     implicitWidth: 280
     rowSpacing: 10
     tabs: ["screen", "idle", "monitors"]
-    onOpenChanged: Sys.panelOpen = open
+    onOpenChanged: Sys.panelPopout = open
 
     // Generalised out of the brightness slider so the
     // night-light temperature could reuse it: same drag

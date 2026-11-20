@@ -74,6 +74,7 @@ Singleton {
 
         if (Sys.isDuo) {
             rows.push(
+                { path: "lcars " + mark(ShellState.lcars), icon: "lcars", run: () => ShellState.toggleLcars() },
                 { path: "display/sub screen " + mark(Sys.subScreen), icon: "television", run: () => Sys.setSubScreen(!Sys.subScreen) },
                 { path: "display/auto-rotate " + mark(Sys.autoRotate), icon: "refresh", run: () => Sys.setAutoRotate(!Sys.autoRotate) },
                 { path: "display/brightness lock " + mark(Sys.brightnessSync), icon: "white-balance-sunny", run: () => Sys.setBrightnessSync(!Sys.brightnessSync) },

@@ -247,6 +247,8 @@ hl.window_rule({
 -- launch Brave, so they carry the daily-driver class unless told otherwise.
 -- Both are given an explicit --class so they can be parked out of the way.
 hl.window_rule({ name = "automation-browsers", match = { class = "^(pw-browser|go-rod)$" }, workspace = "3 silent" })
+-- LCARS dev copy (quickshell-lcars/dev.qml) parks on 3 as well, out of the way.
+hl.window_rule({ name = "lcars-dev", match = { title = "^(LCARS DEV)$" }, workspace = "3 silent" })
 hl.window_rule({ name = "blue-recorder-float", match = { class = "^(blue-recorder)$" }, float = true })
 hl.window_rule({ name = "select-area-float",   match = { title = "^(Select Area)$" },   float = true })
 hl.window_rule({ name = "satty-float",         match = { class = "^(com\\.gabm\\.satty|satty)$" }, float = true })

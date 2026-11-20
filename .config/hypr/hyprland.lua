@@ -36,3 +36,5 @@ pcall(require, "colors")
 require("binds")
 require("plugins")
 require("hosts/" .. hostname())
+-- LCARS settings overrides (~/.local/state/lcars/overrides); missing file = no-op, must stay last
+pcall(require, "lcars")

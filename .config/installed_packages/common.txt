@@ -93,6 +93,7 @@ mpv
 mtools
 mullvad-vpn-bin
 mumble
+nautilus
 neovide
 neovim
 networkmanager
@@ -171,7 +172,6 @@ texlive-binextra
 texlive-fontsrecommended
 texlive-latex
 texlive-latexextra
-thunar
 tig
 tmux
 transmission-gtk
@@ -189,6 +189,7 @@ vertex-themes
 vesktop-bin
 vim
 virt-install
+virt-manager
 wayfreeze
 wezterm
 wine

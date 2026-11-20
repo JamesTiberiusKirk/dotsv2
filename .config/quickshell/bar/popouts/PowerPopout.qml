@@ -24,7 +24,7 @@ Popout {
     panelName: "power"
     implicitWidth: 360
     rowSpacing: 6
-    onOpenChanged: Sys.powerPanelOpen = open
+    onOpenChanged: Sys.powerPanelPopout = open
 
     readonly property var dev: Sys.batteryDevice
     readonly property bool charging: dev ? dev.state === UPowerDeviceState.Charging : false

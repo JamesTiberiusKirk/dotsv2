@@ -16,7 +16,8 @@ import "../common"
 import "popouts"
 
 Variants {
-    model: Quickshell.screens
+    // LCARS mode owns the bottom panel while on; identical to all screens when off.
+    model: ShellState.lcarsScreens
 
     delegate: Component {
         Scope {

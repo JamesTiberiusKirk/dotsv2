@@ -36,7 +36,11 @@ WheelHandler {
     // faithfully and feels like wading. Browsers scale it up; so does this.
     property real gain: 2.2
 
+    // false = leave the Flickable's own bounds and fling settings alone (touch feel untouched)
+    property bool tune: true
+
     Component.onCompleted: {
+        if (!tune) return;
         flick.boundsBehavior = Flickable.DragAndOvershootBounds;
         // Flickable's fling defaults are tuned for a finger on glass — short
         // glide, low cap. A touchpad fling wants to carry further.

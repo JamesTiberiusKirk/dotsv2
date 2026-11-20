@@ -26,22 +26,16 @@ fpath=(~/.zsh/completion $fpath)
 
 # Aliases
 export WORKSPACER_MUX=gtmux
-alias ws="workspacer -W=ws"
-alias at="workspacer -W=at"
-alias sf="workspacer -W=sf"
-alias ff="workspacer -W=ff"
-alias uww="workspacer -W=uww"
-alias notes="workspacer from-preset notes"
-alias dots="WORKSPACER_MUX=gtmux workspacer  from-preset dots"
+# Workspaces: gtmux (workspacer kept installed as a fallback for now).
+alias ws="gtmux ws ws"
+alias at="gtmux ws at"
+alias sf="gtmux ws sf"
+alias ff="gtmux ws ff"
+alias uww="gtmux ws uww"
+alias notes="gtmux ws folders notes"
+alias dots="gtmux ws folders dots"
 
 autoload -Uz compinit && compinit
-compdef ws=workspacer
-compdef aw=workspacer
-compdef ff=workspacer
-compdef sf=workspacer
-compdef uww=workspacer
-compdef notes=workspacer
-compdef dots=workspacer
 
 
 alias cls='clear'

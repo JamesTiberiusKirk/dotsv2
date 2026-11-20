@@ -169,6 +169,9 @@ if [[ -x "$HOME/.codex/codex-with-notify.sh" ]]; then
   alias codexn="$HOME/.codex/codex-with-notify.sh"
 fi
 
+# Keep cores 0-1 free for the desktop; agents and their builds inherit this.
+alias claude='taskset -c 2-15 nice -n 10 claude'
+
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
 
@@ -181,3 +184,14 @@ if [[ -f ~/.profile.local ]]; then source ~/.profile.local; fi
 # >>> railway initialize >>>
 [[ -f "$HOME/.railway/env" ]] && source "$HOME/.railway/env"
 # <<< railway initialize <<<
+
+# mac-style open: detached, multiple args, defaults to cwd
+# open -a <cmd> [files]: launch with that command instead of the default app
+open() {
+  if [[ $1 == -a ]]; then
+    local app=$2; shift 2
+    "$app" "$@" >/dev/null 2>&1 &!
+    return
+  fi
+  for f in "${@:-.}"; do xdg-open "$f" >/dev/null 2>&1 &! done
+}

@@ -266,7 +266,9 @@ Singleton {
     // Nothing is lost by holding still: while the panel is open the user is the
     // one writing brightness, and the duo state probe forks hyprctl+jq that
     // nothing reads when it is closed.
-    property bool panelOpen: false
+    property bool panelPopout: false     // written by the normal popouts
+    property bool lcarsPanel: false      // written by LCARS (quickshell-lcars/LiveData.qml)
+    readonly property bool panelOpen: panelPopout || lcarsPanel
     onPanelOpenChanged: if (panelOpen) poll();
 
     // Asks the bar to toggle a popout by name (calendar, system, display,
@@ -454,7 +456,9 @@ Singleton {
     //
     // Its own flag, not panelOpen: that one also gates the Duo state probe, so
     // sharing it would fork hyprctl+jq every 2s for a panel that shows neither.
-    property bool powerPanelOpen: false
+    property bool powerPanelPopout: false
+    property bool lcarsPowerPanel: false
+    readonly property bool powerPanelOpen: powerPanelPopout || lcarsPowerPanel
 
     // Ultra power-save (~/.scripts/powersave): the state file holds 1 or 0 and
     // always exists, so watchChanges tracks it — a toggle from the shell
@@ -919,7 +923,9 @@ Singleton {
     // signal, security and connect/disconnect, but NOT an address:
     // NetworkDevice.address is the MAC. So the IP still needs a probe, and since
     // it only ever renders inside a popout it runs on device change, not on a timer.
-    property bool netPanelOpen: false
+    property bool netPanelPopout: false
+    property bool lcarsNetPanel: false
+    readonly property bool netPanelOpen: netPanelPopout || lcarsNetPanel
 
     readonly property var netDevice: {
         const devs = Networking.devices?.values ?? [];

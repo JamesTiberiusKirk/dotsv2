@@ -23,7 +23,7 @@ Popout {
     // is the airpods settings fold open
     property bool podsOpen: false
     onOpenChanged: {
-        Audio.panelOpen = open;
+        Audio.panelPopout = open;
         if (!open) podsOpen = false;
     }
 

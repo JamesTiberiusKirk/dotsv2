@@ -23,7 +23,7 @@ Popout {
     // which SSID has its detail row unfolded; "" = none
     property string expanded: ""
     onOpenChanged: {
-        Sys.netPanelOpen = open;
+        Sys.netPanelPopout = open;
         if (!open) expanded = "";
     }
 

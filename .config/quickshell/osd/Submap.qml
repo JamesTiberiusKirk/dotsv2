@@ -34,7 +34,8 @@ Scope {
             readonly property int nT: fullscreen ? 0 : ShellState.bandT("top")
             readonly property int nf: 8
             readonly property int cr: 14
-            readonly property bool on: sub.on && Hyprland.focusedMonitor?.name === screen.name
+            // in LCARS the laptop panels show the mode in the top frame instead (lcars/TopFrame.qml)
+            readonly property bool on: sub.on && Hyprland.focusedMonitor?.name === screen.name && !(ShellState.lcars && screen.name.startsWith("eDP"))
             readonly property int cardW: Math.max(160, label.implicitWidth + 48)
             readonly property int cardH: on ? 36 : 0
 

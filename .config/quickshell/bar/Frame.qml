@@ -6,7 +6,8 @@ import "../common"
 // Space reservation for the screen bezel on the three edges the bar is not
 // on. Nothing is painted here: the whole chrome is one shape in Chrome.qml.
 Variants {
-    model: Quickshell.screens
+    // LCARS mode owns the bottom panel while on; identical to all screens when off.
+    model: ShellState.lcarsScreens
 
     delegate: Scope {
         id: scope

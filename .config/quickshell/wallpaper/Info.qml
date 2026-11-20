@@ -37,7 +37,8 @@ Scope {
     property int tick: 0
 
     Variants {
-        model: Quickshell.screens
+        // LCARS mode owns the laptop panels while on; identical to all screens when off.
+        model: ShellState.lcarsScreens
 
         PanelWindow {
             id: win

@@ -1,0 +1,1 @@
+../quickshell/common/SmoothScroll.qml

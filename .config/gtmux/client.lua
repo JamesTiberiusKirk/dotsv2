@@ -78,7 +78,7 @@ pcall(function()
 end)
 -- No parens in the command: #client(...) matches the closing paren.
 local PING_CMD = "#client(ping -c1 " .. ping_deadline ..
-    " 1.1.1.1 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2)"
+    " 8.8.8.8 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2)"
 
 gtmux.widget{ dock = "status", component = function(props, ui)
   local accent = "fg=" .. (gtmux.options.active_border_fg or "green")
@@ -123,10 +123,41 @@ gtmux.widget{ dock = "status", component = function(props, ui)
     ptxt = string.format("%dms", ms + 0.5)
     pstyle = ms < 150 and "fg=green" or "fg=yellow"
   end
-  local rx = ui.w - len(right) - 3 - len(ptxt) - 3 - len(clock) - 1
-  ui:text(rx, 0, right .. " · ", DIM)
-  ui:text(rx + len(right) + 3, 0, ptxt, pstyle)
-  ui:text(rx + len(right) + 3 + len(ptxt), 0, " · " .. clock, DIM)
+  local ctx = gtmux.context()
+  local mode, ctx_info = ctx.mode or "NORMAL", ctx.mode_info
+  -- A message needs the room more than branch/host/ping/clock: hide them while up.
+  local rx = ui.w - 1
+  if mode ~= "MESSAGE" then
+    rx = ui.w - len(right) - 3 - len(ptxt) - 3 - len(clock) - 1
+    ui:text(rx, 0, right .. " · ", DIM)
+    ui:text(rx + len(right) + 3, 0, ptxt, pstyle)
+    ui:text(rx + len(right) + 3 + len(ptxt), 0, " · " .. clock, DIM)
+  end
+
+  -- centre: input mode pill + mode_info (same as gtmux's default bar)
+  local pill = {
+    PREFIX = "yellow", REPEAT = "yellow", COPY = "blue", VISUAL = "magenta",
+    ["V-LINE"] = "magenta", ["V-BLOCK"] = "magenta", COMMAND = "cyan",
+    PROMPT = "cyan", CONFIRM = "red", MESSAGE = "green",
+  }
+  local label = " " .. mode .. " "
+  local info = ctx_info or ""
+  local room = rx - x - 2
+  if len(label) + 1 + len(info) > room then
+    info = info:sub(1, math.max(0, room - len(label) - 2))
+    if info ~= "" then info = info .. "…" end
+  end
+  local total = len(label) + (info ~= "" and 1 + len(info) or 0)
+  local mx = math.max(math.floor((ui.w - total) / 2), x + 1)
+  if mx + total < rx then
+    if mode == "NORMAL" then
+      ui:text(mx, 0, label, DIM)
+    else
+      local bg = pill[mode] or (mode:find("^TABLE:") and "yellow") or "light_blue"
+      ui:text(mx, 0, label, "fg=black,bold,bg=" .. bg)
+    end
+    if info ~= "" then ui:text(mx + len(label) + 1, 0, info, "fg=default") end
+  end
 end }
 
 -- Terminal title = session name (tmux: set-titles on / set-titles-string '#S')
@@ -164,11 +195,8 @@ gtmux.bind("]", gtmux.paste)
 -- Jump to the last session (tmux: bind b switch-client -l).
 gtmux.bind("b", function() gtmux.switch_client("-l") end)
 
--- Workspacer: prompt for args, open a window running it (tmux's bind P). The
--- quoted nested command now survives; %1..%3 are the prompt answers.
-gtmux.bind("P", function()
-	gtmux.command_prompt("Workspacer args:", "", "new-window 'workspacer -W=current %1 %2 %3 ; read'")
-end)
+-- prefix+P is gtmux's own workspace picker (default_client.lua); the old
+-- workspacer prompt binding was removed in the migration.
 
 -- Splits with | and - (new panes already open in the active pane's cwd,
 -- tmux's -c "#{pane_current_path}"). % and " are unbound, like the tmux conf.

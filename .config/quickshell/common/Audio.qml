@@ -16,7 +16,9 @@ Singleton {
 
     // Peak monitors open a real pipewire stream per node, so they only run
     // while somebody is looking at the panel.
-    property bool panelOpen: false
+    property bool panelPopout: false
+    property bool lcarsPanel: false
+    readonly property bool panelOpen: panelPopout || lcarsPanel
 
     // A node's type is Untracked until it binds, a beat after it appears, and
     // the filters below capture nodes.values — not each node's type — so they
@@ -210,6 +212,7 @@ Singleton {
 
     function devName(node) {
         if (!node) return "";
-        return node.nickname || node.description || node.name;
+        // a node that is still coming up has none of these yet: never return undefined
+        return node.nickname || node.description || node.name || "";
     }
 }

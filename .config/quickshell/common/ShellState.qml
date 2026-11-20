@@ -190,9 +190,72 @@ Singleton {
     }
     onPinsChanged: if (pinsFile.ready) pinsFile.setText(JSON.stringify({ pins: pins }))
 
+    // LCARS mode (quickshell-lcars/, loaded by shell.qml). Persisted in qs-lcars ("on"/"off"),
+    // same shape as sideFile, and only ever auto-enabled on the Duo.
+    // Crash guard: $XDG_RUNTIME_DIR/qs-lcars-booting is created when a start brings LCARS up and
+    // removed 15s later. If it is still there at the next start, that bring-up died: start normal,
+    // save "off" and say so. The runtime dir is wiped on reboot, so a reboot never trips it.
+    property bool lcars: false
+    readonly property string lcarsBootMarker: Quickshell.env("XDG_RUNTIME_DIR") + "/qs-lcars-booting"
+    FileView {
+        id: lcarsFile
+        path: Quickshell.env("HOME") + "/.local/state/qs-lcars"
+        printErrors: false
+        property bool ready: false
+        onLoaded: {
+            ready = true;
+            root.lcarsSavedOn = text().trim() === "on";
+            root.lcarsRestore();
+        }
+        onLoadFailed: ready = true
+    }
+    // Sys.hostname comes from its own async FileView, so isDuo may still be false when
+    // qs-lcars loads. Restore once, when both the saved state and the hostname are known.
+    property bool lcarsSavedOn: false
+    property bool lcarsRestored: false
+    function lcarsRestore() {
+        if (lcarsRestored || !lcarsFile.ready || Sys.hostname === "") return;
+        lcarsRestored = true;
+        if (lcarsSavedOn && Sys.isDuo) lcarsMarkerCheck.running = true;
+    }
+    Connections {
+        target: Sys
+        function onHostnameChanged() { root.lcarsRestore(); }
+    }
+    // exit 0 = marker left by ANOTHER qs process = the last bring-up crashed. The marker holds our
+    // pid, so a config reload inside the 15s (same process, timer lost with the old generation) is not a crash.
+    Process {
+        id: lcarsMarkerCheck
+        command: ["sh", "-c", '[ -e "$1" ] && [ "$(cat "$1")" != "$2" ]', "sh", root.lcarsBootMarker, String(Quickshell.processId)]
+        onExited: code => {
+            if (code === 0) {
+                lcarsFile.setText("off");
+                Quickshell.execDetached(["rm", "-f", root.lcarsBootMarker]);
+                Quickshell.execDetached(["notify-send", "LCARS skipped after a crash", "Run lcars to re-enable"]);
+            } else {
+                Quickshell.execDetached(["sh", "-c", 'echo "$2" > "$1"', "sh", root.lcarsBootMarker, String(Quickshell.processId)]);
+                lcarsMarkerClear.restart();
+                root.lcars = true;
+            }
+        }
+    }
+    Timer {
+        id: lcarsMarkerClear
+        interval: 15000
+        onTriggered: Quickshell.execDetached(["rm", "-f", root.lcarsBootMarker])
+    }
+    // also persists the "off" from shell.qml's load-failure path
+    onLcarsChanged: if (lcarsFile.ready) lcarsFile.setText(lcars ? "on" : "off")
+    // Screens that keep the normal bar: LCARS owns both built-in panels while on.
+    readonly property var lcarsScreens: lcars ? Quickshell.screens.filter(s => !s.name.startsWith("eDP")) : Quickshell.screens
+
+    function toggleLcars() { if (Sys.isDuo) { Sys.closeAll(); lcars = !lcars; } }
+
     IpcHandler {
         target: "shell"
         function side(s: string): void { root.side = s; }
+        // closeAll first: popout flags must not stick when the eDP bars are destroyed
+        function lcars(): void { root.toggleLcars(); }
         // flips the bar on the focused monitor
         function toggle(): void {
             const n = Hyprland.focusedMonitor?.name;

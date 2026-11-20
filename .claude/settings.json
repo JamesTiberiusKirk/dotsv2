@@ -28,6 +28,54 @@
             "command": "cat ~/.claude/cut-the-crap.md 2>/dev/null"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.scripts/lcars-hook.sh working"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.scripts/lcars-hook.sh working"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.scripts/lcars-hook.sh orders"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.scripts/lcars-hook.sh idle"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.scripts/lcars-hook.sh end"
+          }
+        ]
       }
     ]
   },
@@ -75,6 +123,7 @@
   },
   "skipWorkflowUsageWarning": true,
   "theme": "auto",
+  "switchModelsOnFlag": false,
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
   "autoMode": {
@@ -112,9 +161,9 @@
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development (self-hosted deployment platform, Go/templ/HAMR stack)",
-      "**Trusted repo**: /home/darthvader/FyrmForge/stackr and its remote github.com:FyrmForge/stackr.git (private) — confidential material is fine to commit here, but secrets/credentials are never cleared into it by visibility alone",
+      "**Trusted repo**: /home/darthvader/src/ff/stackr and its remote github.com:FyrmForge/stackr.git (private) — confidential material is fine to commit here, but secrets/credentials are never cleared into it by visibility alone",
       "**Org-specific CLIs**: hamr, stackr, templ (project-specific CLIs seen in this project's usage)",
-      "routine under /home/darthvader/FyrmForge/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
+      "routine under /home/darthvader/src/ff/stackr/ prefix for build/test/lint tooling (make, hamr, templ, sqlite3, gofmt, golangci-lint)"
     ]
   }
 }

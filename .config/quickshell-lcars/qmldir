@@ -1,0 +1,27 @@
+singleton Lc 1.0 Lc.qml
+Pill 1.0 Pill.qml
+PageTabs 1.0 PageTabs.qml
+Meter 1.0 Meter.qml
+Readout 1.0 Readout.qml
+Label 1.0 Label.qml
+ConsoleState 1.0 ConsoleState.qml
+Console 1.0 Console.qml
+TopFrame 1.0 TopFrame.qml
+Bridge 1.0 Bridge.qml
+Crew 1.0 Crew.qml
+Systems 1.0 Systems.qml
+Comms 1.0 Comms.qml
+Settings 1.0 Settings.qml
+SectHead 1.0 SectHead.qml
+CodedRow 1.0 CodedRow.qml
+ScrollCol 1.0 ScrollCol.qml
+ConfirmSlider 1.0 ConfirmSlider.qml
+FakeData 1.0 FakeData.qml
+LiveData 1.0 LiveData.qml
+StationPanel 1.0 StationPanel.qml
+AuthPrompt 1.0 AuthPrompt.qml
+DeskInfo 1.0 DeskInfo.qml
+Computer 1.0 Computer.qml
+ComputerBrain 1.0 ComputerBrain.qml
+ComputerIpc 1.0 ComputerIpc.qml
+SmoothScroll 1.0 SmoothScroll.qml
