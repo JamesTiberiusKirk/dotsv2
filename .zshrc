@@ -48,7 +48,11 @@ precmd() {
     local exit_code=$?
     vcs_info
 
-    PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
+    if [[ $OSTYPE == darwin* ]]; then
+        PROMPT='%F{cyan}[%f'
+    else
+        PROMPT='%F{cyan}[%f%F{magenta}%n@%m '
+    fi
 
     PROMPT+='%F{blue}%~%f '
 
