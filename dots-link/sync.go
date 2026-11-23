@@ -102,8 +102,13 @@ func runSync(env *Env, opts syncOpts) error {
 	// Packages listed but not installed — offered to yay after the merge
 	// (recomputed there, so lists the merge brings in are seen too).
 	work := missingPkgs(dir, env.Host)
+	svcActs, svcMissing, err := computeServiceActions(env)
+	if err != nil {
+		return err
+	}
 	renderSyncPlan(env, acts)
-	renderSystemPlan(sysActs)
+	renderSystemPlan(append(append([]sysAction{}, sysActs...), svcActs...))
+	warnMissingServices(svcMissing)
 	renderPkgPlan(work)
 
 	// dots-link is changing upstream: this binary must not apply a plan its own
@@ -114,7 +119,7 @@ func runSync(env *Env, opts syncOpts) error {
 		info("nothing in $HOME is touched; re-run `dots-link sync` with the new binary to apply the plan above")
 	}
 
-	if len(acts) == 0 && len(sysActs) == 0 && work.empty() && st != mergeFastForward && st != mergeClean {
+	if len(acts) == 0 && len(sysActs) == 0 && len(svcActs) == 0 && work.empty() && st != mergeFastForward && st != mergeClean {
 		info("nothing to do")
 		return nil
 	}
@@ -141,7 +146,7 @@ func runSync(env *Env, opts syncOpts) error {
 		}
 	}
 
-	// 9. Execute: unlink → merge → link/adopt → system files → packages.
+	// 9. Execute: unlink → merge → link/adopt → system files → packages → services.
 	return applySync(env, dir, st, acts, work, opts.yes, self)
 }
 
@@ -227,6 +232,16 @@ func applySync(env *Env, dir string, st mergeStatus, acts []action, work pkgWork
 	}
 
 	if err := installPackages(missingPkgs(dir, env.Host), yes); err != nil {
+		return err
+	}
+
+	// Services last: a package installed just above ships its sv dir.
+	svcActs, svcMissing, err := computeServiceActions(env)
+	if err != nil {
+		return err
+	}
+	warnMissingServices(svcMissing)
+	if err := applySystem(svcActs, yes); err != nil {
 		return err
 	}
 

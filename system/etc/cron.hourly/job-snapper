@@ -1,0 +1,3 @@
+#!/bin/sh
+# desc: Delete old system snapshots, keep the last 50
+exec /usr/local/bin/job snapper sh -c 'snapper --config=root --quiet cleanup number && snapper --config=root --quiet cleanup timeline'

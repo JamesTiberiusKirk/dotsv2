@@ -9,6 +9,7 @@ Rectangle {
     property string label: ""
     property string value: ""
     property string note: ""               // small line under the label
+    property string note2: ""              // optional third line, smaller
     property real level: -1                // 0..1 draws the meter, -1 none
     property color tint: Lc.lilac
     property color valueColor: Lc.peach
@@ -29,6 +30,7 @@ Rectangle {
         width: Math.max(0, slot.x - 94)
         Label { width: parent.width; text: r.label; color: r.hot ? Lc.orange : Lc.peach; font.pixelSize: 24; elide: Text.ElideRight }
         Label { visible: r.note !== ""; width: parent.width; text: r.note; color: Lc.tan; font.pixelSize: 18; elide: Text.ElideRight }
+        Label { visible: r.note2 !== ""; width: parent.width; text: r.note2; color: Lc.tan; font.pixelSize: 15; elide: Text.ElideRight }
     }
     Row {
         id: slot

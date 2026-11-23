@@ -87,7 +87,8 @@ Singleton {
         return [
             { name: "docker",    title: "docker",         island: "left island", group: "sys" },
             { name: "vms",       title: "vms",            island: "left island", group: "sys" },
-            { name: "system",    title: "system",         island: "left island", group: "sys" }
+            { name: "system",    title: "system",         island: "left island", group: "sys" },
+            { name: "jobs",      title: "cron jobs",      island: "left island", group: "sys" }
         ].concat(agentRows, [
             { name: "network",   title: "wifi",           island: "status", group: "status" },
             { name: "tailscale", title: "tailscale",      island: "status", group: "status" },
@@ -105,7 +106,7 @@ Singleton {
     // An agent is present while Clanker lists it.
     readonly property var present: {
         const m = {
-            docker: true, vms: true, system: true, network: true,
+            docker: true, vms: true, system: true, jobs: Jobs.count > 0, network: true,
             tailscale: Sys.tsPresent, power: UPower.displayDevice?.isLaptopBattery ?? false,
             display: Sys.backlight >= 0, kbd: Sys.duoKbd, audio: true, bluetooth: Bt.present,
             tray: SystemTray.items.values.length > 0, calendar: true
@@ -116,7 +117,7 @@ Singleton {
     // Which control center a panel belongs to. "services" is docker's and the vms' shared popout,
     // "clanker" the agents' one, "cc-sys" the sys page itself.
     function groupOf(name) {
-        return name === "docker" || name === "vms" || name === "services" || name === "system"
+        return name === "docker" || name === "vms" || name === "services" || name === "system" || name === "jobs"
             || name === "clanker" || name === "cc-sys"
             || name.startsWith("clanker:") ? "sys" : "status";
     }
@@ -127,7 +128,7 @@ Singleton {
     // whether it also shows in the bar. Nothing can be unreachable, so anything may be unpinned.
     // Reassigned whole so bindings see the change.
     // No "clanker" in the default pins: an agent seen for the first time stays in the center only.
-    property var pins: ["network", "power", "audio", "docker", "vms", "system", "tray", "calendar"]
+    property var pins: ["network", "power", "audio", "docker", "vms", "system", "jobs", "tray", "calendar"]
     function inBar(n) { return pins.includes(n) && present[n] === true; }
     function inCC(n) { return present[n] === true; }
     function anyInCC(group) { return indicators.some(i => i.group === group && inCC(i.name)); }

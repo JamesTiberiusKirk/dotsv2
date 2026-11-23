@@ -299,6 +299,60 @@ Scope {
         }
     }
     Timer { interval: 30000; repeat: true; triggeredOnStart: true; running: root._wSystem; onTriggered: sysProc.running = true }
+    // ---- SYSTEMS / JOBS (cron housekeeping, status files from /usr/local/bin/job) ----
+    // One sh reads everything: per job `J name sched alive` plus its
+    // status lines (`S k=v`) and last log lines (`L text`). Status dir is $JOBS_DIR (default /var/lib/jobs).
+    // state: OK / FAILED (also a run that died) / RUNNING / NEVER. Next run: hourly = next HH:01,
+    // weekly = own last start + 7 days ("~": anacron fires it when the laptop is awake), "~SOON" if never run.
+    // alive = status says not ended AND /proc/<pid>/cmdline is the job wrapper (pids get reused after a reboot).
+    // The status lines are read after that check, so a job that just finished shows as ended, not died.
+    property var jobs: []
+    function _jobAgo(s) {
+        s = Math.max(0, s);
+        return s < 60 ? "NOW" : s < 3600 ? Math.floor(s / 60) + "M AGO" : s < 86400 ? Math.floor(s / 3600) + "H AGO" : Math.floor(s / 86400) + "D AGO";
+    }
+    function _jobParse(text) {
+        const nowD = new Date(), nowS = nowD.getTime() / 1000, out = [];
+        let cur = null;
+        for (const l of text.split("\n")) {
+            if (l.indexOf("J ") === 0) {
+                const [, name, sched, alive] = l.split(" ");
+                cur = { name: name, sched: sched, alive: alive === "1", desc: "", kv: {}, log: [] };
+                out.push(cur);
+            }
+            else if (cur && l.indexOf("D ") === 0) cur.desc = l.slice(2).trim();
+            else if (cur && l.indexOf("S ") === 0) { const i = l.indexOf("="); if (i > 2) cur.kv[l.slice(2, i)] = l.slice(i + 1).trim(); }
+            else if (cur && l.indexOf("L ") === 0) cur.log.push(l.slice(2));
+        }
+        const wd = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"], mo = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        const nextH = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate(), nowD.getHours(), 1);
+        if (nextH <= nowD) nextH.setHours(nextH.getHours() + 1);
+        return out.map(j => {
+            const k = j.kv, started = Number(k.started) || 0, ended = Number(k.ended) || 0;
+            const state = !started ? "NEVER" : !k.ended ? (j.alive ? "RUNNING" : "FAILED") : k.exit === "0" ? "OK" : "FAILED";
+            const last = !started ? "NEVER" : state === "RUNNING" ? "RUNNING" : ended ? _jobAgo(nowS - ended) : "DIED";
+            const wk = new Date(started * 1000 + 7 * 86400000);
+            const next = j.sched === "hourly" ? String(nextH.getHours()).padStart(2, "0") + ":01"
+                : !started ? "~SOON" : "~" + wd[wk.getDay()] + " " + wk.getDate() + " " + mo[wk.getMonth()];
+            return { name: j.name, sched: j.sched.toUpperCase(), sc: j.sched, state: state, last: last, next: next, desc: j.desc.toUpperCase(), log: j.log.join("\n") };
+        });
+    }
+    Process {
+        id: jobsProc
+        command: ["sh", "-c",
+            "D=\"${JOBS_DIR:-/var/lib/jobs}\";" +
+            "for f in /etc/cron.hourly/job-* /etc/cron.weekly/job-*; do [ -e \"$f\" ] || continue;" +
+            "n=${f##*/job-}; s=${f#/etc/cron.}; s=${s%%/*};" +
+            "p=$(sed -n 's/^pid=//p' \"$D/$n.status\" 2>/dev/null); a=0; [ -n \"$p\" ] && grep -qa /usr/local/bin/job \"/proc/$p/cmdline\" 2>/dev/null && a=1;" +
+            "echo \"J $n $s $a\"; printf 'D %s\\n' \"$(sed -n 's/^# desc: //p' \"$f\" | head -n 1)\"; sed 's/^/S /' \"$D/$n.status\" 2>/dev/null; tail -n 8 \"$D/$n.log\" 2>/dev/null | sed 's/^/L /'; done; true"]
+        stdout: StdioCollector { onStreamFinished: root.jobs = root._jobParse(text) }
+    }
+    // 2 s while a job runs, else 30 s
+    Timer {
+        interval: root.jobs.some(j => j.state === "RUNNING") ? 2000 : 30000
+        repeat: true; triggeredOnStart: true; running: root._wSystem
+        onTriggered: if (!jobsProc.running) jobsProc.running = true
+    }
     function openLazygit() { Quickshell.execDetached(["wezterm", "start", "--cwd", Quickshell.env("HOME") + "/.dots", "--", "lazygit"]); }
 
     // ---- COMMS / MESSAGES ----
@@ -371,7 +425,7 @@ Scope {
     readonly property bool privBusy: privProc.running
     Process {
         id: privProc
-        stdout: StdioCollector { onStreamFinished: root.privOut = text.trim().slice(-4000) || "(NO OUTPUT)" }
+        stdout: StdioCollector { onStreamFinished: { root.privOut = text.trim().slice(-4000) || "(NO OUTPUT)"; if (!jobsProc.running) jobsProc.running = true; } }
     }
     // cmd: argv run as root, e.g. ["snapper", "list"]; stderr is merged into the output
     function priv(title, cmd) {

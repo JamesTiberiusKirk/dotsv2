@@ -151,7 +151,7 @@ Singleton {
         // nothing for a name no popout answers to.
         for (const [p, icon] of [["audio", "volume-high"], ["bluetooth", "bluetooth"],
                                  ["calendar", "calendar"], ["clanker", "robot"],
-                                 ["display", "monitor"],
+                                 ["display", "monitor"], ["jobs", "timer-outline"],
                                  ["network", "wifi-strength-4"], ["power", "battery"],
                                  ["system", "cpu-64-bit"], ["tailscale", "server"],
                                  ["tray", "dots-horizontal"]])

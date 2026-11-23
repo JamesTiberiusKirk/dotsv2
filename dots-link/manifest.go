@@ -46,10 +46,12 @@ func isEntryLine(line string) bool {
 // Entries returns the trimmed home-dotfile entry paths in file order.
 // `system/` entries are root-installed copies, not $HOME symlinks — those are
 // served by SystemEntries so no caller ever links ~/system/... by accident.
+// `service <name>` lines are served by Services.
 func (m *Manifest) Entries() []string {
 	var out []string
 	for _, l := range m.Lines {
-		if isEntryLine(l) && !strings.HasPrefix(strings.TrimSpace(l), "system/") {
+		t := strings.TrimSpace(l)
+		if isEntryLine(l) && !strings.HasPrefix(t, "system/") && !strings.HasPrefix(t, "service ") {
 			out = append(out, strings.TrimSpace(l))
 		}
 	}
@@ -63,6 +65,18 @@ func (m *Manifest) SystemEntries() []string {
 	for _, l := range m.Lines {
 		if isEntryLine(l) && strings.HasPrefix(strings.TrimSpace(l), "system/") {
 			out = append(out, strings.TrimSpace(l))
+		}
+	}
+	return out
+}
+
+// Services returns the names from `service <name>` lines: package-shipped runit
+// sv dirs this host wants enabled.
+func (m *Manifest) Services() []string {
+	var out []string
+	for _, l := range m.Lines {
+		if f := strings.Fields(l); len(f) == 2 && f[0] == "service" {
+			out = append(out, f[1])
 		}
 	}
 	return out

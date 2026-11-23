@@ -99,11 +99,7 @@ fi
 
 # ---- system files (udev, elogind, runit sv) are host-scoped `system/` entries
 # in hosts/$HOST, installed by the dots-link sync above ----
-# package-provided services that just need enabling (bluez-runit ships the sv dir)
-[ ! -d /etc/runit/sv/bluetoothd ] || sudo ln -sf /etc/runit/sv/bluetoothd /etc/runit/runsvdir/default/
-# power-profiles-daemon-runit ships the sv dir; the bar's profile selector is
-# hidden until this is up (no daemon on the bus -> no rows)
-[ ! -d /etc/runit/sv/power-profiles-daemon ] || sudo ln -sf /etc/runit/sv/power-profiles-daemon /etc/runit/runsvdir/default/
+# package-shipped runit services (bluetoothd, cronie, ...) are `service` lines in hosts/*
 # docker-runit ships the sv dir; link it but leave it down — start with `sv up docker`
 if [ -d /etc/runit/sv/docker ]; then
   sudo touch /etc/runit/sv/docker/down

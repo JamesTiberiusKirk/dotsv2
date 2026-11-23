@@ -1,0 +1,21 @@
+#!/bin/sh
+# job <name> <cmd...>: run a cron job, leave /var/lib/jobs/<name>.{status,log}
+# for the bar and LCARS. Overlapping runs exit quietly (flock).
+d=${JOBS_DIR:-/var/lib/jobs}
+n=$1; shift
+mkdir -p "$d" && chmod 0755 "$d"
+exec 9>"$d/$n.lock"
+flock -n 9 || exit 0
+st() { # st <ended> <exit>
+	printf 'started=%s\npid=%s\nended=%s\nexit=%s\n' "$t0" "$$" "$1" "$2" >"$d/$n.status.tmp" &&
+		chmod 0644 "$d/$n.status.tmp" && mv "$d/$n.status.tmp" "$d/$n.status"
+}
+t0=$(date +%s)
+st "" ""
+out=$d/$n.log.tmp
+"$@" >"$out.full" 2>&1 9>&-
+rc=$?
+tail -n 50 "$out.full" >"$out"; rm -f "$out.full"
+chmod 0644 "$out" && mv "$out" "$d/$n.log"
+st "$(date +%s)" "$rc"
+exit "$rc"

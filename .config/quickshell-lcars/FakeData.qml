@@ -117,6 +117,12 @@ Scope {
     property var services: [
         { name: "agetty-tty1", state: "RUN" }, { name: "agetty-tty2", state: "RUN" }, { name: "bluetoothd", state: "RUN" },
         { name: "docker", state: "RUN" }, { name: "elogind", state: "DOWN" }, { name: "tailscale", state: "RUN" }]
+    // ---- SYSTEMS / JOBS ----
+    property var jobs: [
+        { name: "snapper", desc: "DELETE OLD SYSTEM SNAPSHOTS, KEEP THE LAST 50", sched: "HOURLY", sc: "hourly", state: "OK", last: "23M AGO", next: "14:01", log: "Cleaning up number snapshots\nDeleted 2 snapshots\nCleaning up timeline snapshots\nDeleted 1 snapshot" },
+        { name: "go-cache", desc: "WIPE THE GO BUILD CACHE (~/.cache/go-build)", sched: "WEEKLY", sc: "weekly", state: "RUNNING", last: "RUNNING", next: "~MON 30 NOV", log: "" },
+        { name: "pacman-cache", desc: "DROP OLD PACKAGE DOWNLOADS, KEEP THE LAST 2 VERSIONS", sched: "WEEKLY", sc: "weekly", state: "FAILED", last: "2D AGO", next: "~MON 30 NOV", log: "==> finished: 0 packages removed\npaccache: cannot open cache dir\nerror: permission denied" },
+        { name: "yay-cache", desc: "DELETE AUR BUILD FOLDERS UNTOUCHED FOR 30 DAYS", sched: "WEEKLY", sc: "weekly", state: "NEVER", last: "NEVER", next: "~SOON", log: "" }]
     function openLazygit() { log("wezterm lazygit in ~/.dots"); }
 
     // ---- COMMS / MESSAGES ----

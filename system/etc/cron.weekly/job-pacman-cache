@@ -1,0 +1,3 @@
+#!/bin/sh
+# desc: Drop old package downloads, keep the last 2 versions
+exec /usr/local/bin/job pacman-cache paccache -rk2

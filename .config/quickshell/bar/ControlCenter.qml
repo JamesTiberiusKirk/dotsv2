@@ -254,7 +254,7 @@ Popout {
     }
 
     // half tiles shown, in order; Tile.lone reads the last one
-    readonly property var halfShown: ["docker", "vms", "network", "tailscale", "power", "kbd", "bluetooth", "tray", "calendar"]
+    readonly property var halfShown: ["docker", "vms", "jobs", "network", "tailscale", "power", "kbd", "bluetooth", "tray", "calendar"]
         .filter(n => cc.show(n))
 
     Flow {
@@ -288,6 +288,12 @@ Popout {
             halfTall: 64
             on: Sys.vm !== "0"
             page: "services"; tab: "vms"
+        }
+        Tile {
+            name: "jobs"
+            icon: "timer-outline"
+            sub: Jobs.failed > 0 ? Jobs.failed + " failed" : Jobs.count + " jobs"
+            on: Jobs.failed === 0
         }
         Tile {
             name: "network"

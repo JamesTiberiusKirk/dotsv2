@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import "."
 
-// SYSTEMS station: HARDWARE, POWER, STORAGE, SYSTEM. All data and actions via `ship`.
+// SYSTEMS station: HARDWARE, POWER, STORAGE, SYSTEM (incl. cron JOBS). All data and actions via `ship`.
 // Root-only items (snapper, scrub, service restart) go through pkexec and stay "AUTH REQUIRED" until the
 // LCARS polkit agent is registered (ship.authReady). Destructive ones need a slide to confirm.
 Item {
@@ -43,6 +43,7 @@ Item {
         }
     }
     property string svSel: ""
+    property string jobSel: ""
     function heat(c, max) { return c / max > 0.85 ? Lc.red : c / max > 0.7 ? Lc.orange : Lc.blue; }
 
     // ================= HARDWARE =================
@@ -368,6 +369,44 @@ Item {
                         text: "SLIDE TO RESTART " + st.svSel.toUpperCase()
                         onConfirmed: { st.ship.priv("RESTART " + st.svSel.toUpperCase(), ["sv", "restart", "/run/runit/service/" + st.svSel]); st.svSel = ""; }
                     }
+                    SectHead { text: "JOBS"; code: Lc.code("jobs") }
+                    CodedRow {
+                        Layout.fillWidth: true
+                        readonly property int bad: st.ship.jobs.filter(j => j.state === "FAILED").length
+                        label: "SCHEDULED JOBS"; note: "TAP A JOB FOR ITS LOG"
+                        value: st.ship.jobs.length + (bad > 0 ? "  " + bad + " FAILED" : ""); valueColor: bad > 0 ? Lc.red : Lc.green; tint: Lc.rose
+                    }
+                    Repeater {
+                        model: st.ship.jobs.length   // by count, rows read jobs[index]: a poll must not rebuild them
+                        ColumnLayout {
+                            required property int index
+                            readonly property var jb: st.ship.jobs[index] ?? ({ name: "", sched: "", sc: "", desc: "", state: "", last: "", next: "", log: "" })
+                            Layout.fillWidth: true
+                            spacing: 6
+                            CodedRow {
+                                Layout.fillWidth: true; implicitHeight: jb.desc ? 92 : 72
+                                label: jb.name.toUpperCase()
+                                note2: jb.desc
+                                note: jb.sched + "  LAST " + jb.last + "  NEXT " + jb.next
+                                value: jb.state
+                                valueColor: jb.state === "OK" ? Lc.green : jb.state === "FAILED" ? Lc.red : jb.state === "RUNNING" ? Lc.orange : Lc.tan
+                                tint: Lc.rose; hot: st.jobSel === jb.name
+                                onClicked: st.jobSel = st.jobSel === jb.name ? "" : jb.name
+                                Pill {
+                                    text: "RUN"; toggle: true; on: st.ship.authReady; enabled: st.ship.authReady && !st.ship.privBusy && jb.state !== "RUNNING"
+                                    tint: Lc.rose; height: 48; implicitWidth: 100; labelSize: 20
+                                    onClicked: st.ship.priv("RUN JOB " + jb.name.toUpperCase(), ["/etc/cron." + jb.sc + "/job-" + jb.name])
+                                }
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true; Layout.preferredHeight: Math.min(220, jlog.implicitHeight + 24)
+                                visible: st.jobSel === jb.name
+                                color: Lc.track; border.width: 2; border.color: Lc.dim; clip: true
+                                Label { id: jlog; x: 12; y: 12; width: parent.width - 24; wrapMode: Text.WrapAnywhere; text: jb.log || "(NO LOG)"; color: Lc.peach; font.pixelSize: 16 }
+                            }
+                        }
+                    }
+                    Label { visible: st.ship.jobs.length === 0; text: "NO JOBS DEFINED"; color: Lc.lilac; font.pixelSize: 22 }
                     PrivOut {}
                 }
             }

@@ -1,0 +1,3 @@
+#!/bin/sh
+# desc: Wipe the Go build cache (~/.cache/go-build)
+exec /usr/local/bin/job go-cache runuser -u darthvader -- env HOME=/home/darthvader /usr/bin/go clean -cache

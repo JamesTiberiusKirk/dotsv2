@@ -76,6 +76,17 @@
 system/etc/runit/sv/keyd
 system/etc/runit/sv/sshd
 system/etc/runit/sv/tailscale
+system/etc/cron.hourly/job-snapper
+system/etc/cron.weekly/job-go-cache
+system/etc/cron.weekly/job-logrotate
+system/etc/cron.weekly/job-pacman-cache
+system/etc/cron.weekly/job-yay-cache
+system/usr/local/bin/job
+
+# services (package-shipped runit sv, enabled by dots-link)
+service cronie
+service bluetoothd
+service power-profiles-daemon
 
 # music
 .config/spotify-player

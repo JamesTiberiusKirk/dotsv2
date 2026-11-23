@@ -33,6 +33,10 @@ var sysMaps = []sysMap{
 	// elogind runs sleep hooks out of /lib, not /etc
 	{src: "system/etc/elogind/system-sleep", dst: "/lib/elogind/system-sleep"},
 	{src: "system/etc/runit/sv", dst: "/etc/runit/sv", enable: true},
+	// cron job definitions and the wrapper they call (wrapper: system/usr/local/bin/job)
+	{src: "system/etc/cron.hourly", dst: "/etc/cron.hourly"},
+	{src: "system/etc/cron.weekly", dst: "/etc/cron.weekly"},
+	{src: "system/usr/local/bin", dst: "/usr/local/bin"},
 }
 
 const runsvdirDefault = "/etc/runit/runsvdir/default"
@@ -114,6 +118,36 @@ func computeSystemActions(env *Env) ([]sysAction, error) {
 		}
 	}
 	return acts, nil
+}
+
+// computeServiceActions plans enabling the host's `service` lines: package-shipped
+// sv dirs, so nothing is copied, only linked. Returns the names whose sv dir is
+// missing (package not installed) so the caller can warn.
+func computeServiceActions(env *Env) (acts []sysAction, missing []string, err error) {
+	manifest, err := localManifest(env)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, name := range manifest.Services() {
+		sv := filepath.Join("/etc/runit/sv", name)
+		if _, err := os.Stat(sv); err != nil {
+			missing = append(missing, name)
+			continue
+		}
+		link := filepath.Join(runsvdirDefault, name)
+		if _, err := os.Lstat(link); err == nil {
+			continue
+		}
+		// mapIdx -1: no sysMaps entry, so no reload hook fires
+		acts = append(acts, sysAction{enable: true, src: sv, dst: link, note: "service not enabled", mapIdx: -1})
+	}
+	return acts, missing, nil
+}
+
+func warnMissingServices(missing []string) {
+	for _, n := range missing {
+		warnLine("service %s: /etc/runit/sv/%s missing (package not installed?) — skipped", n, n)
+	}
 }
 
 // diffInstalled returns "" when the installed file already matches, otherwise a

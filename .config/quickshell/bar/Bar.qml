@@ -133,7 +133,7 @@ Variants {
             // bar died left the menu's rows gone until the shell restarted.
             readonly property var popouts: [trayPopout, calendarPopout, displayPopout, powerPopout,
                 tailscalePopout, bluetoothPopout, audioPopout, networkPopout, resourcePopout,
-                clankerPopout, servicesPopout, ccGrid, ccSys]
+                clankerPopout, servicesPopout, jobsPopout, ccGrid, ccSys]
 
             // Is that popout showing? For a cell that lights up while its own
             // popout is open. By name, because the popouts live in their own
@@ -499,7 +499,7 @@ Variants {
                     // Hidden when none of its cells is on the bar (docker/vms, system, any agent) and
                     // nothing of the sys group is folded (its control center cell lives here).
                     // Asks the state, not the cells: a child's visible follows its parent's.
-                    visible: ShellState.inBar("docker") || ShellState.inBar("vms") || ShellState.inBar("system")
+                    visible: ShellState.inBar("docker") || ShellState.inBar("vms") || ShellState.inBar("system") || ShellState.inBar("jobs")
                         || ShellState.inBarPanel("clanker") || ShellState.anyInCC("sys")
 
                     // implicit, not width/height: GridLayout sizes children by these
@@ -558,6 +558,24 @@ Variants {
                             }
                             MouseArea { anchors.fill: parent; onClicked: panel.toggle("system") }
                             FoldArea { name: "system" }
+                        }
+                        // cron jobs: count, red with the fail count when any failed, icon pulses while one runs
+                        Cell {
+                            id: jobsCell
+                            visible: ShellState.inBar("jobs")
+                            icon: "timer-outline"
+                            text: Jobs.failed > 0 ? Jobs.failed : Jobs.count
+                            vform: "stack"
+                            color: Jobs.failed > 0 ? Theme.urgent : Theme.text
+                            SequentialAnimation on opacity {
+                                running: Jobs.running > 0
+                                alwaysRunToEnd: true
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.45; duration: 700 }
+                                NumberAnimation { to: 1; duration: 700 }
+                            }
+                            MouseArea { anchors.fill: parent; onClicked: panel.toggle("jobs") }
+                            FoldArea { name: "jobs" }
                         }
                         // AI agents: one cell per agent, its icon and its fullest window.
                         // Each shows only while that agent is pinned (ShellState.inBar; an
@@ -1148,6 +1166,7 @@ Variants {
                 ClankerPopout { id: clankerPopout; bar: panel }
                 // no cell binding: toggleServices points it at the docker or the vms cell
                 ServicesPopout { id: servicesPopout; bar: panel; panelName: "services" }
+                JobsPopout { id: jobsPopout; bar: panel; cell: jobsCell }
                 ControlCenter { id: ccGrid; bar: panel; cell: ccCell; group: "status"; panelName: "cc" }
                 ControlCenter { id: ccSys; bar: panel; cell: sysCcCell; group: "sys"; panelName: "cc-sys" }
             }

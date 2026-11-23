@@ -18,6 +18,8 @@ ccache
 cdrtools
 cloudflared
 cmake
+cronie
+cronie-runit
 ddccontrol
 ddcutil
 discord
@@ -79,6 +81,7 @@ libvirt-runit
 linux-lts-headers
 litecli
 logiops
+logrotate
 lua51
 luarocks
 lxappearance
@@ -110,6 +113,7 @@ openresolv
 openssh
 orca-slicer-bin
 otf-font-awesome
+pacman-contrib
 pandoc-bin
 pasystray-wayland
 pavucontrol

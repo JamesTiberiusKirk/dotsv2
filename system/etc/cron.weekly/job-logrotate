@@ -1,0 +1,3 @@
+#!/bin/sh
+# desc: Rotate and trim system logs
+exec /usr/local/bin/job logrotate logrotate /etc/logrotate.conf
