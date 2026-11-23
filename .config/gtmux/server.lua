@@ -49,6 +49,18 @@ local sister = {
 	},
 }
 
+-- `new` scaffold (workspacer's: go module + README). Typed into the new
+-- project's first pane; gtmux then commits and, with --gh, pushes.
+local go = {
+	name = "go",
+	init = function(p)
+		return {
+			"go mod init github.com/" .. p.login .. "/" .. p.name,
+			"printf '# %s\\n' " .. p.name .. " > README.md",
+		}
+	end,
+}
+
 -- All accounts use the one `gh` login (JamesTiberiusKirk).
 ws.account({ name = "me", kind = "user", login = "JamesTiberiusKirk", auth = ws.ghcli_auth({}) })
 ws.account({ name = "atom", kind = "org", login = "AtomSites", auth = ws.ghcli_auth({}) })
@@ -62,6 +74,7 @@ ws.add({
 	prefix = "ws",
 	default = true,
 	layout = dev,
+	templates = { go },
 })
 
 ws.add({
@@ -69,6 +82,7 @@ ws.add({
 	account = "atom",
 	prefix = "at",
 	layout = dev,
+	templates = { go },
 })
 
 ws.add({
@@ -76,6 +90,7 @@ ws.add({
 	account = "sf",
 	prefix = "sf",
 	layout = dev,
+	templates = { go },
 	projects = {
 		["sportfreelancers.com"] = {
 			sisters = {
@@ -91,6 +106,7 @@ ws.add({
 	prefix = "ff",
 	home = "root", -- ⌂ home: session ff-home in ~/src/ff itself
 	layout = dev,
+	templates = { go },
 	projects = {
 		["framiworks.io"] = {
 			sisters = {
@@ -105,6 +121,7 @@ ws.add({
 	account = "uw",
 	prefix = "uww",
 	layout = dev,
+	templates = { go },
 	projects = {
 		["telecom-mobile"] = {
 			sisters = {
