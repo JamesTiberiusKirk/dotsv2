@@ -12,7 +12,14 @@
 # (lid, manual bind), or waking from an awake-mode sleep lands on an unlocked
 # desktop. The flag lives in the runtime dir so a fresh login starts managed.
 #
-# Usage: idle [start|stop|apply|status|set <lock|screen|suspend> <min>|on|off <stage>|awake <on|off>]
+# "timer" is a one-shot sleep timer (the `sleep 2h && loginctl suspend` you'd
+# type by hand), separate from the ladder: it fires even in keep-awake mode.
+# It waits on a wall-clock deadline, not `sleep N`, because sleep's clock
+# stops while the machine is suspended, so a lid-close would push it back.
+# pid/deadline/action live in the runtime dir: it outlives a shell restart,
+# not a logout.
+#
+# Usage: idle [start|stop|apply|status|set <lock|screen|suspend> <min>|on|off <stage>|awake <on|off>|timer <min> <suspend|hibernate>|timer off]
 set -u
 
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/idle"
@@ -20,6 +27,7 @@ SETTINGS="$STATE/settings"
 CONF="$STATE/hypridle.conf"
 LOG="$STATE/hypridle.log"  # appended across restarts so a missed screen-off can be traced after the fact
 AWAKE="${XDG_RUNTIME_DIR:-/tmp}/idle-awake"
+TIMER="${XDG_RUNTIME_DIR:-/tmp}/idle-timer"  # "pid deadline action"
 
 # defaults; overridden by the settings file
 lock=5      lock_on=1
@@ -77,12 +85,37 @@ stop() { running && pkill -x hypridle; return 0; }
 
 apply() { gen; if running; then stop; sleep 0.1; nohup hypridle -c "$CONF" >>"$LOG" 2>&1 & fi; }
 
-clampmin() { # minutes: 1..180, garbage -> default given in $2
-    local v=$1
+clampmin() { # minutes: 1..max ($3, default 180), garbage -> default given in $2
+    local v=$1 max=${3:-180}
     case $v in '' | *[!0-9]*) v=$2 ;; esac
     [ "$v" -lt 1 ] && v=1
-    [ "$v" -gt 180 ] && v=180
+    [ "$v" -gt "$max" ] && v=$max
     printf '%s' "$v"
+}
+
+# prints "pid deadline action" of a live timer, nothing (and cleans up) otherwise
+timer_get() {
+    local pid end act
+    [ -r "$TIMER" ] && read -r pid end act <"$TIMER" || return 1
+    if kill -0 "$pid" 2>/dev/null; then printf '%s %s %s\n' "$pid" "$end" "$act"; else rm -f "$TIMER"; return 1; fi
+}
+
+timer_off() {
+    local t
+    t=$(timer_get) && kill "${t%% *}" 2>/dev/null
+    rm -f "$TIMER"
+}
+
+timer_on() { # $1 minutes, $2 suspend|hibernate
+    local min end
+    min=$(clampmin "$1" 120 480)
+    case "$2" in suspend | hibernate) ;; *) echo "idle timer: want suspend|hibernate" >&2; exit 1 ;; esac
+    timer_off
+    end=$(($(date +%s) + min * 60))
+    # the loop's leftover `sleep 30` outlives a kill by <30s; harmless
+    nohup sh -c 'while [ "$(date +%s)" -lt "$1" ]; do sleep 30; done; rm -f "$3"; loginctl "$2"' \
+        idle-timer "$end" "$2" "$TIMER" >/dev/null 2>&1 &
+    printf '%s %s %s\n' "$!" "$end" "$2" >"$TIMER"
 }
 
 load
@@ -113,15 +146,24 @@ awake)
     case "${2:-on}" in on) touch "$AWAKE" ;; *) rm -f "$AWAKE" ;; esac
     if running; then apply; else start; fi
     ;;
+timer)
+    case "${2:-}" in off) timer_off ;; *) timer_on "${2:-}" "${3:-suspend}" ;; esac
+    ;;
 status)
     printf 'running=%s\n' "$(running && echo 1 || echo 0)"
+    if t=$(timer_get); then
+        read -r _ end act <<<"$t"
+        printf 'timer_end=%s\ntimer_action=%s\n' "$end" "$act"
+    else
+        printf 'timer_end=0\n'
+    fi
     printf 'awake=%s\n' "$([ -e "$AWAKE" ] && echo 1 || echo 0)"
     printf '%s=%s\n' lock "$lock" lock_on "$lock_on" \
         screen "$screen" screen_on "$screen_on" \
         suspend "$suspend" suspend_on "$suspend_on"
     ;;
 *)
-    echo "idle: want start|stop|apply|status|set <stage> <min>|on|off <stage>|awake on|off" >&2
+    echo "idle: want start|stop|apply|status|set <stage> <min>|on|off <stage>|awake on|off|timer <min> <action>|timer off" >&2
     exit 1
     ;;
 esac

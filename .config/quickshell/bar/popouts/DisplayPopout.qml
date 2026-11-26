@@ -203,23 +203,27 @@ Popout {
         property string label
         property int minutes
         property bool on
+        // the sleep timer reuses this row: own grid/range, never greyed
+        property int grid: 5
+        property int maxMinutes: 180
+        property bool live: Sys.idleRunning && !Sys.idleAwake
         signal toggled(bool v)
         signal setMinutes(int m)
 
         width: displayPopout.contentWidth
         height: 20
-        opacity: (Sys.idleRunning && !Sys.idleAwake) ? 1 : 0.4
+        opacity: ir.live ? 1 : 0.4
         // Return is the switch, arrows / h / l are the steppers
         activeFocusOnTab: true
         Keys.onReturnPressed: ir.toggled(!ir.on)
         Keys.onLeftPressed: ir.hstep(-1)
         Keys.onRightPressed: ir.hstep(1)
-        // snap to the 5-min grid rather than ±5, so the 1-min
+        // snap to the grid rather than ±grid, so the 1-min
         // floor doesn't knock every later step off it (1→6→11)
         function hstep(d) {
-            const m = ir.minutes;
-            const v = d > 0 ? (Math.floor(m / 5) + 1) * 5 : (Math.ceil(m / 5) - 1) * 5;
-            ir.setMinutes(Math.max(1, Math.min(180, v)));
+            const m = ir.minutes, g = ir.grid;
+            const v = d > 0 ? (Math.floor(m / g) + 1) * g : (Math.ceil(m / g) - 1) * g;
+            ir.setMinutes(Math.max(1, Math.min(ir.maxMinutes, v)));
         }
 
         Rectangle {
@@ -246,7 +250,8 @@ Popout {
                 width: 44
                 horizontalAlignment: Text.AlignHCenter
                 anchors.verticalCenter: parent.verticalCenter
-                text: ir.minutes + " min"
+                text: ir.minutes < 60 ? ir.minutes + " min"
+                    : Math.floor(ir.minutes / 60) + "h" + (ir.minutes % 60 ? " " + ir.minutes % 60 + "m" : "")
                 font.family: Theme.font; font.pixelSize: 11
                 color: ir.on ? Theme.text : Theme.dim
             }
@@ -306,6 +311,63 @@ Popout {
             minutes: Sys.idleSuspend; on: Sys.idleSuspendOn
             onToggled: v => Sys.setIdleStage("suspend", v)
             onSetMinutes: m => Sys.setIdleMinutes("suspend", m)
+        }
+
+        // ---- one-shot sleep timer ----
+        // While running the stepper shows (and steps from) the
+        // time left, and a step restarts it; while off a step
+        // only presets it, the switch starts it.
+        Rectangle {
+            width: displayPopout.contentWidth; height: 1
+            color: Theme.islandBorder
+        }
+        IdleRow {
+            label: "sleep timer"
+            grid: 15; maxMinutes: 480; live: true
+            on: Sys.sleepTimerLeft > 0
+            minutes: on ? Math.ceil(Sys.sleepTimerLeft / 60) : Sys.sleepTimerMin
+            onToggled: v => v ? Sys.setSleepTimer(minutes, Sys.sleepTimerAction) : Sys.cancelSleepTimer()
+            onSetMinutes: m => on ? Sys.setSleepTimer(m, Sys.sleepTimerAction) : Sys.sleepTimerMin = m
+        }
+        Item {
+            width: displayPopout.contentWidth
+            height: 16
+            Text {
+                text: "then"
+                anchors.verticalCenter: parent.verticalCenter
+                font.family: Theme.font; font.pixelSize: 11
+                color: Theme.dim
+            }
+            Row {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                spacing: 4
+                Repeater {
+                    model: ["suspend", "hibernate"]
+                    Rectangle {
+                        required property string modelData
+                        readonly property bool on: Sys.sleepTimerAction === modelData
+                        width: actLabel.width + 10; height: 16; radius: 4
+                        color: on ? Theme.accent
+                             : (actArea.containsMouse ? Theme.track : "transparent")
+                        Text {
+                            id: actLabel
+                            anchors.centerIn: parent
+                            text: modelData
+                            font.family: Theme.font; font.pixelSize: 10
+                            color: parent.on ? Theme.accentText : Theme.dim
+                        }
+                        MouseArea {
+                            id: actArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            // switching while running restarts with the time left
+                            onClicked: Sys.sleepTimerLeft > 0
+                                ? Sys.setSleepTimer(Math.ceil(Sys.sleepTimerLeft / 60), modelData)
+                                : Sys.sleepTimerAction = modelData
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -946,6 +946,21 @@ Variants {
                         }
                         FoldArea { name: "display" }
                     }
+                    // sleep timer countdown, only while one runs; click opens
+                    // the display panel, where the timer lives (idle tab)
+                    Cell {
+                        visible: Sys.sleepTimerLeft > 0
+                        vform: "stack"
+                        icon: "sleep"
+                        text: {
+                            const m = Math.ceil(Sys.sleepTimerLeft / 60);
+                            return m < 60 ? m + "m" : Math.floor(m / 60) + "h" + (m % 60 ? " " + m % 60 + "m" : "");
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: panel.toggle("display")
+                        }
+                    }
                     // zenbook duo keyboard backlight: click cycles 0-3
                     Cell {
                         visible: ShellState.inBar("kbd")

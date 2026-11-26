@@ -641,6 +641,21 @@ Singleton {
     property bool idleScreenOn: true
     property int idleSuspend: 30
     property bool idleSuspendOn: false
+    // one-shot sleep timer (`idle timer`): epoch deadline, 0 = none running.
+    // Counts down locally (the bar shows it with the panel shut, when the
+    // probe is idle); the probe re-syncs it, and one run at startup picks up
+    // a timer that outlived a shell restart.
+    // sleepTimerMin is just the stepper's pick while nothing runs.
+    property real sleepTimerEnd: 0
+    property real sleepNow: Date.now() / 1000
+    readonly property int sleepTimerLeft: Math.max(0, sleepTimerEnd - sleepNow)
+    Timer {
+        interval: 30000; running: root.sleepTimerEnd > 0; repeat: true
+        onTriggered: root.sleepNow = Date.now() / 1000
+    }
+    Component.onCompleted: idleProbe.running = true
+    property string sleepTimerAction: "suspend"
+    property int sleepTimerMin: 120
     Process {
         id: idleProbe
         command: ["sh", "-c", "~/.config/hypr/scripts/idle status 2>/dev/null"]
@@ -656,6 +671,8 @@ Singleton {
                 case "screen_on": root.idleScreenOn = v === "1"; break;
                 case "suspend": root.idleSuspend = Number(v); break;
                 case "suspend_on": root.idleSuspendOn = v === "1"; break;
+                case "timer_end": root.sleepNow = Date.now() / 1000; root.sleepTimerEnd = Number(v); break;
+                case "timer_action": root.sleepTimerAction = v; break;
                 }
             }
         }
@@ -682,6 +699,18 @@ Singleton {
         else { idleSuspend = min; idleSuspendOn = true; }
         Quickshell.execDetached(["sh", "-c",
             "~/.config/hypr/scripts/idle set " + stage + " " + min]);
+    }
+    function setSleepTimer(min, action) {
+        sleepTimerMin = min;
+        sleepTimerAction = action;
+        sleepNow = Date.now() / 1000;
+        sleepTimerEnd = sleepNow + min * 60;
+        Quickshell.execDetached(["sh", "-c",
+            "~/.config/hypr/scripts/idle timer " + min + " " + action]);
+    }
+    function cancelSleepTimer() {
+        sleepTimerEnd = 0;
+        Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/idle timer off"]);
     }
     // Only polled while the display panel is open — nothing in the bar itself
     // shows idle state, so the always-on 5s tick stays out of it.

@@ -18,8 +18,8 @@ gtmux.set_option("update_environment",
 -- visual-activity off is gtmux's default already (tmux conf sets it explicitly).
 
 -- Workspaces (`gtmux ws`, prefix+P), migrated from ~/.config/workspacer/workspaces.yaml.
--- Projects live in ~/src/<workspace>/<project>; sessions keep workspacer's
--- <prefix>-<project> names. Config is read at daemon start: `gtmux upgrade` after edits.
+-- Projects live in ~/src/<workspace>/<project>; sessions are named
+-- <prefix>/<project>. Config is read at daemon start: `gtmux upgrade` after edits.
 local ws = gtmux.workspace
 
 ws.root = "~/src"
@@ -104,7 +104,7 @@ ws.add({
 	name = "ff",
 	account = "ff",
 	prefix = "ff",
-	home = "root", -- ⌂ home: session ff-home in ~/src/ff itself
+	home = "root", -- ⌂ home: session ff/home in ~/src/ff itself
 	layout = dev,
 	templates = { go },
 	projects = {
@@ -120,6 +120,7 @@ ws.add({
 	name = "uww",
 	account = "uw",
 	prefix = "uww",
+	home = ".llm", -- ⌂ home: session uww/home in ~/src/uww/.llm
 	layout = dev,
 	templates = { go },
 	projects = {
