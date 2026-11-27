@@ -353,7 +353,7 @@ Scope {
         repeat: true; triggeredOnStart: true; running: root._wSystem
         onTriggered: if (!jobsProc.running) jobsProc.running = true
     }
-    function openLazygit() { Quickshell.execDetached(["wezterm", "start", "--cwd", Quickshell.env("HOME") + "/.dots", "--", "lazygit"]); }
+    function openLazygit() { Sys.launch(["wezterm", "start", "--cwd", Quickshell.env("HOME") + "/.dots", "--", "lazygit"]); }
 
     // ---- COMMS / MESSAGES ----
     // Notifs.history is the real list (in memory + notifs.json); records are mapped to plain rows.
@@ -652,7 +652,7 @@ Scope {
     function playPause() { player?.togglePlaying(); }
     function next() { player?.next(); }
     function prev() { player?.previous(); }
-    function run(cmd) { Quickshell.execDetached(cmd); }
+    function run(cmd) { Sys.launch(cmd); }
     // per-workspace layout picks, same file the normal bar reads
     FileView {
         id: layoutFile

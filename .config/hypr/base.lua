@@ -9,6 +9,7 @@
 -------------------------------
 hl.env("XCURSOR_SIZE",         "24")
 hl.env("HYPRCURSOR_SIZE",      "24")
+hl.env("HYPRCURSOR_THEME",     "macOS-hypr") -- apple_hyprcursor (SVG, sharp when shake-magnified)
 hl.env("XDG_CURRENT_DESKTOP",  "Hyprland")
 hl.env("QT_QPA_PLATFORM",      "wayland")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")

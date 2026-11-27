@@ -29,6 +29,7 @@
 .scripts/powersave
 .scripts/screenshot.sh
 .scripts/record.sh
+.scripts/hl-run
 .scripts/menu-run
 .scripts/script-menu.sh
 .scripts/sql-align-format
@@ -82,6 +83,8 @@ system/etc/runit/sv/keyd
 system/etc/runit/sv/ntpd
 system/etc/runit/sv/sshd
 system/etc/runit/sv/tailscale
+system/etc/runit/sv/earlyoom
+system/etc/runit/sv/resguard
 system/etc/cron.hourly/job-snapper
 system/etc/cron.weekly/job-go-cache
 system/etc/cron.weekly/job-logrotate

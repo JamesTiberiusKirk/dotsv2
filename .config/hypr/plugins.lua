@@ -100,3 +100,30 @@ if hl.plugin.hyprglass then
     -- (milestoned v0.8.0 — re-test after `hyprpm update`). A renderWindow
     -- function-hook patch was prototyped 2026-08-03 but shelved untested.
 end
+
+-- ============================================================================
+-- dynamic-cursors (hyprpm, github.com/VirtCode/hypr-dynamic-cursors):
+-- macOS-style shake to find. mode "none" drops the plugin's default tilt.
+-- Shake tuned toward macOS by eye (Apple publishes no numbers): starts small,
+-- grows faster the harder you shake, caps around 5x, snaps back ~0.5s after
+-- you stop. Plugin defaults were a 4x jump and a 2s hold.
+-- ============================================================================
+if hl.plugin.dynamic_cursors then
+    hl.config({ plugin = { dynamic_cursors = {
+        mode  = "none",
+        shake = {
+            enabled   = true,
+            threshold = 6.0,  -- default; lower triggers on smaller wiggles
+            base      = 2.0,  -- size the moment a shake is detected
+            speed     = 6.0,  -- extra size per second of shaking
+            influence = 1.0,  -- harder shake = faster growth
+            limit     = 5.0,
+            timeout   = 500,  -- ms held after the shake ends
+        },
+        -- preload magnified shapes at the cap (24px * 5) so they are not blurry
+        -- nearest 0: smooth scaling (soft edges) instead of blocky pixels when
+        -- magnifying past the theme. Adwaita is bitmap-only, so this is the
+        -- best it gets until an SVG hyprcursor theme is installed.
+        hyprcursor = { resolution = 120, nearest = 0 },
+    } } })
+end

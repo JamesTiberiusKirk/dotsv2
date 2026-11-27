@@ -1,0 +1,8 @@
+#!/bin/sh
+# Kill the biggest hog before RAM runs out and the desktop freezes.
+# -s 100: ignore swap (62G swapfile never gets "low" before the box is dead),
+# so it acts on RAM alone: SIGTERM at 4% available, SIGKILL at 2%.
+exec 2>&1
+exec earlyoom -m 4,2 -s 100,100 -r 3600 -p \
+	--prefer '^(brave|chrome|gopls)$' \
+	--avoid '^(Hyprland|qs|pipewire|pipewire-pulse|wireplumber|Xwayland|gtmux|wezterm-gui|dbus-daemon|elogind|sshd|dockerd|containerd)$'

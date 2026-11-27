@@ -830,7 +830,7 @@ Variants {
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: Quickshell.execDetached(["sh", "-c", "~/.scripts/record.sh"])
+                            onClicked: Sys.launch(["sh", "-c", "~/.scripts/record.sh"])
                         }
                     }
                     // network — click opens the wifi panel

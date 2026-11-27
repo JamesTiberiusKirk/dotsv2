@@ -215,7 +215,8 @@ PanelWindow {
         const prefix = menuLevel.length > 0 ? menuLevel.join("/") + "/" : "";
         const seen = {}, rows = [];
         // Apps are native rather than generated: DesktopEntries already gives
-        // icons and .execute(), both of which a "path<TAB>command" line loses.
+        // icons and a desktop id (launched via gtk-launch), both of which a
+        // "path<TAB>command" line loses.
         if (menuLevel.length === 0)
             rows.push({ label: "apps", path: "apps", cmd: "", leaf: false, icon: "view-grid" },
                       { label: "find files", path: "find files", cmd: "", leaf: false, icon: "file-search" },
@@ -342,7 +343,7 @@ PanelWindow {
     // A leaf runs either a JS function (Sys setters) or a shell command.
     function run(row) {
         if (row.run) row.run();
-        else if (row.cmd) Quickshell.execDetached(["sh", "-c", row.cmd]);
+        else if (row.cmd) Sys.launch(["sh", "-c", row.cmd]);
     }
 
     function activate() {
@@ -379,9 +380,9 @@ PanelWindow {
                 return;
             }
             if (m.file !== undefined)
-                Quickshell.execDetached(["xdg-open", m.file]);
+                Sys.launch(["xdg-open", m.file]);
             else if (m.app !== undefined)
-                m.app.execute();
+                Sys.launch(["gtk-launch", m.app.id + ".desktop"]);
             else
                 run(m);
             // toggle rows (stay) keep the menu up so several can be flipped in a row
@@ -392,7 +393,7 @@ PanelWindow {
         if (dmenu) {
             finish(m);
         } else {
-            m.execute();
+            Sys.launch(["gtk-launch", m.id + ".desktop"]);
             finish(null);
         }
     }
@@ -451,7 +452,7 @@ PanelWindow {
                             root.listFiles();
                             event.accepted = true;
                         } else if (event.key === Qt.Key_F && m !== undefined) {
-                            Quickshell.execDetached(["nautilus", "--select", m.file]);
+                            Sys.launch(["nautilus", "--select", m.file]);
                             root.finish(null);
                             event.accepted = true;
                         }

@@ -4,3 +4,5 @@ usbutils
 vulkan-intel
 ntp
 ntp-runit
+rtkit
+earlyoom

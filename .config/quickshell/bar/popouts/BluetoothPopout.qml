@@ -150,7 +150,7 @@ Popout {
         activeFocusOnTab: true
         Keys.onReturnPressed: btPair.launch()
         function launch() {
-            Quickshell.execDetached(["blueman-manager"]);
+            Sys.launch(["blueman-manager"]);
             bar.closeIslandPopouts();
         }
         MouseArea {

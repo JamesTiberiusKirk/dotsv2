@@ -2,6 +2,7 @@
 act
 alacritty
 alsa-utils
+apple_hyprcursor
 awww
 bat
 bc

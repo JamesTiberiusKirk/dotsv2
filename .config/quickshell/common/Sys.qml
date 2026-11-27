@@ -183,6 +183,13 @@ Singleton {
     property var brightnessPct: ({})
     function refreshDisplays() { blProbe.running = true; }
 
+    // Long-running apps start as Hyprland's children (~/.scripts/hl-run), not
+    // ours: qs's rlimits are poisoned by PipeWire (RLIMIT_RTTIME=0 without
+    // rtkit), which got Brave SIGKILLed, and children here die with the bar.
+    function launch(argv) {
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.scripts/hl-run"].concat(argv));
+    }
+
     // Writes go through duo on the Duo so the sync flag and the OSD stay
     // coherent with the hardware keys; elsewhere brightnessctl (common.txt)
     // is already installed and does the one thing needed.

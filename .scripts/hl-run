@@ -1,0 +1,7 @@
+#!/bin/sh
+# hl-run <argv...>: start argv as a child of Hyprland instead of the caller.
+# Apps launched from qs otherwise inherit qs's rlimits (PipeWire can set
+# RLIMIT_RTTIME=0 there, which gets Brave SIGKILLed) and die with the bar.
+q=
+for a; do q="$q '$(printf %s "$a" | sed "s/'/'\\\\''/g")'"; done
+exec hyprctl dispatch "hl.dsp.exec_cmd([==[$q]==])"

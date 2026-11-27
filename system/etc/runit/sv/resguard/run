@@ -1,0 +1,26 @@
+#!/bin/sh
+# Keep the desktop usable when a browser or AI agents go wild (cgroup2).
+#  - MGLRU thrash guard: OOM-kill instead of freezing in swap when the last
+#    second's working set no longer fits in RAM.
+#  - Cap groups: brave in /browser, agents in /agents. Over memory.max a
+#    group swaps its own pages; past memory.swap.max the kernel kills inside
+#    that group only. cpu.weight only matters under contention.
+# Children inherit their parent's cgroup; the loop catches new roots.
+exec 2>&1
+echo 1000 >/sys/kernel/mm/lru_gen/min_ttl_ms
+
+R=/sys/fs/cgroup
+grp() { mkdir -p $R/$1; echo $2 >$R/$1/memory.max; echo $3 >$R/$1/memory.swap.max; echo $4 >$R/$1/cpu.weight; }
+grp browser 10G 4G 100
+grp agents  14G 8G 50
+
+# ponytail: name-based polling every 2s; a fork can run uncapped for up to 2s
+while :; do
+	for r in 'browser brave' 'agents claude|codex|gopls'; do
+		g=${r%% *}
+		for p in $(pgrep -x "${r#* }"); do
+			grep -q "^0::/$g\$" /proc/$p/cgroup 2>/dev/null || echo $p >$R/$g/cgroup.procs 2>/dev/null
+		done
+	done
+	sleep 2
+done
